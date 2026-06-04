@@ -1,3 +1,4 @@
+import Editor from '@monaco-editor/react'
 import { FormEvent, useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 
@@ -160,17 +161,14 @@ export function ChallengePage() {
               <option value="javascript">javascript</option>
             </select>
 
-            <label className="muted" htmlFor="source_code" style={{ marginTop: '16px', display: 'block' }}>
-              Source code
-            </label>
-            <textarea
-              id="source_code"
+            <p className="muted" style={{ marginTop: '16px', marginBottom: '4px' }}>Source code</p>
+            <Editor
+              height="400px"
+              theme="vs-dark"
+              language={language}
               value={sourceCode}
-              onChange={(event) => setSourceCode(event.target.value)}
-              className="challenge-textarea"
-              rows={18}
-              disabled={submitting}
-              placeholder="Write your solution here..."
+              onChange={(v) => setSourceCode(v ?? '')}
+              options={{ fontFamily: 'monospace', readOnly: submitting }}
             />
 
             <button type="submit" className="challenge-submit" disabled={submitting}>
