@@ -25,6 +25,7 @@ type Challenge struct {
 	Difficulty    string    `json:"difficulty"`
 	TimeLimitMs   int       `json:"time_limit_ms"`
 	MemoryLimitMb int       `json:"memory_limit_mb"`
+	Notes         *string   `json:"notes"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -36,6 +37,7 @@ type CreateChallengeRequest struct {
 	Difficulty    string
 	TimeLimitMs   int
 	MemoryLimitMb int
+	Notes         *string
 }
 
 type TestCase struct {
@@ -89,14 +91,14 @@ func New(db *sql.DB, rdb *redis.Client) *Store {
 	return &Store{db: db, rdb: rdb}
 }
 
-const challengeColumns = `id, slug, title, description, difficulty, time_limit_ms, memory_limit_mb, created_at, updated_at`
+const challengeColumns = `id, slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, created_at, updated_at`
 
 func scanChallenge(row interface {
 	Scan(...any) error
 }) (Challenge, error) {
 	var c Challenge
 	err := row.Scan(&c.ID, &c.Slug, &c.Title, &c.Description, &c.Difficulty,
-		&c.TimeLimitMs, &c.MemoryLimitMb, &c.CreatedAt, &c.UpdatedAt)
+		&c.TimeLimitMs, &c.MemoryLimitMb, &c.Notes, &c.CreatedAt, &c.UpdatedAt)
 	return c, err
 }
 
@@ -131,10 +133,10 @@ func (s *Store) CreateChallenge(ctx context.Context, req CreateChallengeRequest)
 	}
 
 	row := s.db.QueryRowContext(ctx,
-		`INSERT INTO challenges (slug, title, description, difficulty, time_limit_ms, memory_limit_mb)
-		 VALUES ($1, $2, $3, $4, $5, $6)
+		`INSERT INTO challenges (slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
 		 RETURNING `+challengeColumns,
-		req.Slug, req.Title, req.Description, req.Difficulty, timeLimitMs, memLimitMb)
+		req.Slug, req.Title, req.Description, req.Difficulty, timeLimitMs, memLimitMb, req.Notes)
 
 	c, err := scanChallenge(row)
 	if err != nil {
@@ -291,6 +293,43 @@ func (s *Store) GetSubmission(ctx context.Context, id string) (Submission, error
 		return Submission{}, err
 	}
 	return sub, nil
+}
+
+type SubmissionSummary struct {
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	Language  string    `json:"language"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (s *Store) ListRecentSubmissions(ctx context.Context, challengeID string, limit int) ([]SubmissionSummary, error) {
+	var exists bool
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM challenges WHERE id = $1)`, challengeID).Scan(&exists); err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, ErrNotFound
+	}
+
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, status, language, created_at FROM submissions
+		 WHERE challenge_id = $1 ORDER BY created_at DESC LIMIT $2`,
+		challengeID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	summaries := make([]SubmissionSummary, 0)
+	for rows.Next() {
+		var ss SubmissionSummary
+		if err := rows.Scan(&ss.ID, &ss.Status, &ss.Language, &ss.CreatedAt); err != nil {
+			return nil, err
+		}
+		summaries = append(summaries, ss)
+	}
+	return summaries, rows.Err()
 }
 
 func (s *Store) ListTestCases(ctx context.Context, challengeID string) ([]TestCase, error) {

@@ -17,9 +17,17 @@ export interface Challenge {
   difficulty: ChallengeDifficulty
   time_limit_ms: number
   memory_limit_mb: number
+  notes: string | null
   sample_test_cases: SampleTestCase[]
   created_at: string
   updated_at: string
+}
+
+export interface SubmissionSummary {
+  id: string
+  status: string
+  language: SubmissionLanguage
+  created_at: string
 }
 
 export interface Submission {
@@ -92,4 +100,8 @@ export function createSubmission(challengeId: string, body: CreateSubmissionRequ
 
 export function getSubmission(submissionId: string) {
   return requestJSON<Submission>(`/api/v1/submissions/${submissionId}`)
+}
+
+export function listChallengeSubmissions(challengeId: string) {
+  return requestJSON<SubmissionSummary[]>(`/api/v1/challenges/${challengeId}/submissions`)
 }

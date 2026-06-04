@@ -25,6 +25,7 @@ func (h *ChallengesHandler) Routes(r chi.Router) {
 	r.Delete("/{id}", h.delete)
 	r.Post("/{id}/test-cases", h.createTestCase)
 	r.Get("/{id}/test-cases", h.listTestCases)
+	r.Get("/{id}/submissions", h.listSubmissions)
 	r.Post("/{id}/submissions", h.createSubmission)
 }
 
@@ -67,12 +68,13 @@ func (h *ChallengesHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 type createChallengeBody struct {
-	Slug          string `json:"slug"`
-	Title         string `json:"title"`
-	Description   string `json:"description"`
-	Difficulty    string `json:"difficulty"`
-	TimeLimitMs   int    `json:"time_limit_ms"`
-	MemoryLimitMb int    `json:"memory_limit_mb"`
+	Slug          string  `json:"slug"`
+	Title         string  `json:"title"`
+	Description   string  `json:"description"`
+	Difficulty    string  `json:"difficulty"`
+	TimeLimitMs   int     `json:"time_limit_ms"`
+	MemoryLimitMb int     `json:"memory_limit_mb"`
+	Notes         *string `json:"notes"`
 }
 
 func (h *ChallengesHandler) create(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +99,7 @@ func (h *ChallengesHandler) create(w http.ResponseWriter, r *http.Request) {
 		Difficulty:    body.Difficulty,
 		TimeLimitMs:   body.TimeLimitMs,
 		MemoryLimitMb: body.MemoryLimitMb,
+		Notes:         body.Notes,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
@@ -187,4 +190,18 @@ func (h *ChallengesHandler) listTestCases(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, tcs)
+}
+
+func (h *ChallengesHandler) listSubmissions(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	subs, err := h.store.ListRecentSubmissions(r.Context(), id, 10)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "challenge not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	writeJSON(w, http.StatusOK, subs)
 }
