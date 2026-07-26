@@ -1,0 +1,3 @@
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS exec_time_ms INT NULL;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS memory_peak_mb INT NULL;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS stderr TEXT NULL;

@@ -1,0 +1,3 @@
+ALTER TABLE challenges
+    ADD COLUMN time_limit_ms   INTEGER NOT NULL DEFAULT 2000,
+    ADD COLUMN memory_limit_mb INTEGER NOT NULL DEFAULT 256;
