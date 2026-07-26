@@ -301,3 +301,39 @@ func (h *ListsHandler) Reorder(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// CompleteItem handles POST /api/v1/list-items/:id/complete (student only).
+// Idempotent: completing an already-completed item is a no-op, not an error.
+func (h *ListsHandler) CompleteItem(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.FromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	itemID := chi.URLParam(r, "id")
+	if err := h.store.CompleteListItem(r.Context(), itemID, claims.UserID); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "item not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// UncompleteItem handles DELETE /api/v1/list-items/:id/complete (student
+// only). Idempotent: unmarking an item that was never completed is a no-op.
+func (h *ListsHandler) UncompleteItem(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.FromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	itemID := chi.URLParam(r, "id")
+	if err := h.store.UncompleteListItem(r.Context(), itemID, claims.UserID); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

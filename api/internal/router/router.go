@@ -63,10 +63,13 @@ func New(s *store.Store, j *auth.JWT, rl *appmw.RateLimiter) chi.Router {
 				r.Patch("/{id}/reorder", lh.Reorder)
 			})
 		})
+		studentOnly := auth.RequireRole("student")
 		r.Route("/list-items", func(r chi.Router) {
-			r.Use(j.Middleware, teacherOnly)
-			r.Patch("/{id}", lh.UpdateItem)
-			r.Delete("/{id}", lh.DeleteItem)
+			r.Use(j.Middleware)
+			r.With(teacherOnly).Patch("/{id}", lh.UpdateItem)
+			r.With(teacherOnly).Delete("/{id}", lh.DeleteItem)
+			r.With(studentOnly).Post("/{id}/complete", lh.CompleteItem)
+			r.With(studentOnly).Delete("/{id}/complete", lh.UncompleteItem)
 		})
 	})
 	return r
