@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { AuthProvider } from './auth/AuthContext'
 import { RequireAuth, RequireTeacher } from './auth/RequireAuth'
@@ -14,31 +14,32 @@ import { RegisterPage } from './pages/RegisterPage'
 import { SubmissionHistoryPage } from './pages/SubmissionHistoryPage'
 import { SubmissionPage } from './pages/SubmissionPage'
 
+const isOnlyLists = import.meta.env.VITE_ONLY_LISTS_MODE === 'true'
+console.log('VITE_ONLY_LISTS_MODE:', isOnlyLists)
+
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
           <Route element={<AppLayout />}>
-            <Route path="/" element={<ChallengeList />} />
+            {/* Redirecionamento da raiz dependendo do modo */}
+            <Route
+              path="/"
+              element={
+                isOnlyLists ? (
+                  <Navigate to="/listas" replace />
+                ) : (
+                  <ChallengeList />
+                )
+              }
+            />
+
+            {/* Rotas Públicas */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route
-              path="/submissions"
-              element={
-                <RequireAuth>
-                  <SubmissionHistoryPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/turmas"
-              element={
-                <RequireAuth>
-                  <ClassboardPage />
-                </RequireAuth>
-              }
-            />
+
+            {/* Rotas das Listas (Sempre Ativas) */}
             <Route
               path="/listas"
               element={
@@ -71,21 +72,49 @@ function App() {
                 </RequireAuth>
               }
             />
+
+            {/* Rotas de Judge/Desafios (Desativadas se isOnlyLists = true) */}
+            {!isOnlyLists && (
+              <>
+                <Route
+                  path="/submissions"
+                  element={
+                    <RequireAuth>
+                      <SubmissionHistoryPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/turmas"
+                  element={
+                    <RequireAuth>
+                      <ClassboardPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/challenges/:id"
+                  element={
+                    <RequireAuth>
+                      <ChallengePage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/challenges/:id/submissions/:subId"
+                  element={
+                    <RequireAuth>
+                      <SubmissionPage />
+                    </RequireAuth>
+                  }
+                />
+              </>
+            )}
+
+            {/* Catch-all para rotas não mapeadas no modo exclusivo */}
             <Route
-              path="/challenges/:id"
-              element={
-                <RequireAuth>
-                  <ChallengePage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/challenges/:id/submissions/:subId"
-              element={
-                <RequireAuth>
-                  <SubmissionPage />
-                </RequireAuth>
-              }
+              path="*"
+              element={<Navigate to={isOnlyLists ? '/listas' : '/'} replace />}
             />
           </Route>
         </Routes>

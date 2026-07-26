@@ -1675,7 +1675,7 @@ pre {
 .audit-caret {
   display: inline-block;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 1.25rem;
   transition: transform 180ms var(--ease-spring), color 180ms ease;
 }
 
@@ -1951,14 +1951,6 @@ pre {
   color: var(--text-secondary);
   background: var(--bg-surface-alt);
   border: 1px solid var(--border-hairline);
-}
-
-.list-badge::before {
-  content: '[ ';
-}
-
-.list-badge::after {
-  content: ' ]';
 }
 
 .list-badge--easy {

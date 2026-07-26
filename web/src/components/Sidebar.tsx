@@ -2,6 +2,10 @@ import { NavLink, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth'
 
+import './Sidebar.css'
+
+const isOnlyLists = import.meta.env.VITE_ONLY_LISTS_MODE === 'true'
+
 function IconChallenges() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -79,27 +83,64 @@ export function Sidebar() {
       </div>
 
       <nav className="sidebar__nav" aria-label="Navegação principal">
-        <NavLink to="/" end className={linkClass}>
-          <IconChallenges />
-          Desafios
-        </NavLink>
+        {/* DESAFIOS */}
+        {isOnlyLists ? (
+          <div
+            className="sidebar__link sidebar__link--disabled"
+            title="Funcionalidade indisponível no momento"
+          >
+            <IconChallenges />
+            Desafios
+          </div>
+        ) : (
+          <NavLink to="/" end className={linkClass}>
+            <IconChallenges />
+            Desafios
+          </NavLink>
+        )}
+
+        {/* LISTAS */}
         {isAuthenticated ? (
           <NavLink to="/listas" className={linkClass}>
             <IconLists />
             Listas
           </NavLink>
         ) : null}
+
+        {/* HISTÓRICO */}
         {isAuthenticated ? (
-          <NavLink to="/submissions" className={linkClass}>
-            <IconHistory />
-            Histórico
-          </NavLink>
+          isOnlyLists ? (
+            <div
+              className="sidebar__link sidebar__link--disabled"
+              title="Funcionalidade indisponível no momento"
+            >
+              <IconHistory />
+              Histórico
+            </div>
+          ) : (
+            <NavLink to="/submissions" className={linkClass}>
+              <IconHistory />
+              Histórico
+            </NavLink>
+          )
         ) : null}
+
+        {/* TURMAS */}
         {isTeacher ? (
-          <NavLink to="/turmas" className={linkClass}>
-            <IconClasses />
-            Turmas
-          </NavLink>
+          isOnlyLists ? (
+            <div
+              className="sidebar__link sidebar__link--disabled"
+              title="Funcionalidade indisponível no momento"
+            >
+              <IconClasses />
+              Turmas
+            </div>
+          ) : (
+            <NavLink to="/turmas" className={linkClass}>
+              <IconClasses />
+              Turmas
+            </NavLink>
+          )
         ) : null}
       </nav>
 
@@ -110,7 +151,13 @@ export function Sidebar() {
               <span className="sidebar__user-email" title={user.email}>
                 {user.email}
               </span>
-              <span className={isTeacher ? 'sidebar__role sidebar__role--teacher' : 'sidebar__role'}>
+              <span
+                className={
+                  isTeacher
+                    ? 'sidebar__role sidebar__role--teacher'
+                    : 'sidebar__role'
+                }
+              >
                 {isTeacher ? 'Professor' : 'Estudante'}
               </span>
             </div>
