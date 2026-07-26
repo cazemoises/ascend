@@ -1861,6 +1861,170 @@ pre {
   transition: width 400ms var(--ease-spring);
 }
 
+/* ===================== Problem lists ===================== */
+
+.list-detail__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 16px;
+}
+
+.list-detail__description {
+  color: var(--text);
+  line-height: 1.65;
+}
+
+.list-detail__description :is(p, ul, ol) {
+  margin: 0 0 12px;
+}
+
+.list-detail__description pre {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--inset);
+  overflow-x: auto;
+}
+
+.list-detail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0 24px;
+}
+
+.list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.list-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.list-item__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.list-item__title {
+  flex: 1;
+  min-width: 0;
+  color: var(--title);
+  font-weight: 600;
+  text-align: left;
+}
+
+.list-item__body {
+  padding: 4px 16px 16px;
+  border-top: 1px solid var(--border);
+  animation: fadeInUp 0.3s var(--ease-spring) both;
+}
+
+.list-item__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Bracket readout badges for item difficulty/bonus — same mechanism as
+   .verdict (mono, hairline border, dim tint), reused here since difficulty
+   is a different concept from a judge verdict. */
+.list-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border-hairline);
+}
+
+.list-badge::before {
+  content: '[ ';
+}
+
+.list-badge::after {
+  content: ' ]';
+}
+
+.list-badge--easy {
+  color: var(--accent-green);
+  background: var(--accent-green-dim);
+  border-color: var(--accent-green);
+}
+
+.list-badge--medium {
+  color: var(--accent-amber);
+  background: var(--accent-amber-dim);
+  border-color: var(--accent-amber);
+}
+
+.list-badge--hard {
+  color: var(--accent-red);
+  background: var(--accent-red-dim);
+  border-color: var(--accent-red);
+}
+
+.list-item__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease, opacity 150ms ease;
+}
+
+.list-item__icon-btn:hover:not(:disabled) {
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+.list-item__icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.list-complete-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.list-complete-checkbox--checked {
+  border-color: var(--accent-green);
+  background: var(--accent-green-dim);
+  color: var(--accent-green);
+}
+
 /* ===================== Submission result page ===================== */
 
 .submission-panel {

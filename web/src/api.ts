@@ -302,3 +302,113 @@ export interface ClassScore {
 export function getTeacherScoreboard() {
   return requestJSON<ClassScore[]>('/api/v1/classes/scoreboard')
 }
+
+export type ListItemDifficulty = 'easy' | 'medium' | 'hard'
+
+export interface ProblemList {
+  id: string
+  teacher_id: string
+  title: string
+  week_label: string | null
+  description: string | null
+  published: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ListItem {
+  id: string
+  list_id: string
+  ordinal: number
+  title: string
+  difficulty: ListItemDifficulty
+  is_bonus: boolean
+  body: string
+  // Only meaningful for a student viewer; null for a teacher's own view.
+  completed: boolean | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProblemListDetail extends ProblemList {
+  items: ListItem[]
+}
+
+export interface CreateProblemListInput {
+  title: string
+  week_label?: string | null
+  description?: string | null
+}
+
+export interface UpdateProblemListInput {
+  title: string
+  week_label?: string | null
+  description?: string | null
+  published: boolean
+}
+
+export function listProblemLists() {
+  return requestJSON<ProblemList[]>('/api/v1/lists')
+}
+
+export function getProblemList(id: string) {
+  return requestJSON<ProblemListDetail>(`/api/v1/lists/${id}`)
+}
+
+export function createProblemList(body: CreateProblemListInput) {
+  return requestJSON<ProblemList>('/api/v1/lists', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateProblemList(id: string, body: UpdateProblemListInput) {
+  return requestJSON<ProblemList>(`/api/v1/lists/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteProblemList(id: string) {
+  return requestJSON<void>(`/api/v1/lists/${id}`, { method: 'DELETE' })
+}
+
+export interface CreateListItemInput {
+  title: string
+  difficulty: ListItemDifficulty
+  is_bonus: boolean
+  body: string
+}
+
+export function createListItem(listId: string, body: CreateListItemInput) {
+  return requestJSON<ListItem>(`/api/v1/lists/${listId}/items`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateListItem(itemId: string, body: CreateListItemInput) {
+  return requestJSON<ListItem>(`/api/v1/list-items/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteListItem(itemId: string) {
+  return requestJSON<void>(`/api/v1/list-items/${itemId}`, { method: 'DELETE' })
+}
+
+export function reorderListItems(listId: string, items: { item_id: string; ordinal: number }[]) {
+  return requestJSON<void>(`/api/v1/lists/${listId}/reorder`, {
+    method: 'PATCH',
+    body: JSON.stringify({ items }),
+  })
+}
+
+export function completeListItem(itemId: string) {
+  return requestJSON<void>(`/api/v1/list-items/${itemId}/complete`, { method: 'POST' })
+}
+
+export function uncompleteListItem(itemId: string) {
+  return requestJSON<void>(`/api/v1/list-items/${itemId}/complete`, { method: 'DELETE' })
+}
