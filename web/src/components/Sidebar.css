@@ -1,0 +1,6 @@
+.sidebar__link--disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  user-select: none;
+  pointer-events: none; /* impede qualquer hover ou clique de disparar ações */
+}
