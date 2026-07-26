@@ -458,29 +458,6 @@ export function ChallengeList() {
           <div className="challenge-feed">
             {challenges.map((challenge) => (
               <article key={challenge.id} className="challenge-row">
-                {isTeacher ? (
-                  <button
-                    type="button"
-                    className="challenge-row__edit"
-                    title="Editar desafio"
-                    aria-label={`Editar ${challenge.title}`}
-                    onClick={() => void openEditor(challenge)}
-                  >
-                    <svg
-                      width="17"
-                      height="17"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                    </svg>
-                  </button>
-                ) : null}
                 <span className={`difficulty difficulty--${challenge.difficulty}`}>
                   {challenge.difficulty}
                 </span>
@@ -495,9 +472,34 @@ export function ChallengeList() {
                     />
                   </div>
                 </div>
-                <Link className="challenge-submit" to={`/challenges/${challenge.id}`}>
-                  Resolver desafio
-                </Link>
+                <div className="challenge-row__actions">
+                  {isTeacher ? (
+                    <button
+                      type="button"
+                      className="challenge-row__edit"
+                      title="Editar desafio"
+                      aria-label={`Editar ${challenge.title}`}
+                      onClick={() => void openEditor(challenge)}
+                    >
+                      <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                      </svg>
+                    </button>
+                  ) : null}
+                  <Link className="challenge-submit" to={`/challenges/${challenge.id}`}>
+                    Resolver desafio
+                  </Link>
+                </div>
               </article>
             ))}
           </div>

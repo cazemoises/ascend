@@ -686,38 +686,31 @@ pre {
   font-size: 0.75rem;
 }
 
-.challenge-row .challenge-submit {
+.challenge-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
 
-/* Teacher-only edit affordance pinned to the card corner, above the shimmer. */
+/* Teacher-only edit affordance, grouped inline with Resolver desafio. */
 .challenge-row__edit {
-  position: absolute;
-  top: 14px;
-  right: 10px;
-  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid transparent;
+  padding: 10px 11px;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-s);
   background: transparent;
   color: var(--muted);
-  opacity: 0.55;
   cursor: pointer;
-  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease,
-    opacity 150ms ease;
+  transition: border-color 150ms ease, color 150ms ease;
 }
 
 .challenge-row__edit:hover,
 .challenge-row__edit:focus-visible {
-  opacity: 1;
-  color: var(--green);
-  background: var(--green-soft);
-  border-color: rgba(46, 200, 102, 0.3);
+  border-color: var(--accent-green);
+  color: var(--accent-green);
 }
 
 /* ===================== Data grid ===================== */
