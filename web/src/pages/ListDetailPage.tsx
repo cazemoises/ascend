@@ -13,6 +13,7 @@ import {
   type ProblemListDetail,
 } from '../api'
 import { useAuth } from '../auth/useAuth'
+import { WeekChip } from '../components/WeekChip'
 
 const DIFFICULTY_LABELS: Record<string, string> = {
   easy: 'FÁCIL',
@@ -161,7 +162,12 @@ export function ListDetailPage() {
       {!loading && !error && detail ? (
         <>
           <section className="panel submission-panel">
-            <p className="eyebrow">Lista semanal</p>
+            <div className="list-detail__eyebrow-row">
+              <p className="eyebrow">Lista semanal</p>
+              {detail.week_start && detail.week_end ? (
+                <WeekChip weekStart={detail.week_start} weekEnd={detail.week_end} />
+              ) : null}
+            </div>
             <h1>{detail.title}</h1>
 
             <div className="list-detail__meta">

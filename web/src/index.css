@@ -1876,6 +1876,17 @@ pre {
 
 /* ===================== Problem lists ===================== */
 
+.list-detail__eyebrow-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.list-detail__eyebrow-row .eyebrow {
+  margin: 0;
+}
+
 .list-detail__meta {
   display: flex;
   flex-wrap: wrap;
