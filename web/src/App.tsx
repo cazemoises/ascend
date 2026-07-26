@@ -39,15 +39,8 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
 
-            {/* Rotas das Listas (Sempre Ativas) */}
-            <Route
-              path="/listas"
-              element={
-                <RequireAuth>
-                  <ListsPage />
-                </RequireAuth>
-              }
-            />
+            {/* Rotas das Listas (Sempre Ativas, leitura sem login) */}
+            <Route path="/listas" element={<ListsPage />} />
             <Route
               path="/listas/nova"
               element={
@@ -64,14 +57,7 @@ function App() {
                 </RequireTeacher>
               }
             />
-            <Route
-              path="/listas/:id"
-              element={
-                <RequireAuth>
-                  <ListDetailPage />
-                </RequireAuth>
-              }
-            />
+            <Route path="/listas/:id" element={<ListDetailPage />} />
 
             {/* Rotas de Judge/Desafios (Desativadas se isOnlyLists = true) */}
             {!isOnlyLists && (

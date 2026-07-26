@@ -51,11 +51,12 @@ func New(s *store.Store, j *auth.JWT, rl *appmw.RateLimiter) chi.Router {
 
 		lh := handler.NewListsHandler(s)
 		r.Route("/lists", func(r chi.Router) {
-			r.Use(j.Middleware)
+			// Unauthenticated: anyone can browse published lists, no accounts
+			// required.
 			r.Get("/", lh.List)
 			r.Get("/{id}", lh.Get)
 			r.Group(func(r chi.Router) {
-				r.Use(teacherOnly)
+				r.Use(j.Middleware, teacherOnly)
 				r.Post("/", lh.Create)
 				r.Patch("/{id}", lh.Update)
 				r.Delete("/{id}", lh.Delete)
@@ -63,13 +64,13 @@ func New(s *store.Store, j *auth.JWT, rl *appmw.RateLimiter) chi.Router {
 				r.Patch("/{id}/reorder", lh.Reorder)
 			})
 		})
-		studentOnly := auth.RequireRole("student")
 		r.Route("/list-items", func(r chi.Router) {
-			r.Use(j.Middleware)
-			r.With(teacherOnly).Patch("/{id}", lh.UpdateItem)
-			r.With(teacherOnly).Delete("/{id}", lh.DeleteItem)
-			r.With(studentOnly).Post("/{id}/complete", lh.CompleteItem)
-			r.With(studentOnly).Delete("/{id}/complete", lh.UncompleteItem)
+			r.Use(j.Middleware, teacherOnly)
+			r.Patch("/{id}", lh.UpdateItem)
+			r.Delete("/{id}", lh.DeleteItem)
+			// Completion (POST/DELETE /{id}/complete) is disabled for now:
+			// without real student accounts there's no identity to attach a
+			// completion to. Re-add once accounts are back.
 		})
 	})
 	return r

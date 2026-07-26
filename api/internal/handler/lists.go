@@ -63,15 +63,10 @@ func (h *ListsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, list)
 }
 
-// List handles GET /api/v1/lists — visibility is resolved entirely in the
-// store (teacher: own draft+published; student: published only).
+// List handles GET /api/v1/lists — unauthenticated, always public: every
+// requester sees the same thing, published lists platform-wide.
 func (h *ListsHandler) List(w http.ResponseWriter, r *http.Request) {
-	claims, ok := auth.FromContext(r.Context())
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-	lists, err := h.store.ListProblemListsForViewer(r.Context(), claims.UserID, claims.Role)
+	lists, err := h.store.ListProblemListsForViewer(r.Context(), "", "")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
@@ -80,15 +75,11 @@ func (h *ListsHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // Get handles GET /api/v1/lists/:id, returning the list plus its items in
-// ordinal order. A draft list 404s for anyone but its owning teacher.
+// ordinal order. Unauthenticated, always public: a draft (published=false)
+// 404s for everyone, since there's no owner identity to grant it to.
 func (h *ListsHandler) Get(w http.ResponseWriter, r *http.Request) {
-	claims, ok := auth.FromContext(r.Context())
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
 	id := chi.URLParam(r, "id")
-	detail, err := h.store.GetProblemListDetail(r.Context(), id, claims.UserID, claims.Role)
+	detail, err := h.store.GetProblemListDetail(r.Context(), id, "", "")
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "list not found")
