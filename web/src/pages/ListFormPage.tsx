@@ -257,7 +257,7 @@ export function ListFormPage() {
               />
             </label>
             {description.trim() !== '' ? (
-              <div className="studio__field--full list-detail__description">
+              <div className="studio__field--full list-detail__description markdown-content">
                 <span className="studio__panel-hint">Prévia:</span>
                 <ReactMarkdown>{description}</ReactMarkdown>
               </div>
@@ -346,7 +346,7 @@ export function ListFormPage() {
                   />
                 </label>
                 {item.body.trim() !== '' ? (
-                  <div className="list-detail__description">
+                  <div className="list-detail__description markdown-content">
                     <span className="studio__panel-hint">Prévia:</span>
                     <ReactMarkdown>{item.body}</ReactMarkdown>
                   </div>

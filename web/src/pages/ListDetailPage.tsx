@@ -169,7 +169,7 @@ export function ListDetailPage() {
             </div>
 
             {detail.description ? (
-              <div className="list-detail__description">
+              <div className="list-detail__description markdown-content">
                 <ReactMarkdown>{detail.description}</ReactMarkdown>
               </div>
             ) : null}
@@ -280,7 +280,7 @@ export function ListDetailPage() {
                       </div>
 
                       {isOpen ? (
-                        <div className="list-item__body">
+                        <div className="list-item__body markdown-content">
                           <ReactMarkdown>{item.body}</ReactMarkdown>
                         </div>
                       ) : null}
