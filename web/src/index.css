@@ -757,10 +757,11 @@ pre {
 .datagrid th {
   padding: 12px 20px;
   text-align: left;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: var(--muted);
   border-bottom: 1px solid var(--border);
   background: var(--panel-alt);
@@ -772,6 +773,12 @@ pre {
   vertical-align: middle;
 }
 
+/* Every datagrid table's last column is the created_at date; :not([colspan])
+   excludes the audit/empty-state wrapper rows, which also end in a td. */
+.datagrid td:last-child:not([colspan]) {
+  font-family: var(--font-mono);
+}
+
 .datagrid tr:last-child td {
   border-bottom: none;
 }
@@ -781,7 +788,7 @@ pre {
 }
 
 .datagrid tbody tr:hover {
-  background: rgba(46, 200, 102, 0.04);
+  background: var(--bg-surface-alt);
 }
 
 .datagrid a {
