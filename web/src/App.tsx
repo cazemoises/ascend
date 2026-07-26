@@ -1,12 +1,13 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 
 import { AuthProvider } from './auth/AuthContext'
-import { RequireAuth } from './auth/RequireAuth'
+import { RequireAuth, RequireTeacher } from './auth/RequireAuth'
 import { AppLayout } from './components/AppLayout'
 import { ChallengeList } from './pages/ChallengeList'
 import { ChallengePage } from './pages/ChallengePage'
 import { ClassboardPage } from './pages/ClassboardPage'
 import { ListDetailPage } from './pages/ListDetailPage'
+import { ListFormPage } from './pages/ListFormPage'
 import { ListsPage } from './pages/ListsPage'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
@@ -44,6 +45,22 @@ function App() {
                 <RequireAuth>
                   <ListsPage />
                 </RequireAuth>
+              }
+            />
+            <Route
+              path="/listas/nova"
+              element={
+                <RequireTeacher>
+                  <ListFormPage />
+                </RequireTeacher>
+              }
+            />
+            <Route
+              path="/listas/:id/editar"
+              element={
+                <RequireTeacher>
+                  <ListFormPage />
+                </RequireTeacher>
               }
             />
             <Route
