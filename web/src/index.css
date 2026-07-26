@@ -524,6 +524,12 @@ pre {
   50% { opacity: 0.5; }
 }
 
+/* Neutral "teacher tested this, don't count it" tag — same bracket readout
+   as .verdict but never one of the semantic verdict colors. */
+.test-run-tag {
+  margin-left: 8px;
+}
+
 /* ===================== Telemetry chip ===================== */
 /* Fixed time/memory readout — same order, same format everywhere it's used. */
 

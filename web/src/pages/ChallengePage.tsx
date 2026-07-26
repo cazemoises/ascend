@@ -1,16 +1,20 @@
 import Editor from '@monaco-editor/react'
-import { FormEvent, useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 
 import {
   createSubmission,
   getChallenge,
+  getChallengeStats,
   listChallengeSubmissions,
   type Challenge,
+  type ChallengeStats,
   type CreateSubmissionRequest,
   type SubmissionLanguage,
   type SubmissionSummary,
 } from '../api'
+import { useAuth } from '../auth/useAuth'
+import { VerdictBadge } from '../components/VerdictBadge'
 
 const CODE_TEMPLATES: Record<SubmissionLanguage, string> = {
   python: `import sys
@@ -48,17 +52,46 @@ process.stdin.on('end', () => {
 `,
 }
 
+// Mirrors the judge worker's split-marker convention: in starter_code, the
+// stub above the marker line is what the student sees and edits; everything
+// below it is the hidden stdin/stdout harness the backend concatenates under
+// the submission at execution time. The student never sees the harness.
+const RUNNER_MARKER = '[[ASCEND::RUNNER]]'
+
+function visibleTemplate(starter: string): string {
+  const idx = starter.indexOf(RUNNER_MARKER)
+  if (idx === -1) {
+    return starter
+  }
+  // Cut back to the start of the marker line so its comment prefix
+  // (# / //) never leaks into the editor.
+  const head = starter.slice(0, idx)
+  const lineStart = head.lastIndexOf('\n')
+  const stub = (lineStart === -1 ? '' : head.slice(0, lineStart)).replace(/\s+$/, '')
+  return stub === '' ? '' : `${stub}\n`
+}
+
+const LANGUAGES: SubmissionLanguage[] = ['python', 'go', 'javascript']
+
+const FILE_NAMES: Record<SubmissionLanguage, string> = {
+  python: 'solution.py',
+  go: 'main.go',
+  javascript: 'solution.js',
+}
+
 export function ChallengePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { isTeacher } = useAuth()
 
   const [challenge, setChallenge] = useState<Challenge | null>(null)
   const [language, setLanguage] = useState<SubmissionLanguage>('python')
-  const [sourceCode, setSourceCode] = useState<string>('')
+  const [sourceCode, setSourceCode] = useState<string>(CODE_TEMPLATES['python'])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [submissions, setSubmissions] = useState<SubmissionSummary[]>([])
+  const [stats, setStats] = useState<ChallengeStats | null>(null)
 
   useEffect(() => {
     let active = true
@@ -66,7 +99,7 @@ export function ChallengePage() {
     async function loadChallenge() {
       if (!id) {
         if (active) {
-          setError('Missing challenge id')
+          setError('Desafio não encontrado')
           setLoading(false)
         }
         return
@@ -78,10 +111,19 @@ export function ChallengePage() {
         const data = await getChallenge(id)
         if (active) {
           setChallenge(data)
+          // Loading a challenge resets the workspace to the default tab and
+          // force-injects the student-visible stub of the teacher's
+          // starter_code (the hidden runner below the marker is stripped).
+          // The single starter_code field belongs to the Python tab; other
+          // tabs fall back to the built-in templates.
+          setLanguage('python')
+          setSourceCode(
+            data.starter_code ? visibleTemplate(data.starter_code) : CODE_TEMPLATES.python,
+          )
         }
       } catch (err) {
         if (active) {
-          setError(err instanceof Error ? err.message : 'Failed to load challenge')
+          setError(err instanceof Error ? err.message : 'Falha ao carregar o desafio')
         }
       } finally {
         if (active) {
@@ -102,13 +144,16 @@ export function ChallengePage() {
     listChallengeSubmissions(id)
       .then(setSubmissions)
       .catch(() => {})
+    getChallengeStats(id)
+      .then(setStats)
+      .catch(() => {})
   }, [id])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (!id) {
-      setError('Missing challenge id')
+      setError('Desafio não encontrado')
       return
     }
 
@@ -124,10 +169,20 @@ export function ChallengePage() {
       const response = await createSubmission(id, payload)
       navigate(`/challenges/${id}/submissions/${response.submission_id}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit solution')
+      setError(err instanceof Error ? err.message : 'Falha ao enviar a solução')
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Template shown on a given tab: the visible stub of starter_code owns the
+  // Python tab when the teacher defined one; every other tab uses its
+  // built-in stub.
+  function templateFor(lang: SubmissionLanguage): string {
+    if (lang === 'python' && challenge?.starter_code) {
+      return visibleTemplate(challenge.starter_code)
+    }
+    return CODE_TEMPLATES[lang]
   }
 
   if (!id) {
@@ -135,7 +190,7 @@ export function ChallengePage() {
   }
 
   return (
-    <main className="page-shell">
+    <main className="page-shell page-shell--workspace">
       <Link className="back-link" to="/">
         ← Voltar aos desafios
       </Link>
@@ -145,134 +200,216 @@ export function ChallengePage() {
       {error ? <p className="status-message status-error">{error}</p> : null}
 
       {challenge ? (
-        <section className="panel">
-          <p className="eyebrow">Challenge</p>
-          <h1>{challenge.title}</h1>
-          <p className="muted">{challenge.description}</p>
+        <>
+        <div className="workspace">
+          <section className="workspace__brief">
+            <p className="eyebrow">Desafio</p>
+            <h1>{challenge.title}</h1>
 
-          {challenge.notes ? (
-            <p style={{
-              margin: '16px 0',
-              padding: '10px 14px',
-              borderLeft: '3px solid var(--border)',
-              background: 'var(--surface-alt, rgba(255,255,255,0.04))',
-              fontSize: '0.875rem',
-              whiteSpace: 'pre-wrap',
-            }}>
-              {challenge.notes}
-            </p>
-          ) : null}
+            <div className="constraints">
+              <span className={`difficulty difficulty--${challenge.difficulty}`}>
+                {challenge.difficulty}
+              </span>
+              <span className="constraint">
+                Tempo <strong>{challenge.time_limit_ms}ms</strong>
+              </span>
+              <span className="constraint">
+                Memória <strong>{challenge.memory_limit_mb}MB</strong>
+              </span>
+              <span className="constraint">/{challenge.slug}</span>
+            </div>
 
-          <div className="challenge-card__meta" style={{ marginTop: '16px', marginBottom: '24px' }}>
-            <span className={`difficulty difficulty--${challenge.difficulty}`}>{challenge.difficulty}</span>
-            <span className="challenge-card__slug">/{challenge.slug}</span>
-            <span className="muted">time limit: {challenge.time_limit_ms}ms</span>
-            <span className="muted">memory limit: {challenge.memory_limit_mb}MB</span>
-          </div>
+            <p className="muted">{challenge.description}</p>
 
-          {challenge.sample_test_cases.length > 0 ? (
-            <div style={{ marginBottom: '24px' }}>
-              <h2 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px' }}>Exemplos</h2>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            {challenge.notes ? <p className="notes-callout">{challenge.notes}</p> : null}
+
+            {challenge.sample_test_cases.length > 0 ? (
+              <>
+                <h2 className="section-title">Exemplos</h2>
+                {challenge.sample_test_cases.map((tc, i) => (
+                  <div className="sample" key={i}>
+                    <div className="sample__label">Exemplo {i + 1}</div>
+                    <div className="sample__io">
+                      <div>
+                        <span>Entrada</span>
+                        <pre>{tc.input || '(vazio)'}</pre>
+                      </div>
+                      <div>
+                        <span>Saída esperada</span>
+                        <pre>{tc.expected_output}</pre>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            ) : null}
+          </section>
+
+          <form className="workspace__editor" onSubmit={handleSubmit}>
+            <div className="editor-toolbar">
+              <div className="editor-tabs" role="tablist" aria-label="Linguagem">
+                {LANGUAGES.map((lang) => (
+                  <button
+                    key={lang}
+                    type="button"
+                    role="tab"
+                    aria-selected={language === lang}
+                    className={
+                      language === lang ? 'editor-tab editor-tab--active' : 'editor-tab'
+                    }
+                    disabled={submitting}
+                    onClick={() => {
+                      // Swap templates only while the editor still holds the
+                      // untouched template of the active tab; user edits stay.
+                      if (sourceCode === '' || sourceCode === templateFor(language)) {
+                        setSourceCode(templateFor(lang))
+                      }
+                      setLanguage(lang)
+                    }}
+                  >
+                    {FILE_NAMES[lang]}
+                  </button>
+                ))}
+              </div>
+              <span className="editor-toolbar__title">Editor de código</span>
+            </div>
+
+            <div className="editor-host">
+              <Editor
+                height="100%"
+                theme="vs-dark"
+                language={language}
+                value={sourceCode}
+                onChange={(v) => setSourceCode(v ?? '')}
+                options={{
+                  fontFamily: 'JetBrains Mono, Consolas, monospace',
+                  fontSize: 13,
+                  minimap: { enabled: false },
+                  automaticLayout: true,
+                  padding: { top: 12 },
+                  readOnly: submitting,
+                }}
+              />
+            </div>
+
+            <div className="editor-actions">
+              <p className="editor-actions__hint">
+                Sua solução roda em um sandbox isolado contra todos os casos de teste.
+              </p>
+              <button type="submit" className="challenge-submit" disabled={submitting}>
+                {submitting ? 'Enviando...' : 'Enviar solução'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+          <section className="history-section">
+            <h2 className="section-title">Métricas</h2>
+            {stats !== null && stats.total_runs > 0 ? (
+              <div className="panel metrics-panel">
+                {stats.faster_than_pct !== null ? (
+                  <p className="metrics-highlight">
+                    Seu código foi mais rápido que <strong>{stats.faster_than_pct}%</strong> das
+                    submissões para este desafio!
+                  </p>
+                ) : (
+                  <p className="metrics-highlight metrics-highlight--muted">
+                    Envie uma solução aceita para ver sua posição na distribuição.
+                  </p>
+                )}
+                {(() => {
+                  const maxCount = Math.max(...stats.buckets.map((b) => b.count), 1)
+                  const best = stats.user_best_ms
+                  const userBucketIdx =
+                    best !== null ? stats.buckets.findIndex((b) => best <= b.up_to_ms) : -1
+                  const lastBucket = stats.buckets[stats.buckets.length - 1]
+                  return (
+                    <>
+                      <div
+                        className="histogram"
+                        role="img"
+                        aria-label={`Distribuição do tempo de execução de ${stats.total_runs} submissões aceitas`}
+                      >
+                        {stats.buckets.map((b, i) => (
+                          <div
+                            className="histogram__slot"
+                            key={b.up_to_ms}
+                            title={`≤ ${b.up_to_ms}ms — ${b.count} ${b.count === 1 ? 'submissão' : 'submissões'}`}
+                          >
+                            <div
+                              className={
+                                i === userBucketIdx
+                                  ? 'histogram__bar histogram__bar--you'
+                                  : 'histogram__bar'
+                              }
+                              style={{
+                                height: `${b.count > 0 ? Math.max((b.count / maxCount) * 100, 6) : 2}%`,
+                              }}
+                            />
+                            {i === userBucketIdx ? (
+                              <span className="histogram__you">você</span>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="histogram__axis">
+                        <span>0ms</span>
+                        <span>{lastBucket ? `${lastBucket.up_to_ms}ms` : ''}</span>
+                      </div>
+                      <p className="histogram__caption">
+                        Tempo de execução — {stats.total_runs}{' '}
+                        {stats.total_runs === 1 ? 'submissão aceita' : 'submissões aceitas'} na
+                        plataforma
+                      </p>
+                    </>
+                  )
+                })()}
+              </div>
+            ) : (
+              <p className="status-message">
+                Ainda não há métricas de execução para este desafio — seja a primeira solução
+                aceita.
+              </p>
+            )}
+          </section>
+
+          <section className="history-section">
+            <h2 className="section-title">Submissões recentes</h2>
+            <div className="datagrid">
+              <table>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: 'left', padding: '6px 12px', borderBottom: '1px solid var(--border)' }}>
-                      Entrada
-                    </th>
-                    <th style={{ textAlign: 'left', padding: '6px 12px', borderBottom: '1px solid var(--border)' }}>
-                      Saída Esperada
-                    </th>
+                    <th>Veredito</th>
+                    <th>Linguagem</th>
+                    <th>Data</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {challenge.sample_test_cases.map((tc, i) => (
-                    <tr key={i}>
-                      <td style={{ padding: '6px 12px', verticalAlign: 'top' }}>
-                        <pre style={{ margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                          {tc.input || '(vazio)'}
-                        </pre>
-                      </td>
-                      <td style={{ padding: '6px 12px', verticalAlign: 'top' }}>
-                        <pre style={{ margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                          {tc.expected_output}
-                        </pre>
+                  {submissions.length > 0 ? (
+                    submissions.map((sub) => (
+                      <tr key={sub.id}>
+                        <td>
+                          <VerdictBadge status={sub.status} />
+                          {isTeacher && sub.is_test_run ? (
+                            <span className="verdict test-run-tag">TESTE</span>
+                          ) : null}
+                        </td>
+                        <td>{sub.language}</td>
+                        <td className="muted">{new Date(sub.created_at).toLocaleString('pt-BR')}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={3} className="datagrid__empty">
+                        Nenhuma submissão ainda — envie sua primeira solução.
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
-          ) : null}
-
-          <form onSubmit={handleSubmit}>
-            <label className="muted" htmlFor="language">
-              Language
-            </label>
-            <select
-              id="language"
-              value={language}
-              onChange={(event) => {
-                const lang = event.target.value as SubmissionLanguage
-                setLanguage(lang)
-                if (sourceCode === '') {
-                  setSourceCode(CODE_TEMPLATES[lang])
-                }
-              }}
-              className="challenge-input"
-              disabled={submitting}
-            >
-              <option value="python">python</option>
-              <option value="go">go</option>
-              <option value="javascript">javascript</option>
-            </select>
-
-            <p className="muted" style={{ marginTop: '16px', marginBottom: '4px' }}>Source code</p>
-            <Editor
-              height="400px"
-              theme="vs-dark"
-              language={language}
-              value={sourceCode}
-              onChange={(v) => setSourceCode(v ?? '')}
-              options={{ fontFamily: 'monospace', readOnly: submitting }}
-            />
-
-            <button type="submit" className="challenge-submit" disabled={submitting}>
-              {submitting ? 'Submitting...' : 'Submit'}
-            </button>
-          </form>
-
-          <div style={{ marginTop: '32px' }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px' }}>Histórico de Submissões</h2>
-            {submissions.length > 0 ? (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: 'left', padding: '6px 12px', borderBottom: '1px solid var(--border)' }}>Status</th>
-                    <th style={{ textAlign: 'left', padding: '6px 12px', borderBottom: '1px solid var(--border)' }}>Linguagem</th>
-                    <th style={{ textAlign: 'left', padding: '6px 12px', borderBottom: '1px solid var(--border)' }}>Data</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {submissions.map((sub) => (
-                    <tr key={sub.id}>
-                      <td style={{ padding: '6px 12px' }}>
-                        <span className={`difficulty difficulty--${sub.status === 'accepted' ? 'easy' : sub.status === 'pending' ? 'medium' : 'hard'}`}>
-                          {sub.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '6px 12px' }}>{sub.language}</td>
-                      <td style={{ padding: '6px 12px', color: 'var(--muted)' }}>
-                        {new Date(sub.created_at).toLocaleString('pt-BR')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="muted">Sem submissões ainda.</p>
-            )}
-          </div>
-        </section>
+          </section>
+        </>
       ) : null}
     </main>
   )
