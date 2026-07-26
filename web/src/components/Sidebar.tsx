@@ -2,8 +2,6 @@ import { NavLink, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth'
 
-import './Sidebar.css'
-
 const isOnlyLists = import.meta.env.VITE_ONLY_LISTS_MODE === 'true'
 
 function IconChallenges() {
@@ -83,64 +81,34 @@ export function Sidebar() {
       </div>
 
       <nav className="sidebar__nav" aria-label="Navegação principal">
-        {/* DESAFIOS */}
-        {isOnlyLists ? (
-          <div
-            className="sidebar__link sidebar__link--disabled"
-            title="Funcionalidade indisponível no momento"
-          >
-            <IconChallenges />
-            Desafios
-          </div>
-        ) : (
+        {/* DESAFIOS — indisponível em modo só-listas */}
+        {!isOnlyLists ? (
           <NavLink to="/" end className={linkClass}>
             <IconChallenges />
             Desafios
           </NavLink>
-        )}
+        ) : null}
 
-        {/* LISTAS */}
-        {isAuthenticated ? (
-          <NavLink to="/listas" className={linkClass}>
-            <IconLists />
-            Listas
+        {/* LISTAS — sempre visível: navegação pública, não exige login */}
+        <NavLink to="/listas" className={linkClass}>
+          <IconLists />
+          Listas
+        </NavLink>
+
+        {/* HISTÓRICO — indisponível em modo só-listas */}
+        {isAuthenticated && !isOnlyLists ? (
+          <NavLink to="/submissions" className={linkClass}>
+            <IconHistory />
+            Histórico
           </NavLink>
         ) : null}
 
-        {/* HISTÓRICO */}
-        {isAuthenticated ? (
-          isOnlyLists ? (
-            <div
-              className="sidebar__link sidebar__link--disabled"
-              title="Funcionalidade indisponível no momento"
-            >
-              <IconHistory />
-              Histórico
-            </div>
-          ) : (
-            <NavLink to="/submissions" className={linkClass}>
-              <IconHistory />
-              Histórico
-            </NavLink>
-          )
-        ) : null}
-
-        {/* TURMAS */}
-        {isTeacher ? (
-          isOnlyLists ? (
-            <div
-              className="sidebar__link sidebar__link--disabled"
-              title="Funcionalidade indisponível no momento"
-            >
-              <IconClasses />
-              Turmas
-            </div>
-          ) : (
-            <NavLink to="/turmas" className={linkClass}>
-              <IconClasses />
-              Turmas
-            </NavLink>
-          )
+        {/* TURMAS — indisponível em modo só-listas */}
+        {isTeacher && !isOnlyLists ? (
+          <NavLink to="/turmas" className={linkClass}>
+            <IconClasses />
+            Turmas
+          </NavLink>
         ) : null}
       </nav>
 
