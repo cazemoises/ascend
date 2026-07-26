@@ -310,10 +310,15 @@ export interface ProblemList {
   teacher_id: string
   title: string
   week_label: string | null
+  week_start: string | null
+  week_end: string | null
   description: string | null
   published: boolean
   created_at: string
   updated_at: string
+  // Only present on the GET /lists collection response — derived server-side
+  // from week_start/week_end against today, not persisted.
+  is_current?: boolean
 }
 
 export interface ListItem {
@@ -337,12 +342,16 @@ export interface ProblemListDetail extends ProblemList {
 export interface CreateProblemListInput {
   title: string
   week_label?: string | null
+  week_start?: string | null
+  week_end?: string | null
   description?: string | null
 }
 
 export interface UpdateProblemListInput {
   title: string
   week_label?: string | null
+  week_start?: string | null
+  week_end?: string | null
   description?: string | null
   published: boolean
 }

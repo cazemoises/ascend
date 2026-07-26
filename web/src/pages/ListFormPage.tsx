@@ -36,6 +36,32 @@ const DIFFICULTY_OPTIONS: { value: ListItemDifficulty; label: string }[] = [
   { value: 'hard', label: 'Difícil' },
 ]
 
+function toDateInputValue(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+// Monday–Sunday of the current week, in the user's local time — the common
+// case a teacher opening "Nova lista" wants pre-filled, adjustable if not.
+function currentWeekRange(): { start: string; end: string } {
+  const now = new Date()
+  const day = now.getDay()
+  const diffToMonday = day === 0 ? -6 : 1 - day
+  const monday = new Date(now)
+  monday.setDate(now.getDate() + diffToMonday)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  return { start: toDateInputValue(monday), end: toDateInputValue(sunday) }
+}
+
+// The API returns week_start/week_end as full timestamps at UTC midnight;
+// slicing the date portion avoids a local-timezone parse shifting the day.
+function isoToDateInputValue(iso: string | null): string {
+  return iso ? iso.slice(0, 10) : ''
+}
+
 export function ListFormPage() {
   const { id } = useParams<{ id?: string }>()
   const navigate = useNavigate()
@@ -43,6 +69,12 @@ export function ListFormPage() {
 
   const [title, setTitle] = useState('')
   const [weekLabel, setWeekLabel] = useState('')
+  // Nova lista: pre-fill the current week's Monday–Sunday range as the
+  // initial render, not via an effect — the teacher can still adjust or
+  // clear both fields before saving. Editing an existing list overwrites
+  // these once its data loads below.
+  const [weekStart, setWeekStart] = useState(() => (editing ? '' : currentWeekRange().start))
+  const [weekEnd, setWeekEnd] = useState(() => (editing ? '' : currentWeekRange().end))
   const [description, setDescription] = useState('')
   const [published, setPublished] = useState(false)
   const [items, setItems] = useState<ItemDraft[]>([{ ...EMPTY_ITEM }])
@@ -69,6 +101,8 @@ export function ListFormPage() {
         }
         setTitle(detail.title)
         setWeekLabel(detail.week_label ?? '')
+        setWeekStart(isoToDateInputValue(detail.week_start))
+        setWeekEnd(isoToDateInputValue(detail.week_end))
         setDescription(detail.description ?? '')
         setPublished(detail.published)
         setItems(
@@ -131,6 +165,8 @@ export function ListFormPage() {
       const listPayload = {
         title,
         week_label: weekLabel.trim() === '' ? null : weekLabel,
+        week_start: weekStart.trim() === '' ? null : weekStart,
+        week_end: weekEnd.trim() === '' ? null : weekEnd,
         description: description.trim() === '' ? null : description,
         published,
       }
@@ -143,6 +179,8 @@ export function ListFormPage() {
         const created = await createProblemList({
           title: listPayload.title,
           week_label: listPayload.week_label,
+          week_start: listPayload.week_start,
+          week_end: listPayload.week_end,
           description: listPayload.description,
         })
         listId = created.id
@@ -244,6 +282,24 @@ export function ListFormPage() {
                 value={weekLabel}
                 onChange={(e) => setWeekLabel(e.target.value)}
                 placeholder="Semana 12"
+                disabled={saving}
+              />
+            </label>
+            <label className="studio__field--3">
+              Início da semana (opcional)
+              <input
+                type="date"
+                value={weekStart}
+                onChange={(e) => setWeekStart(e.target.value)}
+                disabled={saving}
+              />
+            </label>
+            <label className="studio__field--3">
+              Fim da semana (opcional)
+              <input
+                type="date"
+                value={weekEnd}
+                onChange={(e) => setWeekEnd(e.target.value)}
                 disabled={saving}
               />
             </label>
