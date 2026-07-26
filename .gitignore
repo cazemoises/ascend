@@ -1,0 +1,25 @@
+# Environment
+.env
+
+# Build outputs
+bin/
+web/dist/
+web/build/
+
+# Go
+vendor/
+*.log
+tmp/
+
+# Node
+web/node_modules/
+node_modules/
+
+# Go workspace sum (generated)
+go.work.sum
+
+# OS
+.DS_Store
+Thumbs.db
+
+ascend-images.tar
