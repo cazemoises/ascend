@@ -1,0 +1,2 @@
+ALTER TABLE problem_lists ADD COLUMN IF NOT EXISTS week_start DATE NULL;
+ALTER TABLE problem_lists ADD COLUMN IF NOT EXISTS week_end DATE NULL;
