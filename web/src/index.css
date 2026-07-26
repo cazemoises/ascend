@@ -693,8 +693,8 @@ pre {
 /* Teacher-only edit affordance pinned to the card corner, above the shimmer. */
 .challenge-row__edit {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 10px;
+  right: 10px;
   z-index: 1;
   display: inline-flex;
   align-items: center;
