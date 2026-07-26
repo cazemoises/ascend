@@ -485,67 +485,65 @@ pre {
   background: var(--red-soft);
 }
 
-/* ===================== Verdict pills ===================== */
+/* ===================== Verdict readouts ===================== */
+/* Instrument-panel bracket readout, not a filled pill: hairline border in
+   the status color, a barely-there tinted fill, brackets via pseudo-content
+   so the badge component itself never has to render them. */
 
 .verdict {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   white-space: nowrap;
-  color: var(--muted);
-  background: var(--panel-alt);
-  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border-hairline);
 }
 
 .verdict::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 8px currentColor;
+  content: '[ ';
+}
+
+.verdict::after {
+  content: ' ]';
 }
 
 .verdict--accepted {
-  color: var(--green);
-  background: var(--green-soft);
-  border-color: rgba(46, 200, 102, 0.35);
+  color: var(--accent-green);
+  background: var(--accent-green-dim);
+  border-color: var(--accent-green);
 }
 
 .verdict--wrong_answer,
 .verdict--runtime_error,
 .verdict--error {
-  color: var(--red);
-  background: var(--red-soft);
-  border-color: rgba(240, 86, 90, 0.35);
+  color: var(--accent-red);
+  background: var(--accent-red-dim);
+  border-color: var(--accent-red);
 }
 
 .verdict--time_limit_exceeded {
-  color: var(--amber);
-  background: var(--amber-soft);
-  border-color: rgba(245, 185, 68, 0.35);
+  color: var(--accent-amber);
+  background: var(--accent-amber-dim);
+  border-color: var(--accent-amber);
 }
 
 .verdict--pending,
 .verdict--running {
   color: var(--blue);
   background: var(--blue-soft);
-  border-color: rgba(77, 163, 255, 0.35);
-}
-
-.verdict--pending::before,
-.verdict--running::before {
+  border-color: var(--blue);
   animation: verdict-pulse 1.4s ease-in-out infinite;
 }
 
 @keyframes verdict-pulse {
-  50% { opacity: 0.35; }
+  50% { opacity: 0.5; }
 }
 
 /* ===================== Difficulty pills ===================== */
@@ -1961,8 +1959,8 @@ pre {
 
 @media (prefers-reduced-motion: reduce) {
   .auth-split__brand::after,
-  .verdict--pending::before,
-  .verdict--running::before {
+  .verdict--pending,
+  .verdict--running {
     animation: none;
   }
 
