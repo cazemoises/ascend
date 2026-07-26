@@ -383,16 +383,19 @@ pre {
 }
 
 .sidebar__link {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 10px 12px 10px 10px;
+  border-left: 2px solid transparent;
   border-radius: var(--radius-s);
   color: var(--text);
   opacity: 0.6;
-  font-size: 0.88rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
   font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   transition: all 0.2s ease;
 }
 
@@ -403,25 +406,13 @@ pre {
 .sidebar__link:hover {
   opacity: 1;
   background: rgba(255, 255, 255, 0.04);
-  transform: translateX(2px);
 }
 
 .sidebar__link--active {
-  color: var(--green);
+  color: var(--accent-green);
   opacity: 1;
-  background: rgba(46, 200, 102, 0.08);
-}
-
-.sidebar__link--active::before {
-  content: '';
-  position: absolute;
-  left: -12px;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
-  border-radius: 999px;
-  background: var(--grad-accent);
-  box-shadow: 0 0 10px rgba(46, 200, 102, 0.5);
+  background: var(--bg-surface-alt);
+  border-left-color: var(--accent-green);
 }
 
 .sidebar__footer {
@@ -442,14 +433,15 @@ pre {
 }
 
 .sidebar__user-email {
-  font-size: 0.8rem;
-  color: var(--text);
+  font-size: 0.76rem;
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .sidebar__role {
+  font-family: var(--font-mono);
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -465,15 +457,18 @@ pre {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 10px 12px 10px 10px;
   border: none;
+  border-left: 2px solid transparent;
   border-radius: var(--radius-s);
   background: transparent;
   color: var(--text);
   opacity: 0.6;
-  font-family: var(--sans);
-  font-size: 0.88rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
   font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   text-align: left;
   cursor: pointer;
   transition: all 0.2s ease;
