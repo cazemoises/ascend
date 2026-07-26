@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { useNavigate, useParams } from 'react-router-dom'
+import rehypeHighlight from 'rehype-highlight'
 
 import {
   createListItem,
@@ -259,7 +260,7 @@ export function ListFormPage() {
             {description.trim() !== '' ? (
               <div className="studio__field--full list-detail__description markdown-content">
                 <span className="studio__panel-hint">Prévia:</span>
-                <ReactMarkdown>{description}</ReactMarkdown>
+                <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{description}</ReactMarkdown>
               </div>
             ) : null}
             {editing ? (
@@ -348,7 +349,7 @@ export function ListFormPage() {
                 {item.body.trim() !== '' ? (
                   <div className="list-detail__description markdown-content">
                     <span className="studio__panel-hint">Prévia:</span>
-                    <ReactMarkdown>{item.body}</ReactMarkdown>
+                    <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{item.body}</ReactMarkdown>
                   </div>
                 ) : null}
               </div>

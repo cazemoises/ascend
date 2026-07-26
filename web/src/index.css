@@ -1916,6 +1916,29 @@ pre {
   font-size: inherit;
 }
 
+/* Syntax highlight (rehype-highlight, no stock highlight.js theme loaded) —
+   restricted to tokens already in the theme, not a new palette. */
+.markdown-content .hljs-keyword {
+  color: var(--accent-green);
+}
+
+.markdown-content .hljs-string {
+  color: var(--text-primary);
+}
+
+.markdown-content .hljs-number {
+  color: var(--accent-amber);
+}
+
+.markdown-content .hljs-comment {
+  color: var(--text-secondary);
+}
+
+.markdown-content .hljs-built_in,
+.markdown-content .hljs-function {
+  color: var(--text-primary);
+}
+
 .list-detail__actions {
   display: flex;
   flex-wrap: wrap;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import rehypeHighlight from 'rehype-highlight'
 
 import {
   deleteListItem,
@@ -170,7 +171,7 @@ export function ListDetailPage() {
 
             {detail.description ? (
               <div className="list-detail__description markdown-content">
-                <ReactMarkdown>{detail.description}</ReactMarkdown>
+                <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{detail.description}</ReactMarkdown>
               </div>
             ) : null}
 
@@ -281,7 +282,7 @@ export function ListDetailPage() {
 
                       {isOpen ? (
                         <div className="list-item__body markdown-content">
-                          <ReactMarkdown>{item.body}</ReactMarkdown>
+                          <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{item.body}</ReactMarkdown>
                         </div>
                       ) : null}
                     </article>
