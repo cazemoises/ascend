@@ -9,14 +9,16 @@ import (
 )
 
 type ProblemList struct {
-	ID          string    `json:"id"`
-	TeacherID   string    `json:"teacher_id"`
-	Title       string    `json:"title"`
-	WeekLabel   *string   `json:"week_label"`
-	Description *string   `json:"description"`
-	Published   bool      `json:"published"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          string     `json:"id"`
+	TeacherID   string     `json:"teacher_id"`
+	Title       string     `json:"title"`
+	WeekLabel   *string    `json:"week_label"`
+	WeekStart   *time.Time `json:"week_start"`
+	WeekEnd     *time.Time `json:"week_end"`
+	Description *string    `json:"description"`
+	Published   bool       `json:"published"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 type ListItem struct {
@@ -43,12 +45,16 @@ type CreateProblemListRequest struct {
 	TeacherID   string
 	Title       string
 	WeekLabel   *string
+	WeekStart   *time.Time
+	WeekEnd     *time.Time
 	Description *string
 }
 
 type UpdateProblemListRequest struct {
 	Title       string
 	WeekLabel   *string
+	WeekStart   *time.Time
+	WeekEnd     *time.Time
 	Description *string
 	Published   bool
 }
@@ -73,23 +79,23 @@ type ReorderItem struct {
 	Ordinal int
 }
 
-const problemListColumns = `id, teacher_id, title, week_label, description, published, created_at, updated_at`
+const problemListColumns = `id, teacher_id, title, week_label, description, published, created_at, updated_at, week_start, week_end`
 
 func scanProblemList(row interface {
 	Scan(...any) error
 }) (ProblemList, error) {
 	var pl ProblemList
 	err := row.Scan(&pl.ID, &pl.TeacherID, &pl.Title, &pl.WeekLabel, &pl.Description,
-		&pl.Published, &pl.CreatedAt, &pl.UpdatedAt)
+		&pl.Published, &pl.CreatedAt, &pl.UpdatedAt, &pl.WeekStart, &pl.WeekEnd)
 	return pl, err
 }
 
 func (s *Store) CreateProblemList(ctx context.Context, req CreateProblemListRequest) (ProblemList, error) {
 	row := s.db.QueryRowContext(ctx,
-		`INSERT INTO problem_lists (teacher_id, title, week_label, description)
-		 VALUES ($1, $2, $3, $4)
+		`INSERT INTO problem_lists (teacher_id, title, week_label, description, week_start, week_end)
+		 VALUES ($1, $2, $3, $4, $5, $6)
 		 RETURNING `+problemListColumns,
-		req.TeacherID, req.Title, req.WeekLabel, req.Description)
+		req.TeacherID, req.Title, req.WeekLabel, req.Description, req.WeekStart, req.WeekEnd)
 	pl, err := scanProblemList(row)
 	if err != nil {
 		return ProblemList{}, fmt.Errorf("create problem list: %w", err)
@@ -99,17 +105,20 @@ func (s *Store) CreateProblemList(ctx context.Context, req CreateProblemListRequ
 
 // ListProblemListsForViewer applies the same visibility rule everywhere a
 // list feed is served: a teacher sees every list they own (draft and
-// published); anyone else sees only published lists, platform-wide.
+// published); anyone else sees only published lists, platform-wide. Newest
+// week first; lists with no week_start sort last, by created_at among
+// themselves.
 func (s *Store) ListProblemListsForViewer(ctx context.Context, viewerID, role string) ([]ProblemList, error) {
+	const order = ` ORDER BY week_start DESC NULLS LAST, created_at DESC`
 	var rows *sql.Rows
 	var err error
 	if role == "teacher" {
 		rows, err = s.db.QueryContext(ctx,
-			`SELECT `+problemListColumns+` FROM problem_lists WHERE teacher_id = $1 ORDER BY created_at DESC`,
+			`SELECT `+problemListColumns+` FROM problem_lists WHERE teacher_id = $1`+order,
 			viewerID)
 	} else {
 		rows, err = s.db.QueryContext(ctx,
-			`SELECT `+problemListColumns+` FROM problem_lists WHERE published = true ORDER BY created_at DESC`)
+			`SELECT `+problemListColumns+` FROM problem_lists WHERE published = true`+order)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("list problem lists: %w", err)
@@ -208,10 +217,10 @@ func (s *Store) listItemsForDetail(ctx context.Context, listID, viewerID, role s
 func (s *Store) UpdateProblemList(ctx context.Context, listID, teacherID string, req UpdateProblemListRequest) (ProblemList, error) {
 	row := s.db.QueryRowContext(ctx,
 		`UPDATE problem_lists
-		 SET title = $3, week_label = $4, description = $5, published = $6, updated_at = now()
+		 SET title = $3, week_label = $4, description = $5, published = $6, week_start = $7, week_end = $8, updated_at = now()
 		 WHERE id = $1 AND teacher_id = $2
 		 RETURNING `+problemListColumns,
-		listID, teacherID, req.Title, req.WeekLabel, req.Description, req.Published)
+		listID, teacherID, req.Title, req.WeekLabel, req.Description, req.Published, req.WeekStart, req.WeekEnd)
 	pl, err := scanProblemList(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ProblemList{}, ErrNotFound

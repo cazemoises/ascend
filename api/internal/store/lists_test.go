@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/caze/ascend/api/internal/store"
 )
@@ -226,5 +227,83 @@ func TestGetProblemListDetail_DraftHiddenFromNonOwner(t *testing.T) {
 	}
 	if _, err := s.GetProblemListDetail(ctx, list.ID, teacher.ID, "teacher"); err != nil {
 		t.Errorf("owning teacher should be able to view their own draft, got %v", err)
+	}
+}
+
+func mustDate(t *testing.T, s string) time.Time {
+	t.Helper()
+	d, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		t.Fatalf("mustDate(%q): %v", s, err)
+	}
+	return d
+}
+
+// TestListProblemListsForViewer_OrderedByWeekStart covers the sort contract
+// GET /lists relies on: newest week first, undated lists last ordered by
+// created_at DESC among themselves.
+func TestListProblemListsForViewer_OrderedByWeekStart(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	teacher := createTestUser(t, s, db, ctx, "lists-order-teacher@example.com")
+
+	older, err := s.CreateProblemList(ctx, store.CreateProblemListRequest{
+		TeacherID: teacher.ID, Title: "Older Week",
+		WeekStart: new(mustDate(t, "2026-07-07")), WeekEnd: new(mustDate(t, "2026-07-13")),
+	})
+	if err != nil {
+		t.Fatalf("CreateProblemList older: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, older.ID, teacher.ID) })
+
+	newer, err := s.CreateProblemList(ctx, store.CreateProblemListRequest{
+		TeacherID: teacher.ID, Title: "Newer Week",
+		WeekStart: new(mustDate(t, "2026-07-21")), WeekEnd: new(mustDate(t, "2026-07-27")),
+	})
+	if err != nil {
+		t.Fatalf("CreateProblemList newer: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, newer.ID, teacher.ID) })
+
+	undatedFirst, err := s.CreateProblemList(ctx, store.CreateProblemListRequest{
+		TeacherID: teacher.ID, Title: "Undated First",
+	})
+	if err != nil {
+		t.Fatalf("CreateProblemList undatedFirst: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, undatedFirst.ID, teacher.ID) })
+
+	undatedSecond, err := s.CreateProblemList(ctx, store.CreateProblemListRequest{
+		TeacherID: teacher.ID, Title: "Undated Second",
+	})
+	if err != nil {
+		t.Fatalf("CreateProblemList undatedSecond: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, undatedSecond.ID, teacher.ID) })
+
+	lists, err := s.ListProblemListsForViewer(ctx, teacher.ID, "teacher")
+	if err != nil {
+		t.Fatalf("ListProblemListsForViewer: %v", err)
+	}
+
+	// Filter down to just this test's four lists — the teacher may own
+	// others left over from different tests sharing the same database.
+	var ids []string
+	for _, l := range lists {
+		switch l.ID {
+		case newer.ID, older.ID, undatedFirst.ID, undatedSecond.ID:
+			ids = append(ids, l.ID)
+		}
+	}
+
+	want := []string{newer.ID, older.ID, undatedSecond.ID, undatedFirst.ID}
+	if len(ids) != len(want) {
+		t.Fatalf("got %d relevant lists, want %d: %v", len(ids), len(want), ids)
+	}
+	for i, id := range ids {
+		if id != want[i] {
+			t.Errorf("position %d: got list %q, want %q", i, id, want[i])
+		}
 	}
 }

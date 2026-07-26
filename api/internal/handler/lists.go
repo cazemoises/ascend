@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -28,8 +29,46 @@ var validListDifficulties = map[string]bool{
 type listBody struct {
 	Title       string  `json:"title"`
 	WeekLabel   *string `json:"week_label"`
+	WeekStart   *string `json:"week_start"`
+	WeekEnd     *string `json:"week_end"`
 	Description *string `json:"description"`
 	Published   bool    `json:"published"`
+}
+
+const dateOnlyLayout = "2006-01-02"
+
+// parseOptionalDate parses an optional "YYYY-MM-DD" field. A nil or empty
+// pointer is a valid "no date set" and returns (nil, true); a non-empty
+// string that fails to parse returns (nil, false) so the caller can 422.
+func parseOptionalDate(s *string) (*time.Time, bool) {
+	if s == nil || *s == "" {
+		return nil, true
+	}
+	t, err := time.Parse(dateOnlyLayout, *s)
+	if err != nil {
+		return nil, false
+	}
+	return &t, true
+}
+
+// isCurrentWeek reports whether now's calendar date falls within [start,
+// end] inclusive. DATE columns round-trip through lib/pq as UTC midnight,
+// so now is normalized the same way — comparing full timestamps would flip
+// "today" out of range depending on time of day.
+func isCurrentWeek(start, end *time.Time, now time.Time) bool {
+	if start == nil || end == nil {
+		return false
+	}
+	today := now.UTC()
+	todayDate := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
+	return !todayDate.Before(start.UTC()) && !todayDate.After(end.UTC())
+}
+
+// problemListResponse adds the is_current flag to a list payload — derived
+// from week_start/week_end and the current time, never persisted.
+type problemListResponse struct {
+	store.ProblemList
+	IsCurrent bool `json:"is_current"`
 }
 
 // Create handles POST /api/v1/lists (teacher only). New lists always start
@@ -49,11 +88,23 @@ func (h *ListsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "title is required")
 		return
 	}
+	weekStart, ok := parseOptionalDate(body.WeekStart)
+	if !ok {
+		writeError(w, http.StatusUnprocessableEntity, "week_start must be YYYY-MM-DD")
+		return
+	}
+	weekEnd, ok := parseOptionalDate(body.WeekEnd)
+	if !ok {
+		writeError(w, http.StatusUnprocessableEntity, "week_end must be YYYY-MM-DD")
+		return
+	}
 
 	list, err := h.store.CreateProblemList(r.Context(), store.CreateProblemListRequest{
 		TeacherID:   claims.UserID,
 		Title:       body.Title,
 		WeekLabel:   body.WeekLabel,
+		WeekStart:   weekStart,
+		WeekEnd:     weekEnd,
 		Description: body.Description,
 	})
 	if err != nil {
@@ -71,7 +122,15 @@ func (h *ListsHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	writeJSON(w, http.StatusOK, lists)
+	now := time.Now()
+	resp := make([]problemListResponse, 0, len(lists))
+	for _, l := range lists {
+		resp = append(resp, problemListResponse{
+			ProblemList: l,
+			IsCurrent:   isCurrentWeek(l.WeekStart, l.WeekEnd, now),
+		})
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // Get handles GET /api/v1/lists/:id, returning the list plus its items in
@@ -108,11 +167,23 @@ func (h *ListsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "title is required")
 		return
 	}
+	weekStart, ok := parseOptionalDate(body.WeekStart)
+	if !ok {
+		writeError(w, http.StatusUnprocessableEntity, "week_start must be YYYY-MM-DD")
+		return
+	}
+	weekEnd, ok := parseOptionalDate(body.WeekEnd)
+	if !ok {
+		writeError(w, http.StatusUnprocessableEntity, "week_end must be YYYY-MM-DD")
+		return
+	}
 
 	id := chi.URLParam(r, "id")
 	list, err := h.store.UpdateProblemList(r.Context(), id, claims.UserID, store.UpdateProblemListRequest{
 		Title:       body.Title,
 		WeekLabel:   body.WeekLabel,
+		WeekStart:   weekStart,
+		WeekEnd:     weekEnd,
 		Description: body.Description,
 		Published:   body.Published,
 	})

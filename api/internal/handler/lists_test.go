@@ -48,3 +48,80 @@ func TestCreateList_StudentForbidden(t *testing.T) {
 		t.Errorf("student POST /lists: expected 403, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func mustDate(t *testing.T, s string) time.Time {
+	t.Helper()
+	d, err := time.Parse(dateOnlyLayout, s)
+	if err != nil {
+		t.Fatalf("mustDate(%q): %v", s, err)
+	}
+	return d
+}
+
+func TestIsCurrentWeek(t *testing.T) {
+	now := mustDate(t, "2026-07-23") // Thursday, inside the 21-27 range below
+
+	tests := []struct {
+		name  string
+		start *time.Time
+		end   *time.Time
+		want  bool
+	}{
+		{
+			name:  "today inside range",
+			start: new(mustDate(t, "2026-07-21")),
+			end:   new(mustDate(t, "2026-07-27")),
+			want:  true,
+		},
+		{
+			name:  "today equals start boundary",
+			start: new(now),
+			end:   new(mustDate(t, "2026-07-27")),
+			want:  true,
+		},
+		{
+			name:  "today equals end boundary",
+			start: new(mustDate(t, "2026-07-21")),
+			end:   new(now),
+			want:  true,
+		},
+		{
+			name:  "today before range",
+			start: new(mustDate(t, "2026-07-24")),
+			end:   new(mustDate(t, "2026-07-30")),
+			want:  false,
+		},
+		{
+			name:  "today after range",
+			start: new(mustDate(t, "2026-07-01")),
+			end:   new(mustDate(t, "2026-07-22")),
+			want:  false,
+		},
+		{
+			name:  "week_start nil",
+			start: nil,
+			end:   new(mustDate(t, "2026-07-27")),
+			want:  false,
+		},
+		{
+			name:  "week_end nil",
+			start: new(mustDate(t, "2026-07-21")),
+			end:   nil,
+			want:  false,
+		},
+		{
+			name:  "both nil",
+			start: nil,
+			end:   nil,
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isCurrentWeek(tt.start, tt.end, now); got != tt.want {
+				t.Errorf("isCurrentWeek() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
