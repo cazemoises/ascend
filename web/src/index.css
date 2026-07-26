@@ -520,6 +520,13 @@ pre {
   animation: verdict-pulse 1.4s ease-in-out infinite;
 }
 
+.verdict--current {
+  margin-left: 8px;
+  color: var(--accent-green);
+  background: var(--accent-green-dim);
+  border-color: var(--accent-green);
+}
+
 @keyframes verdict-pulse {
   50% { opacity: 0.5; }
 }
@@ -656,6 +663,12 @@ pre {
   flex-shrink: 0;
   min-width: 78px;
   justify-content: center;
+}
+
+/* Same left-accent pattern as .sidebar__link--active: a 2px accent border
+   standing in for a dedicated "current" treatment. */
+.challenge-row--current {
+  border-left: 2px solid var(--accent-green);
 }
 
 .challenge-row__body {
@@ -1868,6 +1881,24 @@ pre {
   flex-wrap: wrap;
   gap: 8px;
   margin: 10px 0 16px;
+}
+
+/* Month section header on the list feed — same spirit as .datagrid th:
+   mono, uppercase, muted, hairline rule beneath. */
+.list-month-header {
+  margin: 24px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-hairline);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.list-month-header:first-child {
+  margin-top: 0;
 }
 
 .list-detail__description {

@@ -3,6 +3,46 @@ import { Link } from 'react-router-dom'
 
 import { listProblemLists, type ProblemList } from '../api'
 import { useAuth } from '../auth/useAuth'
+import { WeekChip } from '../components/WeekChip'
+
+const MONTH_FULL_PT = [
+  'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO',
+  'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO',
+]
+
+interface MonthGroup {
+  key: string
+  label: string
+  lists: ProblemList[]
+}
+
+// Groups consecutive-by-key lists into month buckets, in the order they
+// arrive — the backend already sorts week_start DESC NULLS LAST, so dated
+// lists land newest-month-first and undated ones land in one trailing group.
+function groupByMonth(lists: ProblemList[]): MonthGroup[] {
+  const groups: MonthGroup[] = []
+  const byKey = new Map<string, MonthGroup>()
+
+  for (const list of lists) {
+    let key = 'undated'
+    let label = 'SEM DATA'
+    if (list.week_start) {
+      const d = new Date(list.week_start)
+      key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`
+      label = `${MONTH_FULL_PT[d.getUTCMonth()]} ${d.getUTCFullYear()}`
+    }
+
+    let group = byKey.get(key)
+    if (!group) {
+      group = { key, label, lists: [] }
+      byKey.set(key, group)
+      groups.push(group)
+    }
+    group.lists.push(list)
+  }
+
+  return groups
+}
 
 export function ListsPage() {
   const { isTeacher } = useAuth()
@@ -60,24 +100,48 @@ export function ListsPage() {
 
       {!loading && !error ? (
         lists.length > 0 ? (
-          <div className="challenge-feed">
-            {lists.map((list) => (
-              <article key={list.id} className="challenge-row">
-                <div className="challenge-row__body">
-                  <h2>
-                    {list.title}
-                    {!list.published ? (
-                      <span className="verdict test-run-tag">RASCUNHO</span>
-                    ) : null}
-                  </h2>
-                  {list.week_label ? <p className="muted">{list.week_label}</p> : null}
+          (() => {
+            const groups = groupByMonth(lists)
+            const showMonthHeaders = groups.length > 1
+            return groups.map((group) => (
+              <div key={group.key}>
+                {showMonthHeaders ? <h2 className="list-month-header">{group.label}</h2> : null}
+                <div className="challenge-feed">
+                  {group.lists.map((list) => (
+                    <article
+                      key={list.id}
+                      className={
+                        list.is_current ? 'challenge-row challenge-row--current' : 'challenge-row'
+                      }
+                    >
+                      <div className="challenge-row__body">
+                        <h2>
+                          {list.title}
+                          {list.is_current ? (
+                            <span className="verdict verdict--current">SEMANA ATUAL</span>
+                          ) : null}
+                          {!list.published ? (
+                            <span className="verdict test-run-tag">RASCUNHO</span>
+                          ) : null}
+                        </h2>
+                        {list.week_label || (list.week_start && list.week_end) ? (
+                          <div className="challenge-row__meta">
+                            {list.week_label ? <p className="muted">{list.week_label}</p> : null}
+                            {list.week_start && list.week_end ? (
+                              <WeekChip weekStart={list.week_start} weekEnd={list.week_end} />
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                      <Link className="challenge-submit" to={`/listas/${list.id}`}>
+                        Ver lista
+                      </Link>
+                    </article>
+                  ))}
                 </div>
-                <Link className="challenge-submit" to={`/listas/${list.id}`}>
-                  Ver lista
-                </Link>
-              </article>
-            ))}
-          </div>
+              </div>
+            ))
+          })()
         ) : (
           <p className="status-message">
             {isTeacher
