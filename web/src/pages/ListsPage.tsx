@@ -142,7 +142,7 @@ export function ListsPage() {
                   const groups = groupByMonth(remainingLists)
                   const showMonthHeaders = groups.length > 1
                   return groups.map((group) => (
-                    <div key={group.key}>
+                    <div key={group.key} className="list-month-group">
                       {showMonthHeaders ? (
                         <h2 className="list-month-header">{group.label}</h2>
                       ) : null}

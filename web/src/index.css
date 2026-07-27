@@ -1951,6 +1951,18 @@ pre {
   margin-top: 0;
 }
 
+/* Wrapper around one month's header + feed. Bottom margin mirrors the
+   header's own bottom margin so the gap before the *next* month's header
+   matches the gap after *this* month's header — without it, the last card
+   of a group sits flush against the following month header. */
+.list-month-group {
+  margin-bottom: 28px;
+}
+
+.list-month-group:last-child {
+  margin-bottom: 0;
+}
+
 /* Page-scoped overrides for elements shared with other pages (.hero,
    .challenge-feed) — keep the tighter defaults everywhere else (challenges
    list, submission history, classboard). */
