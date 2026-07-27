@@ -59,6 +59,7 @@ func New(s *store.Store, j *auth.JWT, rl *appmw.RateLimiter) chi.Router {
 			r.Group(func(r chi.Router) {
 				r.Use(j.Middleware, teacherOnly)
 				r.Post("/", lh.Create)
+				r.Post("/import", lh.Import)
 				r.Patch("/{id}", lh.Update)
 				r.Delete("/{id}", lh.Delete)
 				r.Post("/{id}/items", lh.CreateItem)

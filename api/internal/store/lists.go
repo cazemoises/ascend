@@ -79,6 +79,18 @@ type ReorderItem struct {
 	Ordinal int
 }
 
+// ImportProblemListRequest is the payload for POST /lists/import — a list
+// plus every item to create with it, in one call.
+type ImportProblemListRequest struct {
+	TeacherID   string
+	Title       string
+	WeekLabel   *string
+	WeekStart   *time.Time
+	WeekEnd     *time.Time
+	Description *string
+	Items       []CreateListItemRequest
+}
+
 const problemListColumns = `id, teacher_id, title, week_label, description, published, created_at, updated_at, week_start, week_end`
 
 func scanProblemList(row interface {
@@ -280,6 +292,50 @@ func (s *Store) CreateListItem(ctx context.Context, listID, teacherID string, re
 		return ListItem{}, fmt.Errorf("insert list item: %w", err)
 	}
 	return it, tx.Commit()
+}
+
+// ImportProblemList creates a list and all of its items in a single
+// transaction: an insert failure on any item (or the list itself) rolls back
+// the whole request, so a bad payload never leaves an orphaned list behind.
+// Ordinals are assigned by array position, same as a fresh CreateListItem
+// sequence would produce.
+func (s *Store) ImportProblemList(ctx context.Context, req ImportProblemListRequest) (ProblemListDetail, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return ProblemListDetail{}, err
+	}
+	defer tx.Rollback()
+
+	row := tx.QueryRowContext(ctx,
+		`INSERT INTO problem_lists (teacher_id, title, week_label, description, week_start, week_end)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 RETURNING `+problemListColumns,
+		req.TeacherID, req.Title, req.WeekLabel, req.Description, req.WeekStart, req.WeekEnd)
+	pl, err := scanProblemList(row)
+	if err != nil {
+		return ProblemListDetail{}, fmt.Errorf("insert problem list: %w", err)
+	}
+
+	items := make([]ListItem, 0, len(req.Items))
+	for i, it := range req.Items {
+		var li ListItem
+		err := tx.QueryRowContext(ctx,
+			`INSERT INTO list_items (list_id, ordinal, title, difficulty, is_bonus, body)
+			 VALUES ($1, $2, $3, $4, $5, $6)
+			 RETURNING id, list_id, ordinal, title, difficulty, is_bonus, body, created_at, updated_at`,
+			pl.ID, i, it.Title, it.Difficulty, it.IsBonus, it.Body,
+		).Scan(&li.ID, &li.ListID, &li.Ordinal, &li.Title, &li.Difficulty, &li.IsBonus, &li.Body,
+			&li.CreatedAt, &li.UpdatedAt)
+		if err != nil {
+			return ProblemListDetail{}, fmt.Errorf("insert list item %d: %w", i, err)
+		}
+		items = append(items, li)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return ProblemListDetail{}, err
+	}
+	return ProblemListDetail{ProblemList: pl, Items: items}, nil
 }
 
 // UpdateListItem and DeleteListItem join through problem_lists to scope the

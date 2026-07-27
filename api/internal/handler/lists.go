@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -112,6 +113,75 @@ func (h *ListsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, list)
+}
+
+type importListBody struct {
+	Title       string         `json:"title"`
+	WeekLabel   *string        `json:"week_label"`
+	WeekStart   *string        `json:"week_start"`
+	WeekEnd     *string        `json:"week_end"`
+	Description *string        `json:"description"`
+	Items       []listItemBody `json:"items"`
+}
+
+// Import handles POST /api/v1/lists/import (teacher only). Creates the list
+// and every item from the JSON payload in one transaction — an invalid item
+// anywhere in the array rolls back the whole request, so nothing is
+// persisted half-imported. items may be empty.
+func (h *ListsHandler) Import(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.FromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	var body importListBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if body.Title == "" {
+		writeError(w, http.StatusUnprocessableEntity, "title is required")
+		return
+	}
+	weekStart, ok := parseOptionalDate(body.WeekStart)
+	if !ok {
+		writeError(w, http.StatusUnprocessableEntity, "week_start must be YYYY-MM-DD")
+		return
+	}
+	weekEnd, ok := parseOptionalDate(body.WeekEnd)
+	if !ok {
+		writeError(w, http.StatusUnprocessableEntity, "week_end must be YYYY-MM-DD")
+		return
+	}
+
+	items := make([]store.CreateListItemRequest, 0, len(body.Items))
+	for i, it := range body.Items {
+		if msg, ok := it.validate(); !ok {
+			writeError(w, http.StatusUnprocessableEntity, fmt.Sprintf("item %d: %s", i, msg))
+			return
+		}
+		items = append(items, store.CreateListItemRequest{
+			Title:      it.Title,
+			Difficulty: it.Difficulty,
+			IsBonus:    it.IsBonus,
+			Body:       it.Body,
+		})
+	}
+
+	detail, err := h.store.ImportProblemList(r.Context(), store.ImportProblemListRequest{
+		TeacherID:   claims.UserID,
+		Title:       body.Title,
+		WeekLabel:   body.WeekLabel,
+		WeekStart:   weekStart,
+		WeekEnd:     weekEnd,
+		Description: body.Description,
+		Items:       items,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	writeJSON(w, http.StatusCreated, detail)
 }
 
 // List handles GET /api/v1/lists — public, no login required. Auth is

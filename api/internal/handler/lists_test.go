@@ -17,6 +17,7 @@ func newListsTestRouter(j *auth.JWT) chi.Router {
 	h := NewListsHandler(nil)
 	teacherOnly := auth.RequireRole("teacher")
 	r.With(j.Middleware, teacherOnly).Post("/lists", h.Create)
+	r.With(j.Middleware, teacherOnly).Post("/lists/import", h.Import)
 	r.Get("/lists", h.List)
 	return r
 }
@@ -46,6 +47,67 @@ func TestCreateList_StudentForbidden(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("student POST /lists: expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestImportList_StudentForbidden mirrors TestCreateList_StudentForbidden
+// for the import endpoint: the role gate rejects the request before the
+// handler (or store) ever runs.
+func TestImportList_StudentForbidden(t *testing.T) {
+	j, err := auth.NewJWT([]byte("0123456789abcdef0123456789abcdef"), time.Hour)
+	if err != nil {
+		t.Fatalf("NewJWT: %v", err)
+	}
+	r := newListsTestRouter(j)
+
+	token, err := j.Sign("student-1", "student@example.com", "student", time.Now())
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+
+	body := `{"title":"Snuck In List","items":[]}`
+	req := httptest.NewRequest(http.MethodPost, "/lists/import", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("student POST /lists/import: expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestImportList_InvalidItemDifficulty_UnprocessableEntity covers the
+// validation path that never reaches the store: an invalid item difficulty
+// 422s with a message identifying which item is bad, before any transaction
+// starts.
+func TestImportList_InvalidItemDifficulty_UnprocessableEntity(t *testing.T) {
+	j, err := auth.NewJWT([]byte("0123456789abcdef0123456789abcdef"), time.Hour)
+	if err != nil {
+		t.Fatalf("NewJWT: %v", err)
+	}
+	r := newListsTestRouter(j)
+
+	token, err := j.Sign("teacher-1", "teacher@example.com", "teacher", time.Now())
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+
+	body := `{"title":"Bancos de dados","items":[
+		{"title":"Item 1","difficulty":"easy","body":"ok"},
+		{"title":"Item 2","difficulty":"impossible","body":"bad"}
+	]}`
+	req := httptest.NewRequest(http.MethodPost, "/lists/import", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", w.Code, w.Body.String())
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("item 1")) {
+		t.Errorf("expected error message to identify item index 1, got: %s", w.Body.String())
 	}
 }
 

@@ -110,6 +110,111 @@ func TestCreateListItem_NotOwner_NotFound(t *testing.T) {
 	}
 }
 
+func TestImportProblemList_HappyPath(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	teacher := createTestUser(t, s, db, ctx, "lists-import-happy-teacher@example.com")
+
+	weekLabel := "Semana 12"
+	detail, err := s.ImportProblemList(ctx, store.ImportProblemListRequest{
+		TeacherID: teacher.ID,
+		Title:     "Bancos de dados",
+		WeekLabel: &weekLabel,
+		Items: []store.CreateListItemRequest{
+			{Title: "Primeiro contato com SQL", Difficulty: "easy", IsBonus: true, Body: "CREATE TABLE..."},
+			{Title: "Joins", Difficulty: "medium", Body: "SELECT ..."},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ImportProblemList: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, detail.ID, teacher.ID) })
+
+	if detail.ID == "" {
+		t.Error("expected non-empty list ID")
+	}
+	if len(detail.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(detail.Items))
+	}
+	for i, it := range detail.Items {
+		if it.Ordinal != i {
+			t.Errorf("item %d: ordinal = %d, want %d", i, it.Ordinal, i)
+		}
+		if it.ListID != detail.ID {
+			t.Errorf("item %d: list_id = %q, want %q", i, it.ListID, detail.ID)
+		}
+	}
+	if !detail.Items[0].IsBonus {
+		t.Error("expected first item is_bonus=true")
+	}
+
+	// Confirm the read path (GetProblemListDetail) agrees with what Import
+	// returned, i.e. everything was actually committed.
+	reloaded, err := s.GetProblemListDetail(ctx, detail.ID, teacher.ID, "teacher")
+	if err != nil {
+		t.Fatalf("GetProblemListDetail: %v", err)
+	}
+	if len(reloaded.Items) != 2 {
+		t.Errorf("reloaded: expected 2 items, got %d", len(reloaded.Items))
+	}
+}
+
+func TestImportProblemList_EmptyItems(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	teacher := createTestUser(t, s, db, ctx, "lists-import-empty-teacher@example.com")
+
+	detail, err := s.ImportProblemList(ctx, store.ImportProblemListRequest{
+		TeacherID: teacher.ID,
+		Title:     "Lista vazia",
+		Items:     []store.CreateListItemRequest{},
+	})
+	if err != nil {
+		t.Fatalf("ImportProblemList: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, detail.ID, teacher.ID) })
+
+	if len(detail.Items) != 0 {
+		t.Errorf("expected 0 items, got %d", len(detail.Items))
+	}
+}
+
+// TestImportProblemList_InvalidItemRollsBackEverything drives the
+// CHECK constraint on list_items.difficulty directly (bypassing handler
+// validation) to prove the store-level transaction really rolls back the
+// list insert too — no orphaned list left behind on failure.
+func TestImportProblemList_InvalidItemRollsBackEverything(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	teacher := createTestUser(t, s, db, ctx, "lists-import-rollback-teacher@example.com")
+
+	const title = "Rollback Test List"
+	_, err := s.ImportProblemList(ctx, store.ImportProblemListRequest{
+		TeacherID: teacher.ID,
+		Title:     title,
+		Items: []store.CreateListItemRequest{
+			{Title: "Good item", Difficulty: "easy", Body: "ok"},
+			{Title: "Bad item", Difficulty: "impossible", Body: "bad"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected an error from the invalid difficulty, got nil")
+	}
+
+	var count int
+	if err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM problem_lists WHERE teacher_id = $1 AND title = $2`,
+		teacher.ID, title).Scan(&count); err != nil {
+		t.Fatalf("count problem_lists: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected the list to be rolled back, but found %d row(s)", count)
+	}
+}
+
 func TestReorderListItems_AtomicOnPartialFailure(t *testing.T) {
 	db := openTestDB(t)
 	s := store.New(db, nil)
