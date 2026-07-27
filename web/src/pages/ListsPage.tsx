@@ -103,7 +103,7 @@ export function ListsPage() {
     }
   }, [])
 
-  const currentList = lists.find((list) => list.is_current)
+  const currentLists = lists.filter((list) => list.is_current)
   // Soonest-first — the opposite of the API's general DESC order, so this
   // subset gets its own sort rather than relying on the fetch order.
   const upcomingLists = [...lists]
@@ -137,10 +137,14 @@ export function ListsPage() {
       {!loading && !error ? (
         lists.length > 0 ? (
           <>
-            {currentList ? (
+            {currentLists.length > 0 ? (
               <section className="list-current">
                 <p className="list-current__label">Semana atual</p>
-                <ListCard list={currentList} current />
+                <div className="challenge-feed">
+                  {currentLists.map((list) => (
+                    <ListCard key={list.id} list={list} current />
+                  ))}
+                </div>
               </section>
             ) : null}
 
@@ -155,7 +159,7 @@ export function ListsPage() {
               </section>
             ) : null}
 
-            {(currentList || upcomingLists.length > 0) && remainingLists.length > 0 ? (
+            {(currentLists.length > 0 || upcomingLists.length > 0) && remainingLists.length > 0 ? (
               <h2 className="list-section-header">Histórico</h2>
             ) : null}
 

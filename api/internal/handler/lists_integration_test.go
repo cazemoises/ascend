@@ -4,6 +4,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -108,4 +109,89 @@ func TestGetList_OwningTeacherSeesOwnDraft(t *testing.T) {
 			t.Errorf("anonymous GET published /lists/%s: expected 200, got %d: %s", list.ID, w.Code, w.Body.String())
 		}
 	})
+}
+
+// TestListLists_MultipleOverlappingCurrentWeeks covers the reported bug's
+// first investigation step: is_current is computed independently per list
+// in ListsHandler.List (no dedup, no "pick one" logic), so two published
+// lists whose date ranges both cover today must both come back
+// is_current=true in the same response. This confirms the backend is
+// correct — the bug (only one list showing in the frontend's "Semana
+// atual" section) is a frontend selection bug, not a backend one.
+func TestListLists_MultipleOverlappingCurrentWeeks(t *testing.T) {
+	db := openHandlerTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+
+	teacher, err := s.CreateUser(ctx, "lists-multi-current-integ@example.com", "unused-hash")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, teacher.ID) })
+
+	today := time.Now().UTC()
+	startA := today.AddDate(0, 0, -3)
+	endA := today.AddDate(0, 0, 10)
+	startB := today.AddDate(0, 0, -1)
+	endB := today.AddDate(0, 0, 5)
+
+	listA, err := s.CreateProblemList(ctx, store.CreateProblemListRequest{
+		TeacherID: teacher.ID, Title: "Overlap A", WeekStart: &startA, WeekEnd: &endA,
+	})
+	if err != nil {
+		t.Fatalf("CreateProblemList A: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, listA.ID, teacher.ID) })
+	if _, err := s.UpdateProblemList(ctx, listA.ID, teacher.ID, store.UpdateProblemListRequest{
+		Title: listA.Title, WeekStart: &startA, WeekEnd: &endA, Published: true,
+	}); err != nil {
+		t.Fatalf("publish A: %v", err)
+	}
+
+	listB, err := s.CreateProblemList(ctx, store.CreateProblemListRequest{
+		TeacherID: teacher.ID, Title: "Overlap B", WeekStart: &startB, WeekEnd: &endB,
+	})
+	if err != nil {
+		t.Fatalf("CreateProblemList B: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, listB.ID, teacher.ID) })
+	if _, err := s.UpdateProblemList(ctx, listB.ID, teacher.ID, store.UpdateProblemListRequest{
+		Title: listB.Title, WeekStart: &startB, WeekEnd: &endB, Published: true,
+	}); err != nil {
+		t.Fatalf("publish B: %v", err)
+	}
+
+	j, err := auth.NewJWT([]byte("0123456789abcdef0123456789abcdef"), time.Hour)
+	if err != nil {
+		t.Fatalf("NewJWT: %v", err)
+	}
+	r := newListsIntegrationRouter(j, s)
+
+	req := httptest.NewRequest(http.MethodGet, "/lists", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /lists: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp []struct {
+		ID        string `json:"id"`
+		IsCurrent bool   `json:"is_current"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	gotA, gotB := false, false
+	for _, item := range resp {
+		switch item.ID {
+		case listA.ID:
+			gotA = item.IsCurrent
+		case listB.ID:
+			gotB = item.IsCurrent
+		}
+	}
+	if !gotA || !gotB {
+		t.Errorf("expected both overlapping lists to be is_current=true, got A=%v B=%v", gotA, gotB)
+	}
 }
