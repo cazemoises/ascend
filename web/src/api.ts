@@ -2,20 +2,12 @@
 // server directly.
 export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
 
-const TOKEN_KEY = 'ascend_token'
-const USER_KEY = 'ascend_user'
-export const UNAUTHORIZED_EVENT = 'ascend:unauthorized'
+export type UserRole = 'student' | 'teacher'
 
 export interface AuthUser {
   id: string
   email: string
-  created_at: string
-  updated_at: string
-}
-
-export interface AuthResponse {
-  token: string
-  user: AuthUser
+  role: UserRole
 }
 
 export class ApiError extends Error {
@@ -25,32 +17,6 @@ export class ApiError extends Error {
     super(message)
     this.status = status
   }
-}
-
-export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
-}
-
-export function getStoredUser(): AuthUser | null {
-  const raw = localStorage.getItem(USER_KEY)
-  if (raw === null) {
-    return null
-  }
-  try {
-    return JSON.parse(raw) as AuthUser
-  } catch {
-    return null
-  }
-}
-
-export function storeSession(session: AuthResponse): void {
-  localStorage.setItem(TOKEN_KEY, session.token)
-  localStorage.setItem(USER_KEY, JSON.stringify(session.user))
-}
-
-export function clearSession(): void {
-  localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(USER_KEY)
 }
 
 export type ChallengeDifficulty = 'easy' | 'medium' | 'hard'
@@ -117,10 +83,6 @@ async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
   if (init?.body != null && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
-  const token = getToken()
-  if (token !== null && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`)
-  }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
@@ -128,14 +90,6 @@ async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
   })
 
   if (!response.ok) {
-    // Expired/invalid session: clear once and notify AuthContext so route
-    // guards redirect declaratively. Fires at most once — follow-up requests
-    // carry no token and skip this branch. Auth endpoints are exempt: a
-    // failed login must not destroy an existing session.
-    if (response.status === 401 && token !== null && !path.startsWith('/api/v1/auth/')) {
-      clearSession()
-      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
-    }
     let message = `Request failed with status ${response.status}`
     try {
       const payload = (await response.json()) as { error?: string }
@@ -214,18 +168,12 @@ export function replaceTestCases(challengeId: string, testCases: CreateTestCaseI
   })
 }
 
-export function registerUser(email: string, password: string) {
-  return requestJSON<AuthResponse>('/api/v1/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  })
-}
-
-export function loginUser(email: string, password: string) {
-  return requestJSON<AuthResponse>('/api/v1/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  })
+// fetchMe resolves the caller's identity from the Remote-Email header the
+// Pangolin proxy sets on every request — there is no login form or token.
+// Rejects with a 401 ApiError when Pangolin (or DEV_FAKE_EMAIL locally)
+// didn't identify a caller.
+export function fetchMe() {
+  return requestJSON<AuthUser>('/api/v1/auth/me')
 }
 
 export function listChallenges() {

@@ -23,3 +23,6 @@ go.work.sum
 Thumbs.db
 
 ascend-images.tar
+images.tar
+go1.26.0.linux-amd64.tar.gz
+*.tar.gz

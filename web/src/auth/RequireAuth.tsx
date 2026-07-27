@@ -1,16 +1,18 @@
 import type { ReactNode } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
 
 import { useAuth } from './useAuth'
 
-// Route guard: unauthenticated visitors are sent to /login exactly once,
-// remembering where they were headed so LoginPage can return them there.
+// Route guard: identity comes from Pangolin (or DEV_FAKE_EMAIL locally),
+// never from a login form, so there is nowhere to redirect an unidentified
+// visitor to — show an inline message instead.
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth()
-  const location = useLocation()
+  const { isAuthenticated, loading } = useAuth()
 
+  if (loading) {
+    return null
+  }
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />
+    return <p className="status-message">Sem acesso. Sua identidade não foi reconhecida.</p>
   }
   return <>{children}</>
 }
@@ -18,14 +20,13 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 // Teacher-only guard for administrative surfaces. UI gating only — the API
 // must still enforce authorization server-side.
 export function RequireTeacher({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isTeacher } = useAuth()
-  const location = useLocation()
+  const { isAuthenticated, isTeacher, loading } = useAuth()
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  if (loading) {
+    return null
   }
-  if (!isTeacher) {
-    return <Navigate to="/" replace />
+  if (!isAuthenticated || !isTeacher) {
+    return <p className="status-message">Sem acesso. Esta área é restrita a professores.</p>
   }
   return <>{children}</>
 }
