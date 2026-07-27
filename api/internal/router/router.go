@@ -74,6 +74,12 @@ func New(s *store.Store, j *auth.JWT, rl *appmw.RateLimiter) chi.Router {
 			// without real student accounts there's no identity to attach a
 			// completion to. Re-add once accounts are back.
 		})
+
+		// TEMPORARY — Pangolin proxy header investigation. No auth by design
+		// (we're checking what arrives before any auth decision). DELETE this
+		// route and handler.DebugHeaders once the investigation is done; must
+		// never reach production.
+		r.Get("/debug/headers", handler.DebugHeaders)
 	})
 	return r
 }
