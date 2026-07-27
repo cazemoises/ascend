@@ -1981,6 +1981,12 @@ pre {
   margin-bottom: 40px;
 }
 
+/* Lists whose week_start hasn't arrived yet, soonest first — same card
+   styling as history, just grouped ahead of it instead of by month. */
+.list-upcoming {
+  margin-bottom: 40px;
+}
+
 .list-current__label {
   margin: 0 0 10px;
   font-family: var(--font-mono);

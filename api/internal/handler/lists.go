@@ -65,11 +65,27 @@ func isCurrentWeek(start, end *time.Time, now time.Time) bool {
 	return !todayDate.Before(start.UTC()) && !todayDate.After(end.UTC())
 }
 
-// problemListResponse adds the is_current flag to a list payload — derived
-// from week_start/week_end and the current time, never persisted.
+// isUpcomingWeek reports whether week_start is a future calendar date
+// relative to now. Mutually exclusive with isCurrentWeek by construction:
+// a future week_start always fails isCurrentWeek's "today is within
+// [start, end]" check, since today can't be within a range that hasn't
+// started yet.
+func isUpcomingWeek(start *time.Time, now time.Time) bool {
+	if start == nil {
+		return false
+	}
+	today := now.UTC()
+	todayDate := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
+	return start.UTC().After(todayDate)
+}
+
+// problemListResponse adds the is_current/is_upcoming flags to a list
+// payload — derived from week_start/week_end and the current time, never
+// persisted.
 type problemListResponse struct {
 	store.ProblemList
-	IsCurrent bool `json:"is_current"`
+	IsCurrent  bool `json:"is_current"`
+	IsUpcoming bool `json:"is_upcoming"`
 }
 
 // Create handles POST /api/v1/lists (teacher only). New lists always start
@@ -204,6 +220,7 @@ func (h *ListsHandler) List(w http.ResponseWriter, r *http.Request) {
 		resp = append(resp, problemListResponse{
 			ProblemList: l,
 			IsCurrent:   isCurrentWeek(l.WeekStart, l.WeekEnd, now),
+			IsUpcoming:  isUpcomingWeek(l.WeekStart, now),
 		})
 	}
 	writeJSON(w, http.StatusOK, resp)

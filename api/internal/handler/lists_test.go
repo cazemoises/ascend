@@ -187,3 +187,47 @@ func TestIsCurrentWeek(t *testing.T) {
 		})
 	}
 }
+
+func TestIsUpcomingWeek(t *testing.T) {
+	now := mustDate(t, "2026-07-23")
+
+	tests := []struct {
+		name  string
+		start *time.Time
+		want  bool
+	}{
+		{
+			name:  "tomorrow",
+			start: new(mustDate(t, "2026-07-24")),
+			want:  true,
+		},
+		{
+			name:  "further in the future",
+			start: new(mustDate(t, "2026-08-01")),
+			want:  true,
+		},
+		{
+			name:  "today",
+			start: new(now),
+			want:  false,
+		},
+		{
+			name:  "past",
+			start: new(mustDate(t, "2026-07-22")),
+			want:  false,
+		},
+		{
+			name:  "week_start nil",
+			start: nil,
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isUpcomingWeek(tt.start, now); got != tt.want {
+				t.Errorf("isUpcomingWeek() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

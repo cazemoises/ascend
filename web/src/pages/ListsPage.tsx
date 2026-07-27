@@ -44,6 +44,34 @@ function groupByMonth(lists: ProblemList[]): MonthGroup[] {
   return groups
 }
 
+// Shared row markup for every list card on this page — the current-week
+// spotlight, the upcoming section, and the month-grouped history all render
+// the same title/badge/meta/link body; only the spotlight gets the extra
+// accent styling via `current`.
+function ListCard({ list, current = false }: { list: ProblemList; current?: boolean }) {
+  return (
+    <article className={current ? 'challenge-row challenge-row--current' : 'challenge-row'}>
+      <div className="challenge-row__body">
+        <h2>
+          {list.title}
+          {!list.published ? <span className="verdict test-run-tag">RASCUNHO</span> : null}
+        </h2>
+        {list.week_label || (list.week_start && list.week_end) ? (
+          <div className="challenge-row__meta">
+            {list.week_label ? <p className="muted">{list.week_label}</p> : null}
+            {list.week_start && list.week_end ? (
+              <WeekChip weekStart={list.week_start} weekEnd={list.week_end} />
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+      <Link className="challenge-submit" to={`/listas/${list.id}`}>
+        Ver lista
+      </Link>
+    </article>
+  )
+}
+
 export function ListsPage() {
   const { isTeacher } = useAuth()
   const [lists, setLists] = useState<ProblemList[]>([])
@@ -76,7 +104,12 @@ export function ListsPage() {
   }, [])
 
   const currentList = lists.find((list) => list.is_current)
-  const remainingLists = currentList ? lists.filter((list) => list.id !== currentList.id) : lists
+  // Soonest-first — the opposite of the API's general DESC order, so this
+  // subset gets its own sort rather than relying on the fetch order.
+  const upcomingLists = [...lists]
+    .filter((list) => list.is_upcoming)
+    .sort((a, b) => (a.week_start ?? '').localeCompare(b.week_start ?? ''))
+  const remainingLists = lists.filter((list) => !list.is_current && !list.is_upcoming)
 
   return (
     <main className="page-shell lists-page">
@@ -107,33 +140,22 @@ export function ListsPage() {
             {currentList ? (
               <section className="list-current">
                 <p className="list-current__label">Semana atual</p>
-                <article className="challenge-row challenge-row--current">
-                  <div className="challenge-row__body">
-                    <h2>
-                      {currentList.title}
-                      {!currentList.published ? (
-                        <span className="verdict test-run-tag">RASCUNHO</span>
-                      ) : null}
-                    </h2>
-                    {currentList.week_label || (currentList.week_start && currentList.week_end) ? (
-                      <div className="challenge-row__meta">
-                        {currentList.week_label ? (
-                          <p className="muted">{currentList.week_label}</p>
-                        ) : null}
-                        {currentList.week_start && currentList.week_end ? (
-                          <WeekChip weekStart={currentList.week_start} weekEnd={currentList.week_end} />
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                  <Link className="challenge-submit" to={`/listas/${currentList.id}`}>
-                    Ver lista
-                  </Link>
-                </article>
+                <ListCard list={currentList} current />
               </section>
             ) : null}
 
-            {currentList && remainingLists.length > 0 ? (
+            {upcomingLists.length > 0 ? (
+              <section className="list-upcoming">
+                <h2 className="list-section-header">Próximas</h2>
+                <div className="challenge-feed">
+                  {upcomingLists.map((list) => (
+                    <ListCard key={list.id} list={list} />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {(currentList || upcomingLists.length > 0) && remainingLists.length > 0 ? (
               <h2 className="list-section-header">Histórico</h2>
             ) : null}
 
@@ -148,29 +170,7 @@ export function ListsPage() {
                       ) : null}
                       <div className="challenge-feed">
                         {group.lists.map((list) => (
-                          <article key={list.id} className="challenge-row">
-                            <div className="challenge-row__body">
-                              <h2>
-                                {list.title}
-                                {!list.published ? (
-                                  <span className="verdict test-run-tag">RASCUNHO</span>
-                                ) : null}
-                              </h2>
-                              {list.week_label || (list.week_start && list.week_end) ? (
-                                <div className="challenge-row__meta">
-                                  {list.week_label ? (
-                                    <p className="muted">{list.week_label}</p>
-                                  ) : null}
-                                  {list.week_start && list.week_end ? (
-                                    <WeekChip weekStart={list.week_start} weekEnd={list.week_end} />
-                                  ) : null}
-                                </div>
-                              ) : null}
-                            </div>
-                            <Link className="challenge-submit" to={`/listas/${list.id}`}>
-                              Ver lista
-                            </Link>
-                          </article>
+                          <ListCard key={list.id} list={list} />
                         ))}
                       </div>
                     </div>

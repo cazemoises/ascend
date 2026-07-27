@@ -317,8 +317,10 @@ export interface ProblemList {
   created_at: string
   updated_at: string
   // Only present on the GET /lists collection response — derived server-side
-  // from week_start/week_end against today, not persisted.
+  // from week_start/week_end against today, not persisted. Mutually
+  // exclusive: a list is never both.
   is_current?: boolean
+  is_upcoming?: boolean
 }
 
 export interface ListItem {
