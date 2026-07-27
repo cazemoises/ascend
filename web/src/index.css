@@ -1120,6 +1120,50 @@ pre {
   gap: 10px;
 }
 
+.studio__mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 20px;
+}
+
+.studio__mode-tab {
+  padding: 8px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--panel-alt);
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease;
+}
+
+.studio__mode-tab:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.studio__mode-tab--active {
+  border-color: rgba(46, 200, 102, 0.5);
+  color: var(--title);
+  background: rgba(46, 200, 102, 0.08);
+}
+
+.studio__json-preview {
+  margin-top: 14px;
+}
+
+.studio__json-preview ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 0.86rem;
+  color: var(--text);
+}
+
+.studio__json-preview li {
+  margin-bottom: 4px;
+}
+
 .btn-ghost {
   border-color: transparent;
   background: transparent;

@@ -382,6 +382,29 @@ export function deleteProblemList(id: string) {
   return requestJSON<void>(`/api/v1/lists/${id}`, { method: 'DELETE' })
 }
 
+export interface ImportListItemInput {
+  title: string
+  difficulty: ListItemDifficulty
+  is_bonus?: boolean
+  body: string
+}
+
+export interface ImportProblemListInput {
+  title: string
+  week_label?: string | null
+  week_start?: string | null
+  week_end?: string | null
+  description?: string | null
+  items: ImportListItemInput[]
+}
+
+export function importProblemList(body: ImportProblemListInput) {
+  return requestJSON<ProblemListDetail>('/api/v1/lists/import', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 export interface CreateListItemInput {
   title: string
   difficulty: ListItemDifficulty

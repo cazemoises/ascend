@@ -8,8 +8,10 @@ import {
   createProblemList,
   deleteListItem,
   getProblemList,
+  importProblemList,
   updateListItem,
   updateProblemList,
+  type ImportProblemListInput,
   type ListItemDifficulty,
 } from '../api'
 
@@ -62,6 +64,29 @@ function isoToDateInputValue(iso: string | null): string {
   return iso ? iso.slice(0, 10) : ''
 }
 
+type JsonImportPreview = {
+  title: string
+  items: { title: string; difficulty: string }[]
+}
+
+// Reads only what the preview needs to display — the backend is the sole
+// source of truth for shape/business validation (difficulty enum, date
+// format, required fields).
+function toImportPreview(raw: unknown): JsonImportPreview {
+  const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const itemsRaw = Array.isArray(obj.items) ? obj.items : []
+  return {
+    title: typeof obj.title === 'string' ? obj.title : '',
+    items: itemsRaw.map((raw) => {
+      const item = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+      return {
+        title: typeof item.title === 'string' ? item.title : '',
+        difficulty: typeof item.difficulty === 'string' ? item.difficulty : '',
+      }
+    }),
+  }
+}
+
 export function ListFormPage() {
   const { id } = useParams<{ id?: string }>()
   const navigate = useNavigate()
@@ -84,6 +109,13 @@ export function ListFormPage() {
   const [error, setError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Import mode only exists on "Nova lista" — editing an existing list keeps
+  // the manual form.
+  const [mode, setMode] = useState<'manual' | 'json'>('manual')
+  const [jsonText, setJsonText] = useState('')
+  const [jsonError, setJsonError] = useState<string | null>(null)
+  const [jsonPreview, setJsonPreview] = useState<JsonImportPreview | null>(null)
 
   useEffect(() => {
     if (!editing || !id) {
@@ -147,9 +179,46 @@ export function ListFormPage() {
     setItems((prev) => prev.filter((_, i) => i !== index))
   }
 
+  function handlePreviewJson() {
+    setJsonError(null)
+    try {
+      const parsed: unknown = JSON.parse(jsonText)
+      setJsonPreview(toImportPreview(parsed))
+    } catch (err) {
+      setJsonPreview(null)
+      setJsonError(err instanceof Error ? err.message : 'JSON inválido')
+    }
+  }
+
+  async function handleImportSubmit() {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(jsonText)
+    } catch (err) {
+      setJsonError(err instanceof Error ? err.message : 'JSON inválido')
+      return
+    }
+    setJsonError(null)
+
+    setSaving(true)
+    try {
+      const created = await importProblemList(parsed as ImportProblemListInput)
+      navigate(`/listas/${created.id}`)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Falha ao importar a lista')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSaveError(null)
+
+    if (mode === 'json') {
+      await handleImportSubmit()
+      return
+    }
 
     // Blank rows are ignored; a partially-filled row is a teacher mistake
     // the backend would reject anyway — fail early with a clear message.
@@ -260,6 +329,79 @@ export function ListFormPage() {
 
         {saveError ? <p className="status-message status-error">{saveError}</p> : null}
 
+        {!editing ? (
+          <div className="studio__mode-tabs" role="tablist" aria-label="Modo de criação">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'manual'}
+              className={mode === 'manual' ? 'studio__mode-tab studio__mode-tab--active' : 'studio__mode-tab'}
+              onClick={() => setMode('manual')}
+              disabled={saving}
+            >
+              Preencher manualmente
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'json'}
+              className={mode === 'json' ? 'studio__mode-tab studio__mode-tab--active' : 'studio__mode-tab'}
+              onClick={() => setMode('json')}
+              disabled={saving}
+            >
+              Importar JSON
+            </button>
+          </div>
+        ) : null}
+
+        {mode === 'json' ? (
+          <section className="studio__panel">
+            <h2 className="studio__panel-title">Importar JSON</h2>
+            <p className="studio__panel-hint">
+              Cole o JSON da lista completa (título, semana, descrição e itens) para criar tudo de
+              uma vez.
+            </p>
+            <label className="studio__field--full">
+              JSON
+              <textarea
+                className="input-code input-code--tall"
+                value={jsonText}
+                onChange={(e) => {
+                  setJsonText(e.target.value)
+                  setJsonPreview(null)
+                  setJsonError(null)
+                }}
+                placeholder='{"title": "Bancos de dados", "items": [...]}'
+                disabled={saving}
+              />
+            </label>
+            {jsonError ? <p className="status-message status-error">{jsonError}</p> : null}
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handlePreviewJson}
+              disabled={saving || jsonText.trim() === ''}
+            >
+              Pré-visualizar
+            </button>
+            {jsonPreview ? (
+              <div className="studio__json-preview">
+                <p className="studio__panel-hint">
+                  <strong>{jsonPreview.title || '(sem título)'}</strong> — {jsonPreview.items.length}{' '}
+                  item(ns)
+                </p>
+                <ul>
+                  {jsonPreview.items.map((it, i) => (
+                    <li key={i}>
+                      {it.title || '(sem título)'} — {it.difficulty || '(sem dificuldade)'}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+        ) : (
+        <>
         <section className="studio__panel">
           <h2 className="studio__panel-title">Identidade da lista</h2>
           <p className="studio__panel-hint">
@@ -416,6 +558,8 @@ export function ListFormPage() {
             + Adicionar item
           </button>
         </section>
+        </>
+        )}
       </form>
     </main>
   )
