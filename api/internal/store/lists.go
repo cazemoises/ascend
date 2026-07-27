@@ -105,7 +105,8 @@ func (s *Store) CreateProblemList(ctx context.Context, req CreateProblemListRequ
 
 // ListProblemListsForViewer applies the same visibility rule everywhere a
 // list feed is served: a teacher sees every list they own (draft and
-// published); anyone else sees only published lists, platform-wide. Newest
+// published) plus every published list platform-wide, including other
+// teachers'; anyone else sees only published lists, platform-wide. Newest
 // week first; lists with no week_start sort last, by created_at among
 // themselves.
 func (s *Store) ListProblemListsForViewer(ctx context.Context, viewerID, role string) ([]ProblemList, error) {
@@ -114,7 +115,7 @@ func (s *Store) ListProblemListsForViewer(ctx context.Context, viewerID, role st
 	var err error
 	if role == "teacher" {
 		rows, err = s.db.QueryContext(ctx,
-			`SELECT `+problemListColumns+` FROM problem_lists WHERE teacher_id = $1`+order,
+			`SELECT `+problemListColumns+` FROM problem_lists WHERE teacher_id = $1 OR published = true`+order,
 			viewerID)
 	} else {
 		rows, err = s.db.QueryContext(ctx,

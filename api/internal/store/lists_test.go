@@ -156,6 +156,55 @@ func TestReorderListItems_AtomicOnPartialFailure(t *testing.T) {
 	_ = itemB
 }
 
+// TestListProblemListsForViewer_TeacherSeesOwnDraftsPlusEveryonesPublished
+// covers the fix for the reported regression: a teacher viewer must see
+// their own draft (which no one else can), plus every published list on the
+// platform, including other teachers'.
+func TestListProblemListsForViewer_TeacherSeesOwnDraftsPlusEveryonesPublished(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	teacher := createTestUser(t, s, db, ctx, "lists-visibility2-teacher@example.com")
+	otherTeacher := createTestUser(t, s, db, ctx, "lists-visibility2-other-teacher@example.com")
+
+	ownDraft, err := s.CreateProblemList(ctx, store.CreateProblemListRequest{TeacherID: teacher.ID, Title: "Own Draft"})
+	if err != nil {
+		t.Fatalf("CreateProblemList ownDraft: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, ownDraft.ID, teacher.ID) })
+
+	othersDraft, err := s.CreateProblemList(ctx, store.CreateProblemListRequest{TeacherID: otherTeacher.ID, Title: "Others Draft"})
+	if err != nil {
+		t.Fatalf("CreateProblemList othersDraft: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, othersDraft.ID, otherTeacher.ID) })
+
+	othersPublished, err := s.CreateProblemList(ctx, store.CreateProblemListRequest{TeacherID: otherTeacher.ID, Title: "Others Published"})
+	if err != nil {
+		t.Fatalf("CreateProblemList othersPublished: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, othersPublished.ID, otherTeacher.ID) })
+	if _, err := s.UpdateProblemList(ctx, othersPublished.ID, otherTeacher.ID, store.UpdateProblemListRequest{
+		Title: othersPublished.Title, Published: true,
+	}); err != nil {
+		t.Fatalf("publish othersPublished: %v", err)
+	}
+
+	teacherView, err := s.ListProblemListsForViewer(ctx, teacher.ID, "teacher")
+	if err != nil {
+		t.Fatalf("ListProblemListsForViewer: %v", err)
+	}
+	if !containsListID(teacherView, ownDraft.ID) {
+		t.Error("teacher should see their own draft")
+	}
+	if containsListID(teacherView, othersDraft.ID) {
+		t.Error("teacher must not see another teacher's draft")
+	}
+	if !containsListID(teacherView, othersPublished.ID) {
+		t.Error("teacher should see another teacher's published list")
+	}
+}
+
 func TestListProblemListsForViewer_RoleVisibility(t *testing.T) {
 	db := openTestDB(t)
 	s := store.New(db, nil)

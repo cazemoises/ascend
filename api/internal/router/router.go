@@ -51,10 +51,11 @@ func New(s *store.Store, j *auth.JWT, rl *appmw.RateLimiter) chi.Router {
 
 		lh := handler.NewListsHandler(s)
 		r.Route("/lists", func(r chi.Router) {
-			// Unauthenticated: anyone can browse published lists, no accounts
-			// required.
-			r.Get("/", lh.List)
-			r.Get("/{id}", lh.Get)
+			// Public: anyone can browse published lists, no accounts
+			// required. Auth is optional here (OptionalMiddleware) so an
+			// authenticated teacher additionally sees their own drafts.
+			r.With(j.OptionalMiddleware).Get("/", lh.List)
+			r.With(j.OptionalMiddleware).Get("/{id}", lh.Get)
 			r.Group(func(r chi.Router) {
 				r.Use(j.Middleware, teacherOnly)
 				r.Post("/", lh.Create)

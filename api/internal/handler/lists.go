@@ -114,10 +114,16 @@ func (h *ListsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, list)
 }
 
-// List handles GET /api/v1/lists — unauthenticated, always public: every
-// requester sees the same thing, published lists platform-wide.
+// List handles GET /api/v1/lists — public, no login required. Auth is
+// optional (via OptionalMiddleware): an anonymous or non-teacher request
+// sees only published lists platform-wide; an authenticated teacher also
+// sees their own drafts.
 func (h *ListsHandler) List(w http.ResponseWriter, r *http.Request) {
-	lists, err := h.store.ListProblemListsForViewer(r.Context(), "", "")
+	viewerID, role := "", ""
+	if claims, ok := auth.FromContext(r.Context()); ok {
+		viewerID, role = claims.UserID, claims.Role
+	}
+	lists, err := h.store.ListProblemListsForViewer(r.Context(), viewerID, role)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
@@ -134,11 +140,18 @@ func (h *ListsHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // Get handles GET /api/v1/lists/:id, returning the list plus its items in
-// ordinal order. Unauthenticated, always public: a draft (published=false)
-// 404s for everyone, since there's no owner identity to grant it to.
+// ordinal order. Public, no login required. Auth is optional (via
+// OptionalMiddleware): a draft (published=false) 404s for everyone except
+// the owning teacher, identified from an optional bearer token — same
+// 404 for a missing token, an invalid token, or a token belonging to
+// someone else, so drafts never leak existence to non-owners.
 func (h *ListsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	detail, err := h.store.GetProblemListDetail(r.Context(), id, "", "")
+	viewerID, role := "", ""
+	if claims, ok := auth.FromContext(r.Context()); ok {
+		viewerID, role = claims.UserID, claims.Role
+	}
+	detail, err := h.store.GetProblemListDetail(r.Context(), id, viewerID, role)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "list not found")
