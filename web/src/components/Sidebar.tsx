@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth'
 
@@ -46,32 +46,11 @@ function IconClasses() {
   )
 }
 
-function IconLogin() {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-      <polyline points="10 17 15 12 10 7" />
-      <line x1="15" y1="12" x2="3" y2="12" />
-    </svg>
-  )
-}
-
-function IconLogout() {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <polyline points="16 17 21 12 16 7" />
-      <line x1="21" y1="12" x2="9" y2="12" />
-    </svg>
-  )
-}
-
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   isActive ? 'sidebar__link sidebar__link--active' : 'sidebar__link'
 
 export function Sidebar() {
-  const { user, isAuthenticated, isTeacher, logout } = useAuth()
-  const navigate = useNavigate()
+  const { user, isAuthenticated, isTeacher } = useAuth()
 
   return (
     <aside className="sidebar">
@@ -114,38 +93,22 @@ export function Sidebar() {
 
       <div className="sidebar__footer">
         {isAuthenticated && user !== null ? (
-          <>
-            <div className="sidebar__user">
-              <span className="sidebar__user-email" title={user.email}>
-                {user.email}
-              </span>
-              <span
-                className={
-                  isTeacher
-                    ? 'sidebar__role sidebar__role--teacher'
-                    : 'sidebar__role'
-                }
-              >
-                {isTeacher ? 'Professor' : 'Estudante'}
-              </span>
-            </div>
-            <button
-              type="button"
-              className="sidebar__logout"
-              onClick={() => {
-                logout()
-                navigate('/login')
-              }}
+          <div className="sidebar__user">
+            <span className="sidebar__user-email" title={user.email}>
+              {user.email}
+            </span>
+            <span
+              className={
+                isTeacher
+                  ? 'sidebar__role sidebar__role--teacher'
+                  : 'sidebar__role'
+              }
             >
-              <IconLogout />
-              Sair
-            </button>
-          </>
+              {isTeacher ? 'Professor' : 'Estudante'}
+            </span>
+          </div>
         ) : (
-          <NavLink to="/login" className={linkClass}>
-            <IconLogin />
-            Entrar
-          </NavLink>
+          <span className="sidebar__user-email">Não identificado</span>
         )}
       </div>
     </aside>

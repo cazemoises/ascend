@@ -9,8 +9,6 @@ import { ClassboardPage } from './pages/ClassboardPage'
 import { ListDetailPage } from './pages/ListDetailPage'
 import { ListFormPage } from './pages/ListFormPage'
 import { ListsPage } from './pages/ListsPage'
-import { LoginPage } from './pages/LoginPage'
-import { RegisterPage } from './pages/RegisterPage'
 import { SubmissionHistoryPage } from './pages/SubmissionHistoryPage'
 import { SubmissionPage } from './pages/SubmissionPage'
 
@@ -34,10 +32,6 @@ function App() {
                 )
               }
             />
-
-            {/* Rotas Públicas */}
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
 
             {/* Rotas das Listas (Sempre Ativas, leitura sem login) */}
             <Route path="/listas" element={<ListsPage />} />
