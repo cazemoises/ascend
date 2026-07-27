@@ -47,7 +47,8 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 
 // List serves the challenge feed filtered by the viewer's visibility:
 // anonymous → public only; student → public + enrolled classes; teacher →
-// everything. Runs behind auth.OptionalMiddleware.
+// everything. Identity (if any) comes from middleware.PangolinAuth, which
+// runs globally and never rejects a request by itself.
 func (h *ChallengesHandler) List(w http.ResponseWriter, r *http.Request) {
 	limit := 50
 	offset := 0

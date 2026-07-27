@@ -12,14 +12,21 @@ import (
 	"github.com/caze/ascend/api/internal/auth"
 )
 
-func newListsTestRouter(j *auth.JWT) chi.Router {
+func newListsTestRouter() chi.Router {
 	r := chi.NewRouter()
 	h := NewListsHandler(nil)
 	teacherOnly := auth.RequireRole("teacher")
-	r.With(j.Middleware, teacherOnly).Post("/lists", h.Create)
-	r.With(j.Middleware, teacherOnly).Post("/lists/import", h.Import)
+	r.With(auth.RequireAuthenticated, teacherOnly).Post("/lists", h.Create)
+	r.With(auth.RequireAuthenticated, teacherOnly).Post("/lists/import", h.Import)
 	r.Get("/lists", h.List)
 	return r
+}
+
+// withClaims simulates an identity already resolved by
+// middleware.PangolinAuth — real requests never carry a bearer token, so
+// tests inject auth.Claims directly into the request context instead.
+func withClaims(req *http.Request, claims auth.Claims) *http.Request {
+	return req.WithContext(auth.NewContext(req.Context(), claims))
 }
 
 // TestCreateList_StudentForbidden covers the explicit business rule: a
@@ -27,21 +34,12 @@ func newListsTestRouter(j *auth.JWT) chi.Router {
 // gate rejects the request in middleware before the handler (or store) ever
 // runs, mirroring the real router's teacherOnly group.
 func TestCreateList_StudentForbidden(t *testing.T) {
-	j, err := auth.NewJWT([]byte("0123456789abcdef0123456789abcdef"), time.Hour)
-	if err != nil {
-		t.Fatalf("NewJWT: %v", err)
-	}
-	r := newListsTestRouter(j)
-
-	token, err := j.Sign("student-1", "student@example.com", "student", time.Now())
-	if err != nil {
-		t.Fatalf("Sign: %v", err)
-	}
+	r := newListsTestRouter()
 
 	body := `{"title":"Snuck In List"}`
 	req := httptest.NewRequest(http.MethodPost, "/lists", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
+	req = withClaims(req, auth.Claims{UserID: "student-1", Email: "student@example.com", Role: "student"})
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -54,21 +52,12 @@ func TestCreateList_StudentForbidden(t *testing.T) {
 // for the import endpoint: the role gate rejects the request before the
 // handler (or store) ever runs.
 func TestImportList_StudentForbidden(t *testing.T) {
-	j, err := auth.NewJWT([]byte("0123456789abcdef0123456789abcdef"), time.Hour)
-	if err != nil {
-		t.Fatalf("NewJWT: %v", err)
-	}
-	r := newListsTestRouter(j)
-
-	token, err := j.Sign("student-1", "student@example.com", "student", time.Now())
-	if err != nil {
-		t.Fatalf("Sign: %v", err)
-	}
+	r := newListsTestRouter()
 
 	body := `{"title":"Snuck In List","items":[]}`
 	req := httptest.NewRequest(http.MethodPost, "/lists/import", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
+	req = withClaims(req, auth.Claims{UserID: "student-1", Email: "student@example.com", Role: "student"})
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -82,16 +71,7 @@ func TestImportList_StudentForbidden(t *testing.T) {
 // 422s with a message identifying which item is bad, before any transaction
 // starts.
 func TestImportList_InvalidItemDifficulty_UnprocessableEntity(t *testing.T) {
-	j, err := auth.NewJWT([]byte("0123456789abcdef0123456789abcdef"), time.Hour)
-	if err != nil {
-		t.Fatalf("NewJWT: %v", err)
-	}
-	r := newListsTestRouter(j)
-
-	token, err := j.Sign("teacher-1", "teacher@example.com", "teacher", time.Now())
-	if err != nil {
-		t.Fatalf("Sign: %v", err)
-	}
+	r := newListsTestRouter()
 
 	body := `{"title":"Bancos de dados","items":[
 		{"title":"Item 1","difficulty":"easy","body":"ok"},
@@ -99,7 +79,7 @@ func TestImportList_InvalidItemDifficulty_UnprocessableEntity(t *testing.T) {
 	]}`
 	req := httptest.NewRequest(http.MethodPost, "/lists/import", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
+	req = withClaims(req, auth.Claims{UserID: "teacher-1", Email: "teacher@example.com", Role: "teacher"})
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 

@@ -121,21 +121,12 @@ func TestDecodeCursor_Invalid(t *testing.T) {
 }
 
 func TestListMySubmissions_InvalidCursor(t *testing.T) {
-	j, err := auth.NewJWT([]byte("0123456789abcdef0123456789abcdef"), time.Hour)
-	if err != nil {
-		t.Fatalf("NewJWT: %v", err)
-	}
-	token, err := j.Sign("user-1", "a@b.com", "student", time.Now())
-	if err != nil {
-		t.Fatalf("Sign: %v", err)
-	}
-
 	r := chi.NewRouter()
 	h := NewChallengesHandler(nil)
-	r.With(j.Middleware).Get("/submissions", h.ListMySubmissions)
+	r.With(auth.RequireAuthenticated).Get("/submissions", h.ListMySubmissions)
 
 	req := httptest.NewRequest(http.MethodGet, "/submissions?cursor=%21%21%21", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	req = req.WithContext(auth.NewContext(req.Context(), auth.Claims{UserID: "user-1", Email: "a@b.com", Role: "student"}))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusUnprocessableEntity {
@@ -144,13 +135,9 @@ func TestListMySubmissions_InvalidCursor(t *testing.T) {
 }
 
 func TestListMySubmissions_NoToken_Unauthorized(t *testing.T) {
-	j, err := auth.NewJWT([]byte("0123456789abcdef0123456789abcdef"), time.Hour)
-	if err != nil {
-		t.Fatalf("NewJWT: %v", err)
-	}
 	r := chi.NewRouter()
 	h := NewChallengesHandler(nil)
-	r.With(j.Middleware).Get("/submissions", h.ListMySubmissions)
+	r.With(auth.RequireAuthenticated).Get("/submissions", h.ListMySubmissions)
 
 	req := httptest.NewRequest(http.MethodGet, "/submissions", nil)
 	w := httptest.NewRecorder()

@@ -16,11 +16,11 @@ import (
 	"github.com/caze/ascend/api/internal/store"
 )
 
-func newListsIntegrationRouter(j *auth.JWT, s *store.Store) chi.Router {
+func newListsIntegrationRouter(s *store.Store) chi.Router {
 	h := NewListsHandler(s)
 	r := chi.NewRouter()
-	r.With(j.OptionalMiddleware).Get("/lists", h.List)
-	r.With(j.OptionalMiddleware).Get("/lists/{id}", h.Get)
+	r.Get("/lists", h.List)
+	r.Get("/lists/{id}", h.Get)
 	return r
 }
 
@@ -52,24 +52,11 @@ func TestGetList_OwningTeacherSeesOwnDraft(t *testing.T) {
 	}
 	t.Cleanup(func() { s.DeleteProblemList(ctx, list.ID, owner.ID) })
 
-	j, err := auth.NewJWT([]byte("0123456789abcdef0123456789abcdef"), time.Hour)
-	if err != nil {
-		t.Fatalf("NewJWT: %v", err)
-	}
-	r := newListsIntegrationRouter(j, s)
-
-	ownerToken, err := j.Sign(owner.ID, owner.Email, "teacher", time.Now())
-	if err != nil {
-		t.Fatalf("Sign owner: %v", err)
-	}
-	otherToken, err := j.Sign(other.ID, other.Email, "teacher", time.Now())
-	if err != nil {
-		t.Fatalf("Sign other: %v", err)
-	}
+	r := newListsIntegrationRouter(s)
 
 	t.Run("owning teacher sees own draft", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/lists/"+list.ID, nil)
-		req.Header.Set("Authorization", "Bearer "+ownerToken)
+		req = req.WithContext(auth.NewContext(req.Context(), auth.Claims{UserID: owner.ID, Email: owner.Email, Role: "teacher"}))
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
@@ -88,7 +75,7 @@ func TestGetList_OwningTeacherSeesOwnDraft(t *testing.T) {
 
 	t.Run("other teacher does not see the draft", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/lists/"+list.ID, nil)
-		req.Header.Set("Authorization", "Bearer "+otherToken)
+		req = req.WithContext(auth.NewContext(req.Context(), auth.Claims{UserID: other.ID, Email: other.Email, Role: "teacher"}))
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 		if w.Code != http.StatusNotFound {
@@ -161,11 +148,7 @@ func TestListLists_MultipleOverlappingCurrentWeeks(t *testing.T) {
 		t.Fatalf("publish B: %v", err)
 	}
 
-	j, err := auth.NewJWT([]byte("0123456789abcdef0123456789abcdef"), time.Hour)
-	if err != nil {
-		t.Fatalf("NewJWT: %v", err)
-	}
-	r := newListsIntegrationRouter(j, s)
+	r := newListsIntegrationRouter(s)
 
 	req := httptest.NewRequest(http.MethodGet, "/lists", nil)
 	w := httptest.NewRecorder()

@@ -19,7 +19,7 @@ import (
 // false when no key can be derived (request is rejected as unauthorized).
 type KeyFunc func(r *http.Request) (string, bool)
 
-// UserKey buckets requests by the authenticated user set by auth.Middleware.
+// UserKey buckets requests by the authenticated user set by PangolinAuth.
 func UserKey(r *http.Request) (string, bool) {
 	claims, ok := auth.FromContext(r.Context())
 	if !ok {

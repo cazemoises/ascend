@@ -19,7 +19,6 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/caze/ascend/api/internal/auth"
 	appmw "github.com/caze/ascend/api/internal/middleware"
 	"github.com/caze/ascend/api/internal/router"
 	"github.com/caze/ascend/api/internal/store"
@@ -109,11 +108,11 @@ func main() {
 
 	s := store.New(db, rdb)
 
-	j, err := auth.NewJWT([]byte(os.Getenv("JWT_SECRET")), 24*time.Hour)
-	if err != nil {
-		slog.Error("invalid JWT_SECRET", "err", err)
-		os.Exit(1)
+	devFakeEmail := os.Getenv("DEV_FAKE_EMAIL")
+	if devFakeEmail != "" {
+		slog.Warn("DEV_FAKE_EMAIL ativo — NÃO usar em produção", "email", devFakeEmail)
 	}
+	pa := appmw.NewPangolinAuth(s, devFakeEmail)
 
 	rl := appmw.NewRateLimiter(rdb,
 		envInt("SUBMIT_RATE_LIMIT", 10),
@@ -125,7 +124,7 @@ func main() {
 		addr = "0.0.0.0:8080"
 	}
 
-	r := router.New(s, j, rl)
+	r := router.New(s, pa, rl)
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: r,

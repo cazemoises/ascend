@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	_ "github.com/lib/pq"
@@ -71,14 +70,9 @@ func TestCreateSubmission_IsTestRunDerivedFromRole(t *testing.T) {
 	// block those deletes and orphan rows that collide on the next run.
 	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM submissions WHERE challenge_id = $1`, ch.ID) })
 
-	j, err := auth.NewJWT([]byte("0123456789abcdef0123456789abcdef"), time.Hour)
-	if err != nil {
-		t.Fatalf("NewJWT: %v", err)
-	}
-
 	h := NewChallengesHandler(s)
 	r := chi.NewRouter()
-	r.With(j.Middleware).Post("/challenges/{id}/submissions", h.CreateSubmission)
+	r.With(auth.RequireAuthenticated).Post("/challenges/{id}/submissions", h.CreateSubmission)
 
 	for _, tt := range []struct {
 		name     string
@@ -89,16 +83,11 @@ func TestCreateSubmission_IsTestRunDerivedFromRole(t *testing.T) {
 		{"student submission is a real run", "student", false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			token, err := j.Sign(user.ID, user.Email, tt.role, time.Now())
-			if err != nil {
-				t.Fatalf("Sign: %v", err)
-			}
-
 			body := `{"language":"go","source_code":"package main\nfunc main() {}"}`
 			req := httptest.NewRequest(http.MethodPost,
 				"/challenges/"+ch.ID+"/submissions", bytes.NewBufferString(body))
 			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Authorization", "Bearer "+token)
+			req = req.WithContext(auth.NewContext(req.Context(), auth.Claims{UserID: user.ID, Email: user.Email, Role: tt.role}))
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 

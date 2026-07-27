@@ -33,7 +33,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       REDIS_URL: redis://redis:6379
       API_ADDR: 0.0.0.0:8080
-      JWT_SECRET: ${JWT_SECRET}
+      DEV_FAKE_EMAIL: ${DEV_FAKE_EMAIL:-}
       SUBMIT_RATE_LIMIT: ${SUBMIT_RATE_LIMIT:-10}
       SUBMIT_RATE_WINDOW_S: ${SUBMIT_RATE_WINDOW_S:-60}
     ports:

@@ -19,24 +19,29 @@ var allowedOrigins = map[string]struct{}{
 	"http://localhost:5174": {},
 }
 
-func New(s *store.Store, j *auth.JWT, rl *appmw.RateLimiter) chi.Router {
+func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter) chi.Router {
 	r := chi.NewRouter()
 	r.Use(cors)
 	r.Use(middleware.RequestID)
 	r.Use(requestLogger)
 	r.Get("/healthz", handler.Health)
 	r.Route("/api/v1", func(r chi.Router) {
-		ah := handler.NewAuthHandler(s, j)
-		r.Route("/auth", ah.Routes)
+		// Resolves identity from Remote-Email for every route below; never
+		// rejects by itself. Routes that require a signed-in caller add
+		// auth.RequireAuthenticated.
+		r.Use(pa.Middleware)
+
+		r.Get("/auth/me", handler.Me)
+
 		ch := handler.NewChallengesHandler(s)
 		teacherOnly := auth.RequireRole("teacher")
 		r.Route("/challenges", func(r chi.Router) {
 			ch.Routes(r)
-			r.With(j.OptionalMiddleware).Get("/", ch.List)
-			r.With(j.Middleware).Get("/{id}/stats", ch.Stats)
-			r.With(j.Middleware, rl.Handler).Post("/{id}/submissions", ch.CreateSubmission)
+			r.Get("/", ch.List)
+			r.With(auth.RequireAuthenticated).Get("/{id}/stats", ch.Stats)
+			r.With(auth.RequireAuthenticated, rl.Handler).Post("/{id}/submissions", ch.CreateSubmission)
 			r.Group(func(r chi.Router) {
-				r.Use(j.Middleware, teacherOnly)
+				r.Use(auth.RequireAuthenticated, teacherOnly)
 				r.Post("/", ch.Create)
 				r.Put("/{id}", ch.Update)
 				r.Delete("/{id}", ch.Delete)
@@ -45,19 +50,20 @@ func New(s *store.Store, j *auth.JWT, rl *appmw.RateLimiter) chi.Router {
 				r.Get("/{id}/test-cases", ch.ListTestCases)
 			})
 		})
-		r.With(j.Middleware).Get("/submissions", ch.ListMySubmissions)
+		r.With(auth.RequireAuthenticated).Get("/submissions", ch.ListMySubmissions)
 		r.Get("/submissions/{id}", ch.GetSubmission)
-		r.With(j.Middleware, teacherOnly).Get("/classes/scoreboard", ch.TeacherScoreboard)
+		r.With(auth.RequireAuthenticated, teacherOnly).Get("/classes/scoreboard", ch.TeacherScoreboard)
 
 		lh := handler.NewListsHandler(s)
 		r.Route("/lists", func(r chi.Router) {
 			// Public: anyone can browse published lists, no accounts
-			// required. Auth is optional here (OptionalMiddleware) so an
-			// authenticated teacher additionally sees their own drafts.
-			r.With(j.OptionalMiddleware).Get("/", lh.List)
-			r.With(j.OptionalMiddleware).Get("/{id}", lh.Get)
+			// required. An authenticated teacher additionally sees their own
+			// drafts (PangolinAuth already ran above, so claims are present
+			// whenever Pangolin/DEV_FAKE_EMAIL identified the caller).
+			r.Get("/", lh.List)
+			r.Get("/{id}", lh.Get)
 			r.Group(func(r chi.Router) {
-				r.Use(j.Middleware, teacherOnly)
+				r.Use(auth.RequireAuthenticated, teacherOnly)
 				r.Post("/", lh.Create)
 				r.Post("/import", lh.Import)
 				r.Patch("/{id}", lh.Update)
@@ -67,19 +73,13 @@ func New(s *store.Store, j *auth.JWT, rl *appmw.RateLimiter) chi.Router {
 			})
 		})
 		r.Route("/list-items", func(r chi.Router) {
-			r.Use(j.Middleware, teacherOnly)
+			r.Use(auth.RequireAuthenticated, teacherOnly)
 			r.Patch("/{id}", lh.UpdateItem)
 			r.Delete("/{id}", lh.DeleteItem)
 			// Completion (POST/DELETE /{id}/complete) is disabled for now:
 			// without real student accounts there's no identity to attach a
 			// completion to. Re-add once accounts are back.
 		})
-
-		// TEMPORARY — Pangolin proxy header investigation. No auth by design
-		// (we're checking what arrives before any auth decision). DELETE this
-		// route and handler.DebugHeaders once the investigation is done; must
-		// never reach production.
-		r.Get("/debug/headers", handler.DebugHeaders)
 	})
 	return r
 }
