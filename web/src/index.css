@@ -1964,14 +1964,33 @@ pre {
 }
 
 /* Page-scoped overrides for elements shared with other pages (.hero,
-   .challenge-feed) — keep the tighter defaults everywhere else (challenges
-   list, submission history, classboard). */
+   .challenge-feed, .action-bar, .challenge-submit) — keep the fuller
+   defaults everywhere else (challenges list, submission history,
+   classboard). */
 .lists-page .hero {
   margin-bottom: 44px;
 }
 
 .lists-page .challenge-feed {
   gap: 16px;
+}
+
+/* Demoted to a thin utility strip on this page — "Semana atual" below is
+   the content that should read as the page's main event, not this. No
+   left accent bar (the label's own color is identification enough), a
+   smaller label, and a smaller CTA to match. */
+.lists-page .action-bar {
+  padding: 12px 20px;
+  border-left: none;
+}
+
+.lists-page .action-bar__label {
+  font-size: 0.68rem;
+}
+
+.lists-page .action-bar .challenge-submit {
+  padding: 7px 16px;
+  font-size: 0.82rem;
 }
 
 /* Standalone "current week" spotlight, shown above the month-grouped
