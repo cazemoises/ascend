@@ -520,13 +520,6 @@ pre {
   animation: verdict-pulse 1.4s ease-in-out infinite;
 }
 
-.verdict--current {
-  margin-left: 8px;
-  color: var(--accent-green);
-  background: var(--accent-green-dim);
-  border-color: var(--accent-green);
-}
-
 @keyframes verdict-pulse {
   50% { opacity: 0.5; }
 }
@@ -1939,9 +1932,11 @@ pre {
 }
 
 /* Month section header on the list feed — same spirit as .datagrid th:
-   mono, uppercase, muted, hairline rule beneath. */
+   mono, uppercase, muted, hairline rule beneath. Bottom margin is deliberately
+   larger than the inter-card gap (.lists-page .challenge-feed) so the group
+   boundary reads clearly. */
 .list-month-header {
-  margin: 24px 0 12px;
+  margin: 24px 0 28px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-hairline);
   font-family: var(--font-mono);
@@ -1954,6 +1949,55 @@ pre {
 
 .list-month-header:first-child {
   margin-top: 0;
+}
+
+/* Page-scoped overrides for elements shared with other pages (.hero,
+   .challenge-feed) — keep the tighter defaults everywhere else (challenges
+   list, submission history, classboard). */
+.lists-page .hero {
+  margin-bottom: 44px;
+}
+
+.lists-page .challenge-feed {
+  gap: 16px;
+}
+
+/* Standalone "current week" spotlight, shown above the month-grouped
+   history instead of inline with a badge — the only current list at a
+   time, so it doesn't need to compete visually with anything else. */
+.list-current {
+  margin-bottom: 40px;
+}
+
+.list-current__label {
+  margin: 0 0 10px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-green);
+}
+
+.challenge-row--current {
+  padding: 28px 32px;
+  border-left: 3px solid var(--accent-green);
+}
+
+.challenge-row--current .challenge-row__body h2 {
+  font-size: 1.05rem;
+}
+
+/* Separator header between the current-week spotlight and the rest of the
+   feed — only rendered when the spotlight is present. */
+.list-section-header {
+  margin: 0 0 16px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
 }
 
 .list-detail__description {

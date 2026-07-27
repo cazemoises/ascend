@@ -75,8 +75,11 @@ export function ListsPage() {
     }
   }, [])
 
+  const currentList = lists.find((list) => list.is_current)
+  const remainingLists = currentList ? lists.filter((list) => list.id !== currentList.id) : lists
+
   return (
-    <main className="page-shell">
+    <main className="page-shell lists-page">
       <section className="hero">
         <p className="eyebrow">Ascend</p>
         <h1>Listas semanais</h1>
@@ -100,48 +103,81 @@ export function ListsPage() {
 
       {!loading && !error ? (
         lists.length > 0 ? (
-          (() => {
-            const groups = groupByMonth(lists)
-            const showMonthHeaders = groups.length > 1
-            return groups.map((group) => (
-              <div key={group.key}>
-                {showMonthHeaders ? <h2 className="list-month-header">{group.label}</h2> : null}
-                <div className="challenge-feed">
-                  {group.lists.map((list) => (
-                    <article
-                      key={list.id}
-                      className={
-                        list.is_current ? 'challenge-row challenge-row--current' : 'challenge-row'
-                      }
-                    >
-                      <div className="challenge-row__body">
-                        <h2>
-                          {list.title}
-                          {list.is_current ? (
-                            <span className="verdict verdict--current">SEMANA ATUAL</span>
-                          ) : null}
-                          {!list.published ? (
-                            <span className="verdict test-run-tag">RASCUNHO</span>
-                          ) : null}
-                        </h2>
-                        {list.week_label || (list.week_start && list.week_end) ? (
-                          <div className="challenge-row__meta">
-                            {list.week_label ? <p className="muted">{list.week_label}</p> : null}
-                            {list.week_start && list.week_end ? (
-                              <WeekChip weekStart={list.week_start} weekEnd={list.week_end} />
-                            ) : null}
-                          </div>
+          <>
+            {currentList ? (
+              <section className="list-current">
+                <p className="list-current__label">Semana atual</p>
+                <article className="challenge-row challenge-row--current">
+                  <div className="challenge-row__body">
+                    <h2>
+                      {currentList.title}
+                      {!currentList.published ? (
+                        <span className="verdict test-run-tag">RASCUNHO</span>
+                      ) : null}
+                    </h2>
+                    {currentList.week_label || (currentList.week_start && currentList.week_end) ? (
+                      <div className="challenge-row__meta">
+                        {currentList.week_label ? (
+                          <p className="muted">{currentList.week_label}</p>
+                        ) : null}
+                        {currentList.week_start && currentList.week_end ? (
+                          <WeekChip weekStart={currentList.week_start} weekEnd={currentList.week_end} />
                         ) : null}
                       </div>
-                      <Link className="challenge-submit" to={`/listas/${list.id}`}>
-                        Ver lista
-                      </Link>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            ))
-          })()
+                    ) : null}
+                  </div>
+                  <Link className="challenge-submit" to={`/listas/${currentList.id}`}>
+                    Ver lista
+                  </Link>
+                </article>
+              </section>
+            ) : null}
+
+            {currentList && remainingLists.length > 0 ? (
+              <h2 className="list-section-header">Histórico</h2>
+            ) : null}
+
+            {remainingLists.length > 0
+              ? (() => {
+                  const groups = groupByMonth(remainingLists)
+                  const showMonthHeaders = groups.length > 1
+                  return groups.map((group) => (
+                    <div key={group.key}>
+                      {showMonthHeaders ? (
+                        <h2 className="list-month-header">{group.label}</h2>
+                      ) : null}
+                      <div className="challenge-feed">
+                        {group.lists.map((list) => (
+                          <article key={list.id} className="challenge-row">
+                            <div className="challenge-row__body">
+                              <h2>
+                                {list.title}
+                                {!list.published ? (
+                                  <span className="verdict test-run-tag">RASCUNHO</span>
+                                ) : null}
+                              </h2>
+                              {list.week_label || (list.week_start && list.week_end) ? (
+                                <div className="challenge-row__meta">
+                                  {list.week_label ? (
+                                    <p className="muted">{list.week_label}</p>
+                                  ) : null}
+                                  {list.week_start && list.week_end ? (
+                                    <WeekChip weekStart={list.week_start} weekEnd={list.week_end} />
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                            <Link className="challenge-submit" to={`/listas/${list.id}`}>
+                              Ver lista
+                            </Link>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                })()
+              : null}
+          </>
         ) : (
           <p className="status-message">
             {isTeacher
