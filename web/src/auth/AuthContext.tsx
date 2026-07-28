@@ -15,7 +15,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // header requestJSON sends and therefore effective_role in the response.
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
     fetchMe()
       .then((me) => {
         if (!cancelled) setUser(me)
@@ -33,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function updateViewingAsStudent(next: boolean) {
     setViewAsStudent(next)
+    setLoading(true)
     setViewingAsStudentState(next)
   }
 
