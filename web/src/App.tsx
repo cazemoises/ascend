@@ -8,6 +8,7 @@ import { ChallengePage } from './pages/ChallengePage'
 import { ListDetailPage } from './pages/ListDetailPage'
 import { ListFormPage } from './pages/ListFormPage'
 import { ListsPage } from './pages/ListsPage'
+import { StudentsOverviewPage } from './pages/StudentsOverviewPage'
 import { SubmissionHistoryPage } from './pages/SubmissionHistoryPage'
 import { SubmissionPage } from './pages/SubmissionPage'
 
@@ -51,6 +52,16 @@ function App() {
               }
             />
             <Route path="/listas/:id" element={<ListDetailPage />} />
+
+            {/* Progresso dos alunos: sempre ativo, engloba desafios e listas */}
+            <Route
+              path="/progresso"
+              element={
+                <RequireTeacher>
+                  <StudentsOverviewPage />
+                </RequireTeacher>
+              }
+            />
 
             {/* Rotas de Judge/Desafios (Desativadas se isOnlyLists = true) */}
             {!isOnlyLists && (

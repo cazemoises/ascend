@@ -264,6 +264,29 @@ export function getChallengeStats(challengeId: string) {
   return requestJSON<ChallengeStats>(`/api/v1/challenges/${challengeId}/stats`)
 }
 
+export interface StudentChallengeSummary {
+  challenge_id: string
+  challenge_title: string
+  best_verdict: string
+}
+
+export interface StudentListCompletion {
+  list_title: string
+  item_title: string
+  completed_at: string
+}
+
+export interface StudentOverview {
+  student_id: string
+  email: string
+  challenges: StudentChallengeSummary[]
+  list_completions: StudentListCompletion[]
+}
+
+export function getStudentsOverview() {
+  return requestJSON<StudentOverview[]>('/api/v1/teacher/students-overview')
+}
+
 export type ListItemDifficulty = 'easy' | 'medium' | 'hard'
 
 export interface ProblemList {

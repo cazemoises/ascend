@@ -1924,6 +1924,54 @@ pre {
 
 /* ===================== Teacher classboard ===================== */
 
+/* ===================== Students overview ===================== */
+
+.student-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.student-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+}
+
+.student-card__email {
+  font-size: 1rem;
+}
+
+.student-card__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.student-card__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.student-card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.student-card__row:last-child {
+  border-bottom: none;
+}
+
+.student-card__empty {
+  font-size: 0.85rem;
+}
+
 /* ===================== Problem lists ===================== */
 
 .list-detail__eyebrow-row {
