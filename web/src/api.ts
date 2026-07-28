@@ -7,7 +7,11 @@ export type UserRole = 'student' | 'teacher'
 export interface AuthUser {
   id: string
   email: string
-  role: UserRole
+  // real_role never changes for the session; effective_role reflects the
+  // "Ver como aluno" override (see viewAs.ts) and is what the UI should
+  // gate on everywhere except the toggle's own visibility.
+  real_role: UserRole
+  effective_role: UserRole
 }
 
 export class ApiError extends Error {
@@ -78,10 +82,30 @@ export interface CreateSubmissionResponse {
   submission_id: string
 }
 
+// "Ver como aluno": a real teacher's own client-side UI preference, never a
+// security boundary (the backend independently ignores X-View-As from
+// anyone whose real role isn't teacher). Persisted so it survives reloads.
+const VIEW_AS_STORAGE_KEY = 'ascend:viewAsStudent'
+
+export function getViewAsStudent(): boolean {
+  return localStorage.getItem(VIEW_AS_STORAGE_KEY) === 'true'
+}
+
+export function setViewAsStudent(value: boolean): void {
+  if (value) {
+    localStorage.setItem(VIEW_AS_STORAGE_KEY, 'true')
+  } else {
+    localStorage.removeItem(VIEW_AS_STORAGE_KEY)
+  }
+}
+
 async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (init?.body != null && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
+  }
+  if (getViewAsStudent()) {
+    headers.set('X-View-As', 'student')
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {

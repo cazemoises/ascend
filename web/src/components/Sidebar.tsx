@@ -50,7 +50,8 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
   isActive ? 'sidebar__link sidebar__link--active' : 'sidebar__link'
 
 export function Sidebar() {
-  const { user, isAuthenticated, isTeacher } = useAuth()
+  const { user, isAuthenticated, isTeacher, isRealTeacher, viewingAsStudent, setViewingAsStudent } =
+    useAuth()
 
   return (
     <aside className="sidebar">
@@ -110,6 +111,18 @@ export function Sidebar() {
         ) : (
           <span className="sidebar__user-email">Não identificado</span>
         )}
+
+        {/* Só um teacher de verdade pode alternar — checa isRealTeacher, não
+            isTeacher, senão o toggle desapareceria assim que ativado. */}
+        {isRealTeacher ? (
+          <button
+            type="button"
+            className="sidebar__view-as-toggle"
+            onClick={() => setViewingAsStudent(!viewingAsStudent)}
+          >
+            {viewingAsStudent ? 'Ver como professor' : 'Ver como aluno'}
+          </button>
+        ) : null}
       </div>
     </aside>
   )

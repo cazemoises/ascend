@@ -12,7 +12,7 @@ import (
 func TestMe_Authenticated(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
 	req = req.WithContext(auth.NewContext(req.Context(), auth.Claims{
-		UserID: "user-1", Email: "a@b.com", Role: "teacher",
+		UserID: "user-1", Email: "a@b.com", Role: "teacher", RealRole: "teacher",
 	}))
 	w := httptest.NewRecorder()
 	Me(w, req)
@@ -24,7 +24,28 @@ func TestMe_Authenticated(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	want := MeResponse{ID: "user-1", Email: "a@b.com", Role: "teacher"}
+	want := MeResponse{ID: "user-1", Email: "a@b.com", RealRole: "teacher", EffectiveRole: "teacher"}
+	if got != want {
+		t.Errorf("body = %+v, want %+v", got, want)
+	}
+}
+
+func TestMe_ViewingAsStudent_ReturnsBothRealAndEffectiveRole(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
+	req = req.WithContext(auth.NewContext(req.Context(), auth.Claims{
+		UserID: "user-1", Email: "a@b.com", Role: "student", RealRole: "teacher",
+	}))
+	w := httptest.NewRecorder()
+	Me(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
+	}
+	var got MeResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	want := MeResponse{ID: "user-1", Email: "a@b.com", RealRole: "teacher", EffectiveRole: "student"}
 	if got != want {
 		t.Errorf("body = %+v, want %+v", got, want)
 	}

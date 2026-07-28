@@ -12,7 +12,12 @@ import (
 type Claims struct {
 	UserID string
 	Email  string
-	Role   string
+	// Role is the effective role for this request — what RequireRole checks.
+	// It matches RealRole unless middleware.ViewAs overrode it.
+	Role string
+	// RealRole is the role PangolinAuth resolved from the database. It never
+	// changes for the lifetime of a request, even under a ViewAs override.
+	RealRole string
 }
 
 type ctxKey struct{}

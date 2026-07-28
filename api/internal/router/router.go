@@ -30,6 +30,10 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter) chi.Rout
 		// rejects by itself. Routes that require a signed-in caller add
 		// auth.RequireAuthenticated.
 		r.Use(pa.Middleware)
+		// Lets a real teacher preview the app as a student (X-View-As), never
+		// the other way around. Must run after PangolinAuth and before any
+		// RequireRole check.
+		r.Use(appmw.ViewAs)
 
 		r.Get("/auth/me", handler.Me)
 

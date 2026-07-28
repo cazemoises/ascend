@@ -436,6 +436,31 @@ pre {
   color: var(--amber);
 }
 
+.sidebar__view-as-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sidebar__view-as-toggle:hover {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+}
+
 .sidebar__logout {
   display: flex;
   align-items: center;

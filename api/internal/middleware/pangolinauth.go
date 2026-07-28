@@ -48,7 +48,7 @@ func (m *PangolinAuth) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		claims := auth.Claims{UserID: u.ID, Email: u.Email, Role: u.Role}
+		claims := auth.Claims{UserID: u.ID, Email: u.Email, Role: u.Role, RealRole: u.Role}
 		next.ServeHTTP(w, r.WithContext(auth.NewContext(r.Context(), claims)))
 	})
 }

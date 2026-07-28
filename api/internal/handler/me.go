@@ -9,7 +9,13 @@ import (
 type MeResponse struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
-	Role  string `json:"role"`
+	// RealRole is the caller's role in the database, unaffected by
+	// middleware.ViewAs. EffectiveRole is what's actually being enforced
+	// for this request (RequireRole checks it) — the frontend renders
+	// against EffectiveRole but only shows the "view as" toggle when
+	// RealRole is "teacher".
+	RealRole      string `json:"real_role"`
+	EffectiveRole string `json:"effective_role"`
 }
 
 // Me returns the caller's identity as resolved by middleware.PangolinAuth
@@ -21,5 +27,10 @@ func Me(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "not authenticated")
 		return
 	}
-	writeJSON(w, http.StatusOK, MeResponse{ID: claims.UserID, Email: claims.Email, Role: claims.Role})
+	writeJSON(w, http.StatusOK, MeResponse{
+		ID:            claims.UserID,
+		Email:         claims.Email,
+		RealRole:      claims.RealRole,
+		EffectiveRole: claims.Role,
+	})
 }
