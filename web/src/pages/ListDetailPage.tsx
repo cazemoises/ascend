@@ -4,10 +4,12 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import rehypeHighlight from 'rehype-highlight'
 
 import {
+  completeListItem,
   deleteListItem,
   deleteProblemList,
   getProblemList,
   reorderListItems,
+  uncompleteListItem,
   updateProblemList,
   type ListItem,
   type ProblemListDetail,
@@ -24,13 +26,14 @@ const DIFFICULTY_LABELS: Record<string, string> = {
 export function ListDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user, isTeacher } = useAuth()
+  const { user, isAuthenticated, isTeacher } = useAuth()
 
   const [detail, setDetail] = useState<ProblemListDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [pendingItemId, setPendingItemId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -146,9 +149,31 @@ export function ListDetailPage() {
     }
   }
 
-  // handleToggleComplete (POST/DELETE /list-items/:id/complete) is disabled
-  // for now: without real accounts there's no student identity to attach a
-  // completion to. Re-add once accounts are back.
+  async function handleToggleComplete(item: ListItem) {
+    setPendingItemId(item.id)
+    setActionError(null)
+    try {
+      if (item.completed) {
+        await uncompleteListItem(item.id)
+      } else {
+        await completeListItem(item.id)
+      }
+      setDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: prev.items.map((it) =>
+                it.id === item.id ? { ...it, completed: !item.completed } : it,
+              ),
+            }
+          : prev,
+      )
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Falha ao atualizar a conclusão')
+    } finally {
+      setPendingItemId(null)
+    }
+  }
 
   return (
     <main className="page-shell">
@@ -211,9 +236,7 @@ export function ListDetailPage() {
                   return (
                     <article className="list-item" key={item.id}>
                       <div className="list-item__head">
-                        {/* Conclusão desativada sem contas reais — reativar quando
-                        contas voltarem.
-                        {!isTeacher ? (
+                        {isAuthenticated && !isTeacher ? (
                           <button
                             type="button"
                             className={
@@ -229,7 +252,6 @@ export function ListDetailPage() {
                             ✓
                           </button>
                         ) : null}
-                        */}
 
                         <button
                           type="button"

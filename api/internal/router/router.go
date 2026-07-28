@@ -76,12 +76,19 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter) chi.Rout
 			})
 		})
 		r.Route("/list-items", func(r chi.Router) {
-			r.Use(auth.RequireAuthenticated, teacherOnly)
-			r.Patch("/{id}", lh.UpdateItem)
-			r.Delete("/{id}", lh.DeleteItem)
-			// Completion (POST/DELETE /{id}/complete) is disabled for now:
-			// without real student accounts there's no identity to attach a
-			// completion to. Re-add once accounts are back.
+			r.Group(func(r chi.Router) {
+				r.Use(auth.RequireAuthenticated, teacherOnly)
+				r.Patch("/{id}", lh.UpdateItem)
+				r.Delete("/{id}", lh.DeleteItem)
+			})
+			// Any authenticated user can mark their own completion — Pangolin
+			// now provisions a real account per caller, so claims.UserID always
+			// identifies a specific student here.
+			r.Group(func(r chi.Router) {
+				r.Use(auth.RequireAuthenticated)
+				r.Post("/{id}/complete", lh.CompleteItem)
+				r.Delete("/{id}/complete", lh.UncompleteItem)
+			})
 		})
 	})
 	return r
