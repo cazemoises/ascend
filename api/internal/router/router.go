@@ -57,6 +57,9 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter) chi.Rout
 		r.With(auth.RequireAuthenticated).Get("/submissions", ch.ListMySubmissions)
 		r.Get("/submissions/{id}", ch.GetSubmission)
 
+		th := handler.NewTeacherHandler(s)
+		r.With(auth.RequireAuthenticated, teacherOnly).Get("/teacher/students-overview", th.StudentsOverview)
+
 		lh := handler.NewListsHandler(s)
 		r.Route("/lists", func(r chi.Router) {
 			// Public: anyone can browse published lists, no accounts
