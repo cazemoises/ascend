@@ -1,8 +1,19 @@
+import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth'
 
 const isOnlyLists = import.meta.env.VITE_ONLY_LISTS_MODE === 'true'
+
+function IconMenu() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  )
+}
 
 function IconChallenges() {
   return (
@@ -52,78 +63,113 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 export function Sidebar() {
   const { user, isAuthenticated, isTeacher, isRealTeacher, viewingAsStudent, setViewingAsStudent } =
     useAuth()
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const closeMobile = () => setMobileOpen(false)
+
+  // Evita que o menu fique "preso" aberto se a janela for redimensionada
+  // (ou o dispositivo girado) para acima do breakpoint mobile.
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 921px)')
+    const handleChange = (e: MediaQueryListEvent) => {
+      if (e.matches) setMobileOpen(false)
+    }
+    query.addEventListener('change', handleChange)
+    return () => query.removeEventListener('change', handleChange)
+  }, [])
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar__brand">
-        <span className="sidebar__brand-mark">▲</span>
-        <span>Ascend</span>
+    <>
+      <div className="mobile-topbar">
+        <button
+          type="button"
+          className="mobile-topbar__menu-btn"
+          aria-label="Abrir menu de navegação"
+          aria-expanded={mobileOpen}
+          onClick={() => setMobileOpen(true)}
+        >
+          <IconMenu />
+        </button>
+        <span className="mobile-topbar__brand">
+          <span className="sidebar__brand-mark">▲</span>
+          Ascend
+        </span>
       </div>
 
-      <nav className="sidebar__nav" aria-label="Navegação principal">
-        {/* DESAFIOS — indisponível em modo só-listas */}
-        {!isOnlyLists ? (
-          <NavLink to="/" end className={linkClass}>
-            <IconChallenges />
-            Desafios
+      {mobileOpen ? (
+        <div className="sidebar-overlay" onClick={closeMobile} aria-hidden="true" />
+      ) : null}
+
+      <aside className={mobileOpen ? 'sidebar sidebar--open' : 'sidebar'}>
+        <div className="sidebar__brand">
+          <span className="sidebar__brand-mark">▲</span>
+          <span>Ascend</span>
+        </div>
+
+        <nav className="sidebar__nav" aria-label="Navegação principal">
+          {/* DESAFIOS — indisponível em modo só-listas */}
+          {!isOnlyLists ? (
+            <NavLink to="/" end className={linkClass} onClick={closeMobile}>
+              <IconChallenges />
+              Desafios
+            </NavLink>
+          ) : null}
+
+          {/* LISTAS — sempre visível: navegação pública, não exige login */}
+          <NavLink to="/listas" className={linkClass} onClick={closeMobile}>
+            <IconLists />
+            Listas
           </NavLink>
-        ) : null}
 
-        {/* LISTAS — sempre visível: navegação pública, não exige login */}
-        <NavLink to="/listas" className={linkClass}>
-          <IconLists />
-          Listas
-        </NavLink>
+          {/* HISTÓRICO — indisponível em modo só-listas */}
+          {isAuthenticated && !isOnlyLists ? (
+            <NavLink to="/submissions" className={linkClass} onClick={closeMobile}>
+              <IconHistory />
+              Histórico
+            </NavLink>
+          ) : null}
 
-        {/* HISTÓRICO — indisponível em modo só-listas */}
-        {isAuthenticated && !isOnlyLists ? (
-          <NavLink to="/submissions" className={linkClass}>
-            <IconHistory />
-            Histórico
-          </NavLink>
-        ) : null}
+          {/* TURMAS — indisponível em modo só-listas */}
+          {isTeacher && !isOnlyLists ? (
+            <NavLink to="/turmas" className={linkClass} onClick={closeMobile}>
+              <IconClasses />
+              Turmas
+            </NavLink>
+          ) : null}
+        </nav>
 
-        {/* TURMAS — indisponível em modo só-listas */}
-        {isTeacher && !isOnlyLists ? (
-          <NavLink to="/turmas" className={linkClass}>
-            <IconClasses />
-            Turmas
-          </NavLink>
-        ) : null}
-      </nav>
+        <div className="sidebar__footer">
+          {isAuthenticated && user !== null ? (
+            <div className="sidebar__user">
+              <span className="sidebar__user-email" title={user.email}>
+                {user.email}
+              </span>
+              <span
+                className={
+                  isTeacher
+                    ? 'sidebar__role sidebar__role--teacher'
+                    : 'sidebar__role'
+                }
+              >
+                {isTeacher ? 'Professor' : 'Estudante'}
+              </span>
+            </div>
+          ) : (
+            <span className="sidebar__user-email">Não identificado</span>
+          )}
 
-      <div className="sidebar__footer">
-        {isAuthenticated && user !== null ? (
-          <div className="sidebar__user">
-            <span className="sidebar__user-email" title={user.email}>
-              {user.email}
-            </span>
-            <span
-              className={
-                isTeacher
-                  ? 'sidebar__role sidebar__role--teacher'
-                  : 'sidebar__role'
-              }
+          {/* Só um teacher de verdade pode alternar — checa isRealTeacher, não
+              isTeacher, senão o toggle desapareceria assim que ativado. */}
+          {isRealTeacher ? (
+            <button
+              type="button"
+              className="sidebar__view-as-toggle"
+              onClick={() => setViewingAsStudent(!viewingAsStudent)}
             >
-              {isTeacher ? 'Professor' : 'Estudante'}
-            </span>
-          </div>
-        ) : (
-          <span className="sidebar__user-email">Não identificado</span>
-        )}
-
-        {/* Só um teacher de verdade pode alternar — checa isRealTeacher, não
-            isTeacher, senão o toggle desapareceria assim que ativado. */}
-        {isRealTeacher ? (
-          <button
-            type="button"
-            className="sidebar__view-as-toggle"
-            onClick={() => setViewingAsStudent(!viewingAsStudent)}
-          >
-            {viewingAsStudent ? 'Ver como professor' : 'Ver como aluno'}
-          </button>
-        ) : null}
-      </div>
-    </aside>
+              {viewingAsStudent ? 'Ver como professor' : 'Ver como aluno'}
+            </button>
+          ) : null}
+        </div>
+      </aside>
+    </>
   )
 }

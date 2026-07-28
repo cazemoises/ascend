@@ -2311,51 +2311,78 @@ pre {
 
 /* ===================== Sidebar responsive ===================== */
 
+.mobile-topbar {
+  display: none;
+}
+
+.sidebar-overlay {
+  display: none;
+}
+
 @media (max-width: 920px) {
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    height: 52px;
+    padding: 0 16px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-hairline);
+  }
+
+  .mobile-topbar__menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .mobile-topbar__brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--title);
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
   .app-shell {
     flex-direction: column;
+    padding-top: 52px;
   }
 
   .sidebar {
-    position: static;
-    width: 100%;
-    height: auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 4px;
-    padding: 10px 16px;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    overflow-x: auto;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 11;
+    width: min(80vw, 280px);
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    border-right: 1px solid var(--border-hairline);
   }
 
-  .sidebar__brand {
-    padding: 0 12px 0 0;
-  }
-
-  .sidebar__nav {
-    flex-direction: row;
-  }
-
-  .sidebar__user {
-    display: none;
-  }
-
-  .sidebar__footer {
-    margin-top: 0;
-    margin-left: auto;
-    flex-direction: row;
-    padding-top: 0;
-    border-top: none;
-  }
-
-  .sidebar__link--active::before {
-    left: 8px;
-    right: 8px;
-    top: auto;
-    bottom: -8px;
-    width: auto;
-    height: 3px;
+  .sidebar--open {
+    transform: translateX(0);
   }
 }
 
@@ -2404,7 +2431,8 @@ pre {
   }
 
   .audit-caret,
-  .scorebar__fill {
+  .scorebar__fill,
+  .sidebar {
     transition: none;
   }
 
