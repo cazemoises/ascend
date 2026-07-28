@@ -200,7 +200,7 @@ func TestGetChallengeDetail_SampleTestCases(t *testing.T) {
 		t.Fatalf("CreateTestCase (private): %v", err)
 	}
 
-	detail, err := s.GetChallengeDetail(ctx, ch.ID)
+	detail, err := s.GetChallengeDetail(ctx, ch.ID, "")
 	if err != nil {
 		t.Fatalf("GetChallengeDetail: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestGetChallengeDetail_NotFound(t *testing.T) {
 	db := openTestDB(t)
 	s := store.New(db, nil)
 
-	_, err := s.GetChallengeDetail(context.Background(), "00000000-0000-0000-0000-000000000000")
+	_, err := s.GetChallengeDetail(context.Background(), "00000000-0000-0000-0000-000000000000", "")
 	if err != store.ErrNotFound {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
@@ -243,7 +243,7 @@ func TestGetChallengeDetail_EmptySamples(t *testing.T) {
 	}
 	t.Cleanup(func() { s.DeleteChallenge(ctx, ch.ID) })
 
-	detail, err := s.GetChallengeDetail(ctx, ch.ID)
+	detail, err := s.GetChallengeDetail(ctx, ch.ID, "")
 	if err != nil {
 		t.Fatalf("GetChallengeDetail: %v", err)
 	}

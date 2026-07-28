@@ -210,6 +210,9 @@ export function ChallengePage() {
               <span className={`difficulty difficulty--${challenge.difficulty}`}>
                 {challenge.difficulty}
               </span>
+              {challenge.solved ? (
+                <span className="verdict verdict--accepted">CONCLUÍDO</span>
+              ) : null}
               <span className="constraint">
                 Tempo <strong>{challenge.time_limit_ms}ms</strong>
               </span>

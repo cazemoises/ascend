@@ -186,7 +186,11 @@ func (h *ChallengesHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 func (h *ChallengesHandler) get(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	detail, err := h.store.GetChallengeDetail(r.Context(), id)
+	viewerID := ""
+	if claims, ok := auth.FromContext(r.Context()); ok {
+		viewerID = claims.UserID
+	}
+	detail, err := h.store.GetChallengeDetail(r.Context(), id, viewerID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "challenge not found")

@@ -121,4 +121,44 @@ func TestListChallengesForViewer_Solved(t *testing.T) {
 			t.Errorf("solved = %v, want false (no viewer identity)", got.Solved)
 		}
 	})
+
+	t.Run("detail: solver sees solved=true", func(t *testing.T) {
+		detail, err := s.GetChallengeDetail(ctx, ch.ID, solver.ID)
+		if err != nil {
+			t.Fatalf("GetChallengeDetail: %v", err)
+		}
+		if !detail.Solved {
+			t.Errorf("solved = %v, want true", detail.Solved)
+		}
+	})
+
+	t.Run("detail: teacher's own accepted test run does not count as solved", func(t *testing.T) {
+		detail, err := s.GetChallengeDetail(ctx, ch.ID, teacher.ID)
+		if err != nil {
+			t.Fatalf("GetChallengeDetail: %v", err)
+		}
+		if detail.Solved {
+			t.Errorf("solved = %v, want false (is_test_run=true doesn't count)", detail.Solved)
+		}
+	})
+
+	t.Run("detail: non-solver sees solved=false", func(t *testing.T) {
+		detail, err := s.GetChallengeDetail(ctx, ch.ID, nonSolver.ID)
+		if err != nil {
+			t.Fatalf("GetChallengeDetail: %v", err)
+		}
+		if detail.Solved {
+			t.Errorf("solved = %v, want false (no accepted submission)", detail.Solved)
+		}
+	})
+
+	t.Run("detail: anonymous viewer sees solved=false", func(t *testing.T) {
+		detail, err := s.GetChallengeDetail(ctx, ch.ID, "")
+		if err != nil {
+			t.Fatalf("GetChallengeDetail: %v", err)
+		}
+		if detail.Solved {
+			t.Errorf("solved = %v, want false (no viewer identity)", detail.Solved)
+		}
+	})
 }

@@ -63,9 +63,13 @@ type SampleTestCase struct {
 	Ordinal        int    `json:"ordinal"`
 }
 
+// ChallengeDetail is a Challenge annotated with whether the requesting
+// viewer has already solved it — same rule as ChallengeFeedItem.Solved,
+// just for the single-challenge detail endpoint.
 type ChallengeDetail struct {
 	Challenge
 	SampleTestCases []SampleTestCase `json:"sample_test_cases"`
+	Solved          bool             `json:"solved"`
 }
 
 // ChallengeFeedItem is a Challenge annotated with whether the requesting
@@ -143,15 +147,19 @@ func (s *Store) ListChallenges(ctx context.Context, limit, offset int) ([]Challe
 // subquery below in the same SELECT list.
 const challengeColumnsAliased = `c.id, c.slug, c.title, c.description, c.difficulty, c.time_limit_ms, c.memory_limit_mb, c.notes, c.starter_code, c.created_at, c.updated_at`
 
-// solvedColumn reports whether $3 (the viewer's user id, or '' for
-// anonymous) has an accepted, non-test-run submission for the challenge.
-// NULLIF('', '')::uuid turns an empty viewerID into NULL, which never
-// equals any user_id — so anonymous viewers naturally always get false.
-const solvedColumn = `EXISTS(
-	SELECT 1 FROM submissions sub
-	WHERE sub.challenge_id = c.id AND sub.user_id = NULLIF($3, '')::uuid
-	  AND sub.status = 'accepted' AND sub.is_test_run = false
-) AS solved`
+// solvedColumn reports whether the viewer (positional parameter paramIndex,
+// '' for anonymous) has an accepted, non-test-run submission for the
+// challenge "c" — shared by every c-aliased challenges query so the solved
+// rule lives in exactly one place. NULLIF('', '')::uuid turns an empty
+// viewerID into NULL, which never equals any user_id — so anonymous viewers
+// naturally always get false.
+func solvedColumn(paramIndex int) string {
+	return fmt.Sprintf(`EXISTS(
+		SELECT 1 FROM submissions sub
+		WHERE sub.challenge_id = c.id AND sub.user_id = NULLIF($%d, '')::uuid
+		  AND sub.status = 'accepted' AND sub.is_test_run = false
+	) AS solved`, paramIndex)
+}
 
 func scanChallengeFeedItem(row interface {
 	Scan(...any) error
@@ -166,7 +174,7 @@ func scanChallengeFeedItem(row interface {
 // ListChallengesForViewer serves every challenge, ordered newest-first, with
 // each item annotated with whether viewerID has already solved it.
 func (s *Store) ListChallengesForViewer(ctx context.Context, viewerID string, limit, offset int) ([]ChallengeFeedItem, error) {
-	query := `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn + ` FROM challenges c
+	query := `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn(3) + ` FROM challenges c
 	 ORDER BY c.created_at DESC LIMIT $1 OFFSET $2`
 	args := []any{limit, offset, viewerID}
 
@@ -272,10 +280,18 @@ func (s *Store) GetChallenge(ctx context.Context, id string) (Challenge, error) 
 	return c, err
 }
 
-func (s *Store) GetChallengeDetail(ctx context.Context, id string) (ChallengeDetail, error) {
+// GetChallengeDetail fetches a single challenge plus its sample test cases,
+// annotated with whether viewerID ('' for anonymous) has already solved it —
+// same rule and same solvedColumn helper as ListChallengesForViewer.
+func (s *Store) GetChallengeDetail(ctx context.Context, id, viewerID string) (ChallengeDetail, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT `+challengeColumns+` FROM challenges WHERE id = $1`, id)
-	c, err := scanChallenge(row)
+		`SELECT `+challengeColumnsAliased+`, `+solvedColumn(2)+` FROM challenges c WHERE c.id = $1`,
+		id, viewerID)
+
+	var d ChallengeDetail
+	err := row.Scan(&d.ID, &d.Slug, &d.Title, &d.Description, &d.Difficulty,
+		&d.TimeLimitMs, &d.MemoryLimitMb, &d.Notes, &d.StarterCode,
+		&d.CreatedAt, &d.UpdatedAt, &d.Solved)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ChallengeDetail{}, ErrNotFound
 	}
@@ -303,7 +319,8 @@ func (s *Store) GetChallengeDetail(ctx context.Context, id string) (ChallengeDet
 		return ChallengeDetail{}, err
 	}
 
-	return ChallengeDetail{Challenge: c, SampleTestCases: samples}, nil
+	d.SampleTestCases = samples
+	return d, nil
 }
 
 func (s *Store) DeleteChallenge(ctx context.Context, id string) error {
