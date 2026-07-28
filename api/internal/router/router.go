@@ -56,7 +56,6 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter) chi.Rout
 		})
 		r.With(auth.RequireAuthenticated).Get("/submissions", ch.ListMySubmissions)
 		r.Get("/submissions/{id}", ch.GetSubmission)
-		r.With(auth.RequireAuthenticated, teacherOnly).Get("/classes/scoreboard", ch.TeacherScoreboard)
 
 		lh := handler.NewListsHandler(s)
 		r.Route("/lists", func(r chi.Router) {

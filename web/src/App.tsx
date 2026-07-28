@@ -5,7 +5,6 @@ import { RequireAuth, RequireTeacher } from './auth/RequireAuth'
 import { AppLayout } from './components/AppLayout'
 import { ChallengeList } from './pages/ChallengeList'
 import { ChallengePage } from './pages/ChallengePage'
-import { ClassboardPage } from './pages/ClassboardPage'
 import { ListDetailPage } from './pages/ListDetailPage'
 import { ListFormPage } from './pages/ListFormPage'
 import { ListsPage } from './pages/ListsPage'
@@ -61,14 +60,6 @@ function App() {
                   element={
                     <RequireAuth>
                       <SubmissionHistoryPage />
-                    </RequireAuth>
-                  }
-                />
-                <Route
-                  path="/turmas"
-                  element={
-                    <RequireAuth>
-                      <ClassboardPage />
                     </RequireAuth>
                   }
                 />

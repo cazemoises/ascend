@@ -42,7 +42,6 @@ export interface Challenge {
   memory_limit_mb: number
   notes: string | null
   starter_code: string | null
-  class_id: string | null
   sample_test_cases: SampleTestCase[]
   created_at: string
   updated_at: string
@@ -149,7 +148,6 @@ export interface CreateChallengeInput {
   memory_limit_mb?: number
   notes?: string | null
   starter_code?: string | null
-  class_id?: string | null
 }
 
 export function createChallenge(body: CreateChallengeInput) {
@@ -264,19 +262,6 @@ export interface ChallengeStats {
 
 export function getChallengeStats(challengeId: string) {
   return requestJSON<ChallengeStats>(`/api/v1/challenges/${challengeId}/stats`)
-}
-
-export interface ClassScore {
-  class_id: string
-  class_name: string
-  student_id: string
-  student_email: string
-  completed: number
-  total: number
-}
-
-export function getTeacherScoreboard() {
-  return requestJSON<ClassScore[]>('/api/v1/classes/scoreboard')
 }
 
 export type ListItemDifficulty = 'easy' | 'medium' | 'hard'

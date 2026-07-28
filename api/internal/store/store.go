@@ -27,7 +27,6 @@ type Challenge struct {
 	MemoryLimitMb int       `json:"memory_limit_mb"`
 	Notes         *string   `json:"notes"`
 	StarterCode   *string   `json:"starter_code"`
-	ClassID       *string   `json:"class_id"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -41,7 +40,6 @@ type CreateChallengeRequest struct {
 	MemoryLimitMb int
 	Notes         *string
 	StarterCode   *string
-	ClassID       *string
 }
 
 type TestCase struct {
@@ -117,14 +115,14 @@ func New(db *sql.DB, rdb *redis.Client) *Store {
 	return &Store{db: db, rdb: rdb}
 }
 
-const challengeColumns = `id, slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, class_id, created_at, updated_at`
+const challengeColumns = `id, slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, created_at, updated_at`
 
 func scanChallenge(row interface {
 	Scan(...any) error
 }) (Challenge, error) {
 	var c Challenge
 	err := row.Scan(&c.ID, &c.Slug, &c.Title, &c.Description, &c.Difficulty,
-		&c.TimeLimitMs, &c.MemoryLimitMb, &c.Notes, &c.StarterCode, &c.ClassID, &c.CreatedAt, &c.UpdatedAt)
+		&c.TimeLimitMs, &c.MemoryLimitMb, &c.Notes, &c.StarterCode, &c.CreatedAt, &c.UpdatedAt)
 	return c, err
 }
 
@@ -143,7 +141,7 @@ func (s *Store) ListChallenges(ctx context.Context, limit, offset int) ([]Challe
 // challengeColumnsAliased is challengeColumns qualified with the "c" alias
 // ListChallengesForViewer joins under, so it can sit alongside the solved
 // subquery below in the same SELECT list.
-const challengeColumnsAliased = `c.id, c.slug, c.title, c.description, c.difficulty, c.time_limit_ms, c.memory_limit_mb, c.notes, c.starter_code, c.class_id, c.created_at, c.updated_at`
+const challengeColumnsAliased = `c.id, c.slug, c.title, c.description, c.difficulty, c.time_limit_ms, c.memory_limit_mb, c.notes, c.starter_code, c.created_at, c.updated_at`
 
 // solvedColumn reports whether $3 (the viewer's user id, or '' for
 // anonymous) has an accepted, non-test-run submission for the challenge.
@@ -160,30 +158,17 @@ func scanChallengeFeedItem(row interface {
 }) (ChallengeFeedItem, error) {
 	var item ChallengeFeedItem
 	err := row.Scan(&item.ID, &item.Slug, &item.Title, &item.Description, &item.Difficulty,
-		&item.TimeLimitMs, &item.MemoryLimitMb, &item.Notes, &item.StarterCode, &item.ClassID,
+		&item.TimeLimitMs, &item.MemoryLimitMb, &item.Notes, &item.StarterCode,
 		&item.CreatedAt, &item.UpdatedAt, &item.Solved)
 	return item, err
 }
 
-// ListChallengesForViewer applies class visibility: anonymous viewers get
-// only public challenges (class_id IS NULL); students additionally get
-// challenges published to classes they are enrolled in; teachers see all.
-// Each item also carries whether the viewer has already solved it.
-func (s *Store) ListChallengesForViewer(ctx context.Context, viewerID, role string, limit, offset int) ([]ChallengeFeedItem, error) {
+// ListChallengesForViewer serves every challenge, ordered newest-first, with
+// each item annotated with whether viewerID has already solved it.
+func (s *Store) ListChallengesForViewer(ctx context.Context, viewerID string, limit, offset int) ([]ChallengeFeedItem, error) {
 	query := `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn + ` FROM challenges c
-	 WHERE c.class_id IS NULL ORDER BY c.created_at DESC LIMIT $1 OFFSET $2`
+	 ORDER BY c.created_at DESC LIMIT $1 OFFSET $2`
 	args := []any{limit, offset, viewerID}
-	switch {
-	case role == "teacher":
-		query = `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn + ` FROM challenges c
-		 ORDER BY c.created_at DESC LIMIT $1 OFFSET $2`
-	case viewerID != "":
-		query = `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn + ` FROM challenges c
-		 WHERE c.class_id IS NULL
-		    OR c.class_id IN (SELECT class_id FROM class_enrollments WHERE student_id = $4)
-		 ORDER BY c.created_at DESC LIMIT $1 OFFSET $2`
-		args = append(args, viewerID)
-	}
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -226,10 +211,10 @@ func (s *Store) CreateChallenge(ctx context.Context, req CreateChallengeRequest)
 	}
 
 	row := s.db.QueryRowContext(ctx,
-		`INSERT INTO challenges (slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, class_id)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		`INSERT INTO challenges (slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 RETURNING `+challengeColumns,
-		req.Slug, req.Title, req.Description, req.Difficulty, timeLimitMs, memLimitMb, req.Notes, req.StarterCode, req.ClassID)
+		req.Slug, req.Title, req.Description, req.Difficulty, timeLimitMs, memLimitMb, req.Notes, req.StarterCode)
 
 	c, err := scanChallenge(row)
 	if err != nil {
@@ -258,11 +243,11 @@ func (s *Store) UpdateChallenge(ctx context.Context, id string, req CreateChalle
 		`UPDATE challenges
 		 SET slug = $2, title = $3, description = $4, difficulty = $5,
 		     time_limit_ms = $6, memory_limit_mb = $7,
-		     notes = COALESCE($8, notes), starter_code = $9, class_id = $10, updated_at = now()
+		     notes = COALESCE($8, notes), starter_code = $9, updated_at = now()
 		 WHERE id = $1
 		 RETURNING `+challengeColumns,
 		id, req.Slug, req.Title, req.Description, req.Difficulty,
-		timeLimitMs, memLimitMb, req.Notes, req.StarterCode, req.ClassID)
+		timeLimitMs, memLimitMb, req.Notes, req.StarterCode)
 
 	c, err := scanChallenge(row)
 	if err != nil {
@@ -561,53 +546,6 @@ func (s *Store) GetChallengeStats(ctx context.Context, challengeID, userID strin
 	}
 
 	return stats, nil
-}
-
-// ClassScore is one row of the teacher scoreboard: a student's completion
-// count against the total challenges published to that class.
-type ClassScore struct {
-	ClassID      string `json:"class_id"`
-	ClassName    string `json:"class_name"`
-	StudentID    string `json:"student_id"`
-	StudentEmail string `json:"student_email"`
-	Completed    int    `json:"completed"`
-	Total        int    `json:"total"`
-}
-
-func (s *Store) TeacherScoreboard(ctx context.Context, teacherID string) ([]ClassScore, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT cl.id, cl.name, u.id, u.email,
-		        (SELECT COUNT(DISTINCT sub.challenge_id) FROM submissions sub
-		           JOIN challenges ch ON ch.id = sub.challenge_id AND ch.class_id = cl.id
-		           WHERE sub.user_id = u.id AND sub.status = 'accepted'
-		             AND sub.is_test_run = false) AS completed,
-		        (SELECT COUNT(*) FROM challenges ch WHERE ch.class_id = cl.id) AS total
-		 FROM classes cl
-		 JOIN class_enrollments ce ON ce.class_id = cl.id
-		 JOIN users u ON u.id = ce.student_id
-		 WHERE cl.teacher_id = $1
-		 ORDER BY cl.name, u.email`, teacherID)
-	if err != nil {
-		return nil, fmt.Errorf("query teacher scoreboard: %w", err)
-	}
-	defer rows.Close()
-
-	// Always non-nil so an empty scoreboard serializes as [] rather than null.
-	scores := make([]ClassScore, 0)
-	for rows.Next() {
-		var sc ClassScore
-		var completed, total sql.NullInt64
-		if err := rows.Scan(&sc.ClassID, &sc.ClassName, &sc.StudentID, &sc.StudentEmail, &completed, &total); err != nil {
-			return nil, fmt.Errorf("scan teacher scoreboard row: %w", err)
-		}
-		sc.Completed = int(completed.Int64)
-		sc.Total = int(total.Int64)
-		scores = append(scores, sc)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate teacher scoreboard: %w", err)
-	}
-	return scores, nil
 }
 
 type SubmissionSummary struct {

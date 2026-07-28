@@ -83,7 +83,7 @@ func TestListChallengesForViewer_Solved(t *testing.T) {
 	}
 
 	t.Run("solver sees solved=true", func(t *testing.T) {
-		items, err := s.ListChallengesForViewer(ctx, solver.ID, "student", 100, 0)
+		items, err := s.ListChallengesForViewer(ctx, solver.ID, 100, 0)
 		if err != nil {
 			t.Fatalf("ListChallengesForViewer: %v", err)
 		}
@@ -93,7 +93,7 @@ func TestListChallengesForViewer_Solved(t *testing.T) {
 	})
 
 	t.Run("teacher's own accepted test run does not count as solved", func(t *testing.T) {
-		items, err := s.ListChallengesForViewer(ctx, teacher.ID, "teacher", 100, 0)
+		items, err := s.ListChallengesForViewer(ctx, teacher.ID, 100, 0)
 		if err != nil {
 			t.Fatalf("ListChallengesForViewer: %v", err)
 		}
@@ -103,7 +103,7 @@ func TestListChallengesForViewer_Solved(t *testing.T) {
 	})
 
 	t.Run("non-solver sees solved=false", func(t *testing.T) {
-		items, err := s.ListChallengesForViewer(ctx, nonSolver.ID, "student", 100, 0)
+		items, err := s.ListChallengesForViewer(ctx, nonSolver.ID, 100, 0)
 		if err != nil {
 			t.Fatalf("ListChallengesForViewer: %v", err)
 		}
@@ -113,7 +113,7 @@ func TestListChallengesForViewer_Solved(t *testing.T) {
 	})
 
 	t.Run("anonymous viewer sees solved=false", func(t *testing.T) {
-		items, err := s.ListChallengesForViewer(ctx, "", "", 100, 0)
+		items, err := s.ListChallengesForViewer(ctx, "", 100, 0)
 		if err != nil {
 			t.Fatalf("ListChallengesForViewer: %v", err)
 		}

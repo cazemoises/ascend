@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -20,10 +19,9 @@ func NewChallengesHandler(s *store.Store) *ChallengesHandler {
 	return &ChallengesHandler{store: s}
 }
 
-// Routes registers only the public read endpoints. The list endpoint (List)
-// is wired by the router behind optional auth so the feed can be filtered by
-// class enrollment; teacher-only management and the authenticated submission
-// route are wired by the router with the appropriate middleware.
+// Routes registers only the public read endpoints. The list endpoint (List),
+// teacher-only management, and the authenticated submission route are wired
+// by the router with the appropriate middleware.
 func (h *ChallengesHandler) Routes(r chi.Router) {
 	r.Get("/{id}", h.get)
 	r.Get("/{id}/submissions", h.listSubmissions)
@@ -45,10 +43,10 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
-// List serves the challenge feed filtered by the viewer's visibility:
-// anonymous → public only; student → public + enrolled classes; teacher →
-// everything. Identity (if any) comes from middleware.PangolinAuth, which
-// runs globally and never rejects a request by itself.
+// List serves every challenge, newest first, annotated with whether the
+// requesting viewer has already solved it. Identity (if any) comes from
+// middleware.PangolinAuth, which runs globally and never rejects a request
+// by itself.
 func (h *ChallengesHandler) List(w http.ResponseWriter, r *http.Request) {
 	limit := 50
 	offset := 0
@@ -63,12 +61,12 @@ func (h *ChallengesHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	viewerID, role := "", ""
+	viewerID := ""
 	if claims, ok := auth.FromContext(r.Context()); ok {
-		viewerID, role = claims.UserID, claims.Role
+		viewerID = claims.UserID
 	}
 
-	challenges, err := h.store.ListChallengesForViewer(r.Context(), viewerID, role, limit, offset)
+	challenges, err := h.store.ListChallengesForViewer(r.Context(), viewerID, limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
@@ -98,27 +96,6 @@ func (h *ChallengesHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, stats)
 }
 
-// TeacherScoreboard serves the per-class completion matrix for every class
-// owned by the authenticated teacher (teacher-only route).
-func (h *ChallengesHandler) TeacherScoreboard(w http.ResponseWriter, r *http.Request) {
-	claims, ok := auth.FromContext(r.Context())
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	scores, err := h.store.TeacherScoreboard(r.Context(), claims.UserID)
-	if err != nil {
-		log.Printf("teacher scoreboard for user %s: %v", claims.UserID, err)
-		writeError(w, http.StatusInternalServerError, "internal server error")
-		return
-	}
-	if scores == nil {
-		scores = []store.ClassScore{}
-	}
-	writeJSON(w, http.StatusOK, scores)
-}
-
 type createChallengeBody struct {
 	Slug          string  `json:"slug"`
 	Title         string  `json:"title"`
@@ -128,7 +105,6 @@ type createChallengeBody struct {
 	MemoryLimitMb int     `json:"memory_limit_mb"`
 	Notes         *string `json:"notes"`
 	StarterCode   *string `json:"starter_code"`
-	ClassID       *string `json:"class_id"`
 }
 
 func (h *ChallengesHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -155,7 +131,6 @@ func (h *ChallengesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		MemoryLimitMb: body.MemoryLimitMb,
 		Notes:         body.Notes,
 		StarterCode:   body.StarterCode,
-		ClassID:       body.ClassID,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
@@ -193,7 +168,6 @@ func (h *ChallengesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		MemoryLimitMb: body.MemoryLimitMb,
 		Notes:         body.Notes,
 		StarterCode:   body.StarterCode,
-		ClassID:       body.ClassID,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
