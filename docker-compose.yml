@@ -37,7 +37,7 @@ services:
       SUBMIT_RATE_LIMIT: ${SUBMIT_RATE_LIMIT:-10}
       SUBMIT_RATE_WINDOW_S: ${SUBMIT_RATE_WINDOW_S:-60}
     ports:
-      - "8080:8080"
+      - "9000:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,7 +76,7 @@ services:
         # service, so production needs no CORS.
         VITE_API_URL: ""
     ports:
-      - "5173:80"
+      - "8000:80"
     depends_on:
       api:
         condition: service_healthy
