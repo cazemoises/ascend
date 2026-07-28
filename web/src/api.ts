@@ -264,10 +264,30 @@ export function getChallengeStats(challengeId: string) {
   return requestJSON<ChallengeStats>(`/api/v1/challenges/${challengeId}/stats`)
 }
 
+export interface SubmissionAttempt {
+  submission_id: string
+  verdict: string
+  created_at: string
+  language: string
+  exec_time_ms: number | null
+}
+
 export interface StudentChallengeSummary {
   challenge_id: string
   challenge_title: string
-  best_verdict: string
+  attempts: SubmissionAttempt[]
+  total_attempts: number
+  accepted_count: number
+  wrong_answer_count: number
+  runtime_error_count: number
+  timeout_count: number
+}
+
+export interface StudentStats {
+  total_submissions: number
+  challenges_attempted: number
+  challenges_accepted: number
+  avg_attempts_to_solve: number | null
 }
 
 export interface StudentListCompletion {
@@ -279,6 +299,7 @@ export interface StudentListCompletion {
 export interface StudentOverview {
   student_id: string
   email: string
+  stats: StudentStats
   challenges: StudentChallengeSummary[]
   list_completions: StudentListCompletion[]
 }

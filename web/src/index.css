@@ -1972,6 +1972,66 @@ pre {
   font-size: 0.85rem;
 }
 
+.challenge-accordion-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.challenge-accordion {
+  border-bottom: 1px solid var(--border-hairline);
+  padding: 8px 0;
+}
+
+.challenge-accordion:last-child {
+  border-bottom: none;
+}
+
+.challenge-accordion__toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.challenge-accordion__title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.challenge-accordion__attempts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  padding-left: 24px;
+}
+
+.attempt-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 12px;
+  border-radius: var(--radius-s);
+  color: inherit;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.attempt-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.attempt-row__language {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
 /* ===================== Problem lists ===================== */
 
 .list-detail__eyebrow-row {
