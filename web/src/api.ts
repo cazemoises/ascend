@@ -46,6 +46,10 @@ export interface Challenge {
   sample_test_cases: SampleTestCase[]
   created_at: string
   updated_at: string
+  // Only meaningful on the GET /challenges feed: whether the current viewer
+  // has an accepted, non-test-run submission for this challenge. Absent on
+  // other endpoints (create/update/get single challenge).
+  solved?: boolean
 }
 
 export interface SubmissionSummary {

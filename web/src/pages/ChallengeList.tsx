@@ -458,9 +458,14 @@ export function ChallengeList() {
           <div className="challenge-feed">
             {challenges.map((challenge) => (
               <article key={challenge.id} className="challenge-row">
-                <span className={`difficulty difficulty--${challenge.difficulty}`}>
-                  {challenge.difficulty}
-                </span>
+                <div className="challenge-row__badges">
+                  <span className={`difficulty difficulty--${challenge.difficulty}`}>
+                    {challenge.difficulty}
+                  </span>
+                  {challenge.solved ? (
+                    <span className="verdict verdict--accepted">CONCLUÍDO</span>
+                  ) : null}
+                </div>
                 <div className="challenge-row__body">
                   <h2>{challenge.title}</h2>
                   <p>{challenge.description}</p>

@@ -70,6 +70,14 @@ type ChallengeDetail struct {
 	SampleTestCases []SampleTestCase `json:"sample_test_cases"`
 }
 
+// ChallengeFeedItem is a Challenge annotated with whether the requesting
+// viewer has already solved it — only ListChallengesForViewer populates
+// Solved; every other Challenge-returning query leaves it at its zero value.
+type ChallengeFeedItem struct {
+	Challenge
+	Solved bool `json:"solved"`
+}
+
 type Submission struct {
 	ID           string  `json:"id"`
 	ChallengeID  string  `json:"challenge_id"`
@@ -132,21 +140,48 @@ func (s *Store) ListChallenges(ctx context.Context, limit, offset int) ([]Challe
 	return collectChallenges(rows)
 }
 
+// challengeColumnsAliased is challengeColumns qualified with the "c" alias
+// ListChallengesForViewer joins under, so it can sit alongside the solved
+// subquery below in the same SELECT list.
+const challengeColumnsAliased = `c.id, c.slug, c.title, c.description, c.difficulty, c.time_limit_ms, c.memory_limit_mb, c.notes, c.starter_code, c.class_id, c.created_at, c.updated_at`
+
+// solvedColumn reports whether $3 (the viewer's user id, or '' for
+// anonymous) has an accepted, non-test-run submission for the challenge.
+// NULLIF('', '')::uuid turns an empty viewerID into NULL, which never
+// equals any user_id — so anonymous viewers naturally always get false.
+const solvedColumn = `EXISTS(
+	SELECT 1 FROM submissions sub
+	WHERE sub.challenge_id = c.id AND sub.user_id = NULLIF($3, '')::uuid
+	  AND sub.status = 'accepted' AND sub.is_test_run = false
+) AS solved`
+
+func scanChallengeFeedItem(row interface {
+	Scan(...any) error
+}) (ChallengeFeedItem, error) {
+	var item ChallengeFeedItem
+	err := row.Scan(&item.ID, &item.Slug, &item.Title, &item.Description, &item.Difficulty,
+		&item.TimeLimitMs, &item.MemoryLimitMb, &item.Notes, &item.StarterCode, &item.ClassID,
+		&item.CreatedAt, &item.UpdatedAt, &item.Solved)
+	return item, err
+}
+
 // ListChallengesForViewer applies class visibility: anonymous viewers get
 // only public challenges (class_id IS NULL); students additionally get
 // challenges published to classes they are enrolled in; teachers see all.
-func (s *Store) ListChallengesForViewer(ctx context.Context, viewerID, role string, limit, offset int) ([]Challenge, error) {
-	query := `SELECT ` + challengeColumns + ` FROM challenges
-	 WHERE class_id IS NULL ORDER BY created_at DESC LIMIT $1 OFFSET $2`
-	args := []any{limit, offset}
+// Each item also carries whether the viewer has already solved it.
+func (s *Store) ListChallengesForViewer(ctx context.Context, viewerID, role string, limit, offset int) ([]ChallengeFeedItem, error) {
+	query := `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn + ` FROM challenges c
+	 WHERE c.class_id IS NULL ORDER BY c.created_at DESC LIMIT $1 OFFSET $2`
+	args := []any{limit, offset, viewerID}
 	switch {
 	case role == "teacher":
-		query = `SELECT ` + challengeColumns + ` FROM challenges ORDER BY created_at DESC LIMIT $1 OFFSET $2`
+		query = `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn + ` FROM challenges c
+		 ORDER BY c.created_at DESC LIMIT $1 OFFSET $2`
 	case viewerID != "":
-		query = `SELECT ` + challengeColumns + ` FROM challenges
-		 WHERE class_id IS NULL
-		    OR class_id IN (SELECT class_id FROM class_enrollments WHERE student_id = $3)
-		 ORDER BY created_at DESC LIMIT $1 OFFSET $2`
+		query = `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn + ` FROM challenges c
+		 WHERE c.class_id IS NULL
+		    OR c.class_id IN (SELECT class_id FROM class_enrollments WHERE student_id = $4)
+		 ORDER BY c.created_at DESC LIMIT $1 OFFSET $2`
 		args = append(args, viewerID)
 	}
 
@@ -156,7 +191,15 @@ func (s *Store) ListChallengesForViewer(ctx context.Context, viewerID, role stri
 	}
 	defer rows.Close()
 
-	return collectChallenges(rows)
+	items := make([]ChallengeFeedItem, 0)
+	for rows.Next() {
+		item, err := scanChallengeFeedItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
 }
 
 func collectChallenges(rows *sql.Rows) ([]Challenge, error) {
