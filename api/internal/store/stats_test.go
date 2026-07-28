@@ -86,3 +86,84 @@ func TestGetChallengeStats_ExcludesTestRuns(t *testing.T) {
 		t.Errorf("bucket histogram looks skewed toward the excluded 10ms test run (max populated bucket up_to_ms=%d)", maxBucketMs)
 	}
 }
+
+func TestGetChallengeStats_ExcludesNonAcceptedStatuses(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+
+	ch, err := s.CreateChallenge(ctx, store.CreateChallengeRequest{
+		Slug:       "stats-excludes-non-accepted",
+		Title:      "Stats Excludes Non-Accepted",
+		Difficulty: "easy",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallenge: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteChallenge(ctx, ch.ID) })
+	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM submissions WHERE challenge_id = $1`, ch.ID) })
+
+	// Non-accepted submissions often finish fast (a wrong answer or a runtime
+	// error can fail on the first test case), so if the WHERE clause ever
+	// drops the status='accepted' filter, they'd drag the percentile down.
+	nonAccepted := []struct {
+		status string
+		ms     int
+	}{
+		{"wrong_answer", 5},
+		{"runtime_error", 3},
+		{"time_limit_exceeded", 2000},
+	}
+	for _, na := range nonAccepted {
+		sub, err := s.CreateSubmission(ctx, store.CreateSubmissionRequest{
+			ChallengeID: ch.ID,
+			Language:    "go",
+			SourceCode:  "package main\nfunc main() {}",
+			IsTestRun:   false,
+		})
+		if err != nil {
+			t.Fatalf("CreateSubmission (%s): %v", na.status, err)
+		}
+		if _, err := db.ExecContext(ctx,
+			`UPDATE submissions SET status = $1, exec_time_ms = $2 WHERE id = $3`,
+			na.status, na.ms, sub.ID); err != nil {
+			t.Fatalf("mark submission %s: %v", na.status, err)
+		}
+	}
+
+	// The only submission that should count.
+	studentSub, err := s.CreateSubmission(ctx, store.CreateSubmissionRequest{
+		ChallengeID: ch.ID,
+		Language:    "go",
+		SourceCode:  "package main\nfunc main() {}",
+		IsTestRun:   false,
+	})
+	if err != nil {
+		t.Fatalf("CreateSubmission (student): %v", err)
+	}
+	if _, err := db.ExecContext(ctx,
+		`UPDATE submissions SET status = 'accepted', exec_time_ms = $1 WHERE id = $2`,
+		500, studentSub.ID); err != nil {
+		t.Fatalf("mark student submission accepted: %v", err)
+	}
+
+	stats, err := s.GetChallengeStats(ctx, ch.ID, "00000000-0000-0000-0000-000000000000")
+	if err != nil {
+		t.Fatalf("GetChallengeStats: %v", err)
+	}
+
+	if stats.TotalRuns != 1 {
+		t.Errorf("TotalRuns = %d, want 1 (wrong_answer/runtime_error/time_limit_exceeded must be excluded)", stats.TotalRuns)
+	}
+
+	var realCount int
+	if err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM submissions
+		 WHERE challenge_id = $1 AND status = 'accepted' AND is_test_run = false AND exec_time_ms IS NOT NULL`,
+		ch.ID).Scan(&realCount); err != nil {
+		t.Fatalf("count real accepted submissions: %v", err)
+	}
+	if stats.TotalRuns != realCount {
+		t.Errorf("TotalRuns = %d, want it to match the real COUNT(*) of accepted/non-test-run submissions = %d", stats.TotalRuns, realCount)
+	}
+}
