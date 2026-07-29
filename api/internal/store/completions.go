@@ -1,6 +1,24 @@
 package store
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrLinkedItem means the item's completion is derived automatically from a
+// linked challenge (linked_challenge_id is set) — it can't be self-declared
+// via CompleteListItem/UncompleteListItem.
+var ErrLinkedItem = errors.New("item is linked to a challenge")
+
+// isLinkedItem reports whether itemID has a linked_challenge_id set. Shared
+// by CompleteListItem and UncompleteListItem so both reject the same way.
+func (s *Store) isLinkedItem(ctx context.Context, itemID string) (bool, error) {
+	var linked bool
+	err := s.db.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM list_items WHERE id = $1 AND linked_challenge_id IS NOT NULL)`,
+		itemID).Scan(&linked)
+	return linked, err
+}
 
 // CompleteListItem records a student's self-declared completion. Idempotent:
 // calling it again is a no-op (ON CONFLICT DO NOTHING against the
@@ -8,6 +26,12 @@ import "context"
 // a duplicate row or an error. The item's parent list must be published —
 // a student can't complete something on a draft list they can't even see.
 func (s *Store) CompleteListItem(ctx context.Context, itemID, studentID string) error {
+	if linked, err := s.isLinkedItem(ctx, itemID); err != nil {
+		return err
+	} else if linked {
+		return ErrLinkedItem
+	}
+
 	res, err := s.db.ExecContext(ctx,
 		`INSERT INTO list_item_completions (list_item_id, student_id)
 		 SELECT li.id, $2
@@ -51,6 +75,12 @@ func (s *Store) CompleteListItem(ctx context.Context, itemID, studentID string) 
 // UncompleteListItem removes a completion, if any. Deleting a row that
 // doesn't exist is a no-op, not an error — unmarking twice is fine.
 func (s *Store) UncompleteListItem(ctx context.Context, itemID, studentID string) error {
+	if linked, err := s.isLinkedItem(ctx, itemID); err != nil {
+		return err
+	} else if linked {
+		return ErrLinkedItem
+	}
+
 	_, err := s.db.ExecContext(ctx,
 		`DELETE FROM list_item_completions WHERE list_item_id = $1 AND student_id = $2`,
 		itemID, studentID)

@@ -322,6 +322,10 @@ type listItemBody struct {
 	Difficulty string `json:"difficulty"`
 	IsBonus    bool   `json:"is_bonus"`
 	Body       string `json:"body"`
+	// LinkedChallengeID, when set, makes this item's completion derive
+	// automatically from the student having solved that challenge instead
+	// of a self-declared checkbox.
+	LinkedChallengeID *string `json:"linked_challenge_id"`
 }
 
 func (b listItemBody) validate() (string, bool) {
@@ -354,14 +358,19 @@ func (h *ListsHandler) CreateItem(w http.ResponseWriter, r *http.Request) {
 
 	listID := chi.URLParam(r, "id")
 	item, err := h.store.CreateListItem(r.Context(), listID, claims.UserID, store.CreateListItemRequest{
-		Title:      body.Title,
-		Difficulty: body.Difficulty,
-		IsBonus:    body.IsBonus,
-		Body:       body.Body,
+		Title:             body.Title,
+		Difficulty:        body.Difficulty,
+		IsBonus:           body.IsBonus,
+		Body:              body.Body,
+		LinkedChallengeID: body.LinkedChallengeID,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "list not found")
+			return
+		}
+		if errors.Is(err, store.ErrLinkedChallengeNotFound) {
+			writeError(w, http.StatusUnprocessableEntity, "linked_challenge_id does not reference an existing challenge")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal server error")
@@ -390,14 +399,19 @@ func (h *ListsHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 
 	itemID := chi.URLParam(r, "id")
 	item, err := h.store.UpdateListItem(r.Context(), itemID, claims.UserID, store.UpdateListItemRequest{
-		Title:      body.Title,
-		Difficulty: body.Difficulty,
-		IsBonus:    body.IsBonus,
-		Body:       body.Body,
+		Title:             body.Title,
+		Difficulty:        body.Difficulty,
+		IsBonus:           body.IsBonus,
+		Body:              body.Body,
+		LinkedChallengeID: body.LinkedChallengeID,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "item not found")
+			return
+		}
+		if errors.Is(err, store.ErrLinkedChallengeNotFound) {
+			writeError(w, http.StatusUnprocessableEntity, "linked_challenge_id does not reference an existing challenge")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal server error")
@@ -478,6 +492,11 @@ func (h *ListsHandler) CompleteItem(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "item not found")
 			return
 		}
+		if errors.Is(err, store.ErrLinkedItem) {
+			writeError(w, http.StatusUnprocessableEntity,
+				"este item é vinculado a um desafio — resolva o desafio para marcar conclusão automaticamente")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -494,6 +513,11 @@ func (h *ListsHandler) UncompleteItem(w http.ResponseWriter, r *http.Request) {
 	}
 	itemID := chi.URLParam(r, "id")
 	if err := h.store.UncompleteListItem(r.Context(), itemID, claims.UserID); err != nil {
+		if errors.Is(err, store.ErrLinkedItem) {
+			writeError(w, http.StatusUnprocessableEntity,
+				"este item é vinculado a um desafio — resolva o desafio para marcar conclusão automaticamente")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}

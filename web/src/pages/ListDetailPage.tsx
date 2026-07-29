@@ -236,7 +236,7 @@ export function ListDetailPage() {
                   return (
                     <article className="list-item" key={item.id}>
                       <div className="list-item__head">
-                        {isAuthenticated && !isTeacher ? (
+                        {isAuthenticated && !isTeacher && !item.linked_challenge_id ? (
                           <button
                             type="button"
                             className={
@@ -272,6 +272,20 @@ export function ListDetailPage() {
                           {DIFFICULTY_LABELS[item.difficulty] ?? item.difficulty}
                         </span>
                         {item.is_bonus ? <span className="list-badge">BÔNUS</span> : null}
+
+                        {item.linked_challenge_id ? (
+                          <>
+                            <Link
+                              className="challenge-submit"
+                              to={`/challenges/${item.linked_challenge_id}`}
+                            >
+                              Resolver desafio: {item.challenge_title ?? 'desafio'}
+                            </Link>
+                            {item.completed ? (
+                              <span className="verdict verdict--accepted">CONCLUÍDO</span>
+                            ) : null}
+                          </>
+                        ) : null}
 
                         {isOwner ? (
                           <div className="list-item__actions">
