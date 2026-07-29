@@ -75,6 +75,13 @@ type CreateListItemRequest struct {
 	IsBonus           bool
 	Body              string
 	LinkedChallengeID *string
+	// LinkedChallengeSlug is only meaningful for ImportProblemList: the
+	// teacher writing an import JSON by hand knows a challenge's slug, not
+	// its UUID, so ImportProblemList resolves it to LinkedChallengeID
+	// before inserting. Ignored by CreateListItem/UpdateListItem, which
+	// only ever receive LinkedChallengeID directly (from the studio
+	// dropdown, which already has the real id).
+	LinkedChallengeSlug *string
 }
 
 type UpdateListItemRequest struct {
@@ -297,6 +304,18 @@ func (s *Store) DeleteProblemList(ctx context.Context, listID, teacherID string)
 // only checks existence, not ownership.
 var ErrLinkedChallengeNotFound = errors.New("linked challenge not found")
 
+// ImportChallengeSlugNotFoundError means an import item's
+// linked_challenge_slug doesn't match any challenge — identifies which item
+// (by index) and which slug, so the caller can report it precisely.
+type ImportChallengeSlugNotFoundError struct {
+	Index int
+	Slug  string
+}
+
+func (e *ImportChallengeSlugNotFoundError) Error() string {
+	return fmt.Sprintf("item %d: linked_challenge_slug %q not found", e.Index, e.Slug)
+}
+
 // CreateListItem verifies the caller owns the target list before inserting,
 // inside one transaction so the ownership check and the ordinal-assignment
 // insert see a consistent snapshot.
@@ -367,14 +386,42 @@ func (s *Store) ImportProblemList(ctx context.Context, req ImportProblemListRequ
 
 	items := make([]ListItem, 0, len(req.Items))
 	for i, it := range req.Items {
+		// Same resolution CreateListItem applies to a direct id, plus the
+		// slug lookup import needs — a teacher writing JSON by hand knows a
+		// challenge's slug, not its UUID.
+		linkedChallengeID := it.LinkedChallengeID
+		if linkedChallengeID == nil && it.LinkedChallengeSlug != nil && *it.LinkedChallengeSlug != "" {
+			var resolvedID string
+			err := tx.QueryRowContext(ctx,
+				`SELECT id FROM challenges WHERE slug = $1`, *it.LinkedChallengeSlug,
+			).Scan(&resolvedID)
+			if errors.Is(err, sql.ErrNoRows) {
+				return ProblemListDetail{}, &ImportChallengeSlugNotFoundError{Index: i, Slug: *it.LinkedChallengeSlug}
+			}
+			if err != nil {
+				return ProblemListDetail{}, fmt.Errorf("resolve linked_challenge_slug for item %d: %w", i, err)
+			}
+			linkedChallengeID = &resolvedID
+		} else if linkedChallengeID != nil {
+			var exists bool
+			if err := tx.QueryRowContext(ctx,
+				`SELECT EXISTS(SELECT 1 FROM challenges WHERE id = $1)`, *linkedChallengeID,
+			).Scan(&exists); err != nil {
+				return ProblemListDetail{}, fmt.Errorf("check linked challenge for item %d: %w", i, err)
+			}
+			if !exists {
+				return ProblemListDetail{}, ErrLinkedChallengeNotFound
+			}
+		}
+
 		var li ListItem
 		err := tx.QueryRowContext(ctx,
-			`INSERT INTO list_items (list_id, ordinal, title, difficulty, is_bonus, body)
-			 VALUES ($1, $2, $3, $4, $5, $6)
-			 RETURNING id, list_id, ordinal, title, difficulty, is_bonus, body, created_at, updated_at`,
-			pl.ID, i, it.Title, it.Difficulty, it.IsBonus, it.Body,
+			`INSERT INTO list_items (list_id, ordinal, title, difficulty, is_bonus, body, linked_challenge_id)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)
+			 RETURNING id, list_id, ordinal, title, difficulty, is_bonus, body, created_at, updated_at, linked_challenge_id`,
+			pl.ID, i, it.Title, it.Difficulty, it.IsBonus, it.Body, linkedChallengeID,
 		).Scan(&li.ID, &li.ListID, &li.Ordinal, &li.Title, &li.Difficulty, &li.IsBonus, &li.Body,
-			&li.CreatedAt, &li.UpdatedAt)
+			&li.CreatedAt, &li.UpdatedAt, &li.LinkedChallengeID)
 		if err != nil {
 			return ProblemListDetail{}, fmt.Errorf("insert list item %d: %w", i, err)
 		}

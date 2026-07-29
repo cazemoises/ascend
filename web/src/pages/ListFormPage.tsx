@@ -71,12 +71,12 @@ function isoToDateInputValue(iso: string | null): string {
 
 type JsonImportPreview = {
   title: string
-  items: { title: string; difficulty: string }[]
+  items: { title: string; difficulty: string; linkedChallengeSlug: string }[]
 }
 
 // Reads only what the preview needs to display — the backend is the sole
 // source of truth for shape/business validation (difficulty enum, date
-// format, required fields).
+// format, required fields, whether the slug actually exists).
 function toImportPreview(raw: unknown): JsonImportPreview {
   const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const itemsRaw = Array.isArray(obj.items) ? obj.items : []
@@ -87,6 +87,8 @@ function toImportPreview(raw: unknown): JsonImportPreview {
       return {
         title: typeof item.title === 'string' ? item.title : '',
         difficulty: typeof item.difficulty === 'string' ? item.difficulty : '',
+        linkedChallengeSlug:
+          typeof item.linked_challenge_slug === 'string' ? item.linked_challenge_slug : '',
       }
     }),
   }
@@ -414,6 +416,7 @@ export function ListFormPage() {
                   {jsonPreview.items.map((it, i) => (
                     <li key={i}>
                       {it.title || '(sem título)'} — {it.difficulty || '(sem dificuldade)'}
+                      {it.linkedChallengeSlug ? ` — vinculado a: ${it.linkedChallengeSlug}` : ''}
                     </li>
                   ))}
                 </ul>

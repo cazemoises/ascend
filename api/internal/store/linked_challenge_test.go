@@ -4,6 +4,7 @@ package store_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/caze/ascend/api/internal/store"
@@ -224,5 +225,92 @@ func TestGetProblemListDetail_MixedLinkedAndSelfDeclaredItems(t *testing.T) {
 	}
 	if gotPlain.LinkedChallengeID != nil {
 		t.Errorf("plain item LinkedChallengeID = %v, want nil", gotPlain.LinkedChallengeID)
+	}
+}
+
+func TestImportProblemList_LinkedChallengeSlugResolves(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	teacher := createTestUser(t, s, db, ctx, "import-linked-slug-teacher@example.com")
+
+	ch, err := s.CreateChallenge(ctx, store.CreateChallengeRequest{
+		Slug: "import-linked-slug-challenge", Title: "Import Linked Slug Challenge", Difficulty: "easy",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallenge: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteChallenge(ctx, ch.ID) })
+
+	slug := ch.Slug
+	detail, err := s.ImportProblemList(ctx, store.ImportProblemListRequest{
+		TeacherID: teacher.ID,
+		Title:     "Import Linked Slug List",
+		Items: []store.CreateListItemRequest{
+			{Title: "Plain item", Difficulty: "easy", Body: "b"},
+			{Title: "Linked item", Difficulty: "easy", Body: "b", LinkedChallengeSlug: &slug},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ImportProblemList: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, detail.ID, teacher.ID) })
+
+	if len(detail.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(detail.Items))
+	}
+	if detail.Items[0].LinkedChallengeID != nil {
+		t.Errorf("plain item LinkedChallengeID = %v, want nil", detail.Items[0].LinkedChallengeID)
+	}
+	if detail.Items[1].LinkedChallengeID == nil || *detail.Items[1].LinkedChallengeID != ch.ID {
+		t.Errorf("linked item LinkedChallengeID = %v, want %q (resolved from slug %q)",
+			detail.Items[1].LinkedChallengeID, ch.ID, slug)
+	}
+
+	// Confirm the resolved id was actually persisted, not just returned.
+	var persistedID *string
+	if err := db.QueryRowContext(ctx,
+		`SELECT linked_challenge_id FROM list_items WHERE id = $1`, detail.Items[1].ID,
+	).Scan(&persistedID); err != nil {
+		t.Fatalf("query persisted linked_challenge_id: %v", err)
+	}
+	if persistedID == nil || *persistedID != ch.ID {
+		t.Errorf("persisted linked_challenge_id = %v, want %q", persistedID, ch.ID)
+	}
+}
+
+func TestImportProblemList_LinkedChallengeSlugNotFoundRollsBackEverything(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	teacher := createTestUser(t, s, db, ctx, "import-linked-slug-notfound-teacher@example.com")
+
+	bogusSlug := "does-not-exist-slug"
+	const title = "Import Linked Slug Not Found List"
+	_, err := s.ImportProblemList(ctx, store.ImportProblemListRequest{
+		TeacherID: teacher.ID,
+		Title:     title,
+		Items: []store.CreateListItemRequest{
+			{Title: "Good item", Difficulty: "easy", Body: "b"},
+			{Title: "Bad item", Difficulty: "easy", Body: "b", LinkedChallengeSlug: &bogusSlug},
+		},
+	})
+
+	var notFoundErr *store.ImportChallengeSlugNotFoundError
+	if !errors.As(err, &notFoundErr) {
+		t.Fatalf("err = %v, want *ImportChallengeSlugNotFoundError", err)
+	}
+	if notFoundErr.Index != 1 || notFoundErr.Slug != bogusSlug {
+		t.Errorf("notFoundErr = %+v, want Index=1 Slug=%q", notFoundErr, bogusSlug)
+	}
+
+	var count int
+	if err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM problem_lists WHERE teacher_id = $1 AND title = $2`,
+		teacher.ID, title).Scan(&count); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("persisted list count = %d, want 0 (full rollback, including the good item)", count)
 	}
 }
