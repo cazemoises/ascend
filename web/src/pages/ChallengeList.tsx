@@ -3,12 +3,15 @@ import { Link } from 'react-router-dom'
 
 import {
   createChallenge,
+  createChallengeCollection,
   importChallenges,
   listChallengeCollections,
   listChallenges,
   listTestCases,
   replaceTestCases,
+  reorderChallengeCollections,
   updateChallenge,
+  updateChallengeCollection,
   type Challenge,
   type ChallengeCollection,
   type ChallengeDifficulty,
@@ -220,6 +223,70 @@ export function ChallengeList() {
       active = false
     }
   }, [isTeacher])
+
+  const [managingCollections, setManagingCollections] = useState(false)
+  const [newCollectionTitle, setNewCollectionTitle] = useState('')
+  // Per-row draft title, keyed by collection id — only entries the teacher
+  // has actually touched exist here; everything else falls back to the
+  // collection's own title.
+  const [collectionEdits, setCollectionEdits] = useState<Record<string, string>>({})
+  const [collectionActionError, setCollectionActionError] = useState<string | null>(null)
+  const [collectionSaving, setCollectionSaving] = useState(false)
+
+  async function handleCreateCollection() {
+    const title = newCollectionTitle.trim()
+    if (title === '') return
+    setCollectionSaving(true)
+    setCollectionActionError(null)
+    try {
+      const created = await createChallengeCollection({ title })
+      setCollections((prev) => [...prev, created])
+      setNewCollectionTitle('')
+    } catch (err) {
+      setCollectionActionError(err instanceof Error ? err.message : 'Falha ao criar coleção')
+    } finally {
+      setCollectionSaving(false)
+    }
+  }
+
+  async function handleRenameCollection(cc: ChallengeCollection) {
+    const title = (collectionEdits[cc.id] ?? cc.title).trim()
+    if (title === '' || title === cc.title) return
+    setCollectionSaving(true)
+    setCollectionActionError(null)
+    try {
+      const updated = await updateChallengeCollection(cc.id, { title, ordinal: cc.ordinal })
+      setCollections((prev) => prev.map((c) => (c.id === cc.id ? updated : c)))
+      await refreshChallenges()
+    } catch (err) {
+      setCollectionActionError(err instanceof Error ? err.message : 'Falha ao renomear coleção')
+    } finally {
+      setCollectionSaving(false)
+    }
+  }
+
+  async function handleMoveCollection(index: number, direction: -1 | 1) {
+    const targetIndex = index + direction
+    if (targetIndex < 0 || targetIndex >= collections.length) return
+    const a = collections[index]
+    const b = collections[targetIndex]
+    setCollectionActionError(null)
+    try {
+      await reorderChallengeCollections([
+        { id: a.id, ordinal: b.ordinal },
+        { id: b.id, ordinal: a.ordinal },
+      ])
+      setCollections((prev) => {
+        const next = [...prev]
+        next[index] = { ...b, ordinal: a.ordinal }
+        next[targetIndex] = { ...a, ordinal: b.ordinal }
+        return next
+      })
+      await refreshChallenges()
+    } catch (err) {
+      setCollectionActionError(err instanceof Error ? err.message : 'Falha ao reordenar coleções')
+    }
+  }
 
   function toggleGroupCollapsed(key: string) {
     setCollapsedGroups((prev) => {
@@ -766,16 +833,88 @@ export function ChallengeList() {
       {isTeacher ? (
         <div className="action-bar">
           <span className="action-bar__label">Área do professor</span>
-          <button
-            type="button"
-            className="challenge-submit"
-            onClick={() => {
-              setSaveError(null)
-              setCreating(true)
-            }}
-          >
-            Criar desafio
-          </button>
+          <div className="studio__actions">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setManagingCollections((prev) => !prev)}
+            >
+              {managingCollections ? 'Fechar coleções' : 'Gerenciar coleções'}
+            </button>
+            <button
+              type="button"
+              className="challenge-submit"
+              onClick={() => {
+                setSaveError(null)
+                setCreating(true)
+              }}
+            >
+              Criar desafio
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {isTeacher && managingCollections ? (
+        <div className="collection-manager">
+          <h2 className="collection-manager__title">Coleções</h2>
+          {collectionActionError ? (
+            <p className="status-message status-error">{collectionActionError}</p>
+          ) : null}
+          {collections.length === 0 ? (
+            <p className="studio__panel-hint">Nenhuma coleção criada ainda.</p>
+          ) : (
+            collections.map((cc, index) => (
+              <div className="collection-manager__row" key={cc.id}>
+                <input
+                  value={collectionEdits[cc.id] ?? cc.title}
+                  onChange={(e) =>
+                    setCollectionEdits((prev) => ({ ...prev, [cc.id]: e.target.value }))
+                  }
+                  onBlur={() => void handleRenameCollection(cc)}
+                  disabled={collectionSaving}
+                />
+                <div className="list-item__actions">
+                  <button
+                    type="button"
+                    className="list-item__icon-btn"
+                    title="Mover para cima"
+                    aria-label="Mover coleção para cima"
+                    disabled={collectionSaving || index === 0}
+                    onClick={() => void handleMoveCollection(index, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="list-item__icon-btn"
+                    title="Mover para baixo"
+                    aria-label="Mover coleção para baixo"
+                    disabled={collectionSaving || index === collections.length - 1}
+                    onClick={() => void handleMoveCollection(index, 1)}
+                  >
+                    ↓
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+          <div className="collection-manager__create">
+            <input
+              value={newCollectionTitle}
+              onChange={(e) => setNewCollectionTitle(e.target.value)}
+              placeholder="Nova coleção"
+              disabled={collectionSaving}
+            />
+            <button
+              type="button"
+              className="btn-add"
+              onClick={() => void handleCreateCollection()}
+              disabled={collectionSaving || newCollectionTitle.trim() === ''}
+            >
+              + Criar coleção
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -869,7 +1008,6 @@ export function ChallengeList() {
                     </article>
                   ))}
                 </div>
-                ) : null}
               </div>
               )
             })

@@ -1262,6 +1262,52 @@ pre {
   background: rgba(255, 255, 255, 0.04);
 }
 
+/* Inline "Gerenciar coleções" panel on the challenge list page — same card
+   chrome as .action-bar, toggled from the button beside "Criar desafio". */
+.collection-manager {
+  margin-bottom: 16px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+}
+
+.collection-manager__title {
+  margin: 0 0 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.collection-manager__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.collection-manager__row:last-of-type {
+  border-bottom: none;
+}
+
+.collection-manager__row input {
+  flex: 1;
+}
+
+.collection-manager__create {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.collection-manager__create input {
+  flex: 1;
+}
+
 .studio__panel {
   padding: 26px 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
