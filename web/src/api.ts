@@ -340,6 +340,17 @@ export function listChallengeSubmissions(challengeId: string) {
   return requestJSON<SubmissionSummary[]>(`/api/v1/challenges/${challengeId}/submissions`)
 }
 
+export interface LastSubmissionCode {
+  language: SubmissionLanguage
+  source_code: string
+}
+
+// 404s when the caller has never submitted to this challenge — callers
+// should catch and fall back to starter_code, not surface it as an error.
+export function getLastSubmission(challengeId: string) {
+  return requestJSON<LastSubmissionCode>(`/api/v1/challenges/${challengeId}/submissions/last`)
+}
+
 export interface StatsBucket {
   up_to_ms: number
   count: number

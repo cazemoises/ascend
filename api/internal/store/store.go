@@ -733,6 +733,33 @@ func (s *Store) ListUserSubmissions(ctx context.Context, userID string, limit in
 	return subs, nil
 }
 
+// LastSubmissionCode is the minimal shape the challenge workspace needs to
+// restore a student's most recent attempt at a challenge into the editor.
+type LastSubmissionCode struct {
+	Language   string `json:"language"`
+	SourceCode string `json:"source_code"`
+}
+
+// GetLastSubmission returns userID's newest submission for challengeID
+// (across every language they've tried), or ErrNotFound if they've never
+// submitted to it.
+func (s *Store) GetLastSubmission(ctx context.Context, userID, challengeID string) (LastSubmissionCode, error) {
+	var last LastSubmissionCode
+	err := s.db.QueryRowContext(ctx,
+		`SELECT language, source_code FROM submissions
+		 WHERE user_id = $1 AND challenge_id = $2
+		 ORDER BY created_at DESC LIMIT 1`,
+		userID, challengeID,
+	).Scan(&last.Language, &last.SourceCode)
+	if errors.Is(err, sql.ErrNoRows) {
+		return LastSubmissionCode{}, ErrNotFound
+	}
+	if err != nil {
+		return LastSubmissionCode{}, fmt.Errorf("get last submission: %w", err)
+	}
+	return last, nil
+}
+
 func (s *Store) ListTestCases(ctx context.Context, challengeID string) ([]TestCase, error) {
 	var exists bool
 	if err := s.db.QueryRowContext(ctx,

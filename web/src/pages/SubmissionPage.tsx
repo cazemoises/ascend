@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 
-import { getSubmission, type Submission } from '../api'
+import { getSubmission, listChallenges, type Submission } from '../api'
 import { TelemetryChip } from '../components/TelemetryChip'
 import { VerdictBadge } from '../components/VerdictBadge'
 
@@ -15,6 +15,11 @@ export function SubmissionPage() {
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [polling, setPolling] = useState<boolean>(false)
+  // undefined = still resolving; null = determined, no next challenge;
+  // string = the next challenge's id. Same display order as /desafios —
+  // GET /challenges already returns challenges grouped by collection
+  // ordinal then created_at, so "next" is simply the following array entry.
+  const [nextChallengeId, setNextChallengeId] = useState<string | null | undefined>(undefined)
 
   useEffect(() => {
     let active = true
@@ -83,6 +88,25 @@ export function SubmissionPage() {
     }
   }, [subId])
 
+  useEffect(() => {
+    let active = true
+    if (!id) return
+
+    listChallenges()
+      .then((data) => {
+        if (!active) return
+        const index = data.findIndex((c) => c.id === id)
+        setNextChallengeId(index !== -1 && index + 1 < data.length ? data[index + 1].id : null)
+      })
+      .catch(() => {
+        if (active) setNextChallengeId(null)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [id])
+
   if (!id || !subId) {
     return <Navigate to="/" replace />
   }
@@ -148,6 +172,18 @@ export function SubmissionPage() {
               <code>{submission.source_code}</code>
             </pre>
           </section>
+
+          <div className="studio__actions">
+            {nextChallengeId ? (
+              <Link className="challenge-submit" to={`/challenges/${nextChallengeId}`}>
+                Próximo desafio →
+              </Link>
+            ) : nextChallengeId === null ? (
+              <button type="button" className="challenge-submit" disabled title="Não há mais desafios">
+                Não há mais desafios
+              </button>
+            ) : null}
+          </div>
         </section>
       ) : null}
     </main>
