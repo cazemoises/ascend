@@ -143,6 +143,15 @@ export function SubmissionPage() {
             ) : null}
           </div>
 
+          {submission.status === 'accepted' && submission.stdout !== null ? (
+            <section className="submission-output">
+              <div className="submission-output__block">
+                <p className="submission-output__label">Saída obtida</p>
+                <pre className="submission-output__pre">{submission.stdout}</pre>
+              </div>
+            </section>
+          ) : null}
+
           {submission.status === 'wrong_answer' && submission.stdout !== null ? (
             <section className="submission-output">
               <div className="submission-output__block">
