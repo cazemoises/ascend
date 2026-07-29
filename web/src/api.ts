@@ -192,6 +192,33 @@ export function updateChallenge(id: string, body: CreateChallengeInput) {
   })
 }
 
+export interface ImportTestCaseInput {
+  input?: string
+  expected_output: string
+  is_sample?: boolean
+  ordinal?: number
+  order_matters?: boolean
+}
+
+export interface ImportChallengeInput extends CreateChallengeInput {
+  test_cases?: ImportTestCaseInput[]
+}
+
+export interface ImportChallengesInput {
+  challenges: ImportChallengeInput[]
+}
+
+export interface ChallengeWithTestCases extends Omit<Challenge, 'sample_test_cases'> {
+  test_cases: TestCase[]
+}
+
+export function importChallenges(body: ImportChallengesInput) {
+  return requestJSON<ChallengeWithTestCases[]>('/api/v1/challenges/import', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 export function listTestCases(challengeId: string) {
   return requestJSON<TestCase[]>(`/api/v1/challenges/${challengeId}/test-cases`)
 }

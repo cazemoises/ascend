@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import {
   createChallenge,
+  importChallenges,
   listChallenges,
   listTestCases,
   replaceTestCases,
@@ -10,6 +11,7 @@ import {
   type Challenge,
   type ChallengeDifficulty,
   type ChallengeLanguage,
+  type ImportChallengesInput,
 } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { TelemetryChip } from '../components/TelemetryChip'
@@ -45,6 +47,29 @@ const EMPTY_TEST_CASE: TestCaseDraft = {
   order_matters: false,
 }
 
+type JsonImportPreview = {
+  challenges: { title: string; difficulty: string; language: string; testCaseCount: number }[]
+}
+
+// Reads only what the preview needs to display — the backend is the sole
+// source of truth for shape/business validation.
+function toImportPreview(raw: unknown): JsonImportPreview {
+  const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const challengesRaw = Array.isArray(obj.challenges) ? obj.challenges : []
+  return {
+    challenges: challengesRaw.map((raw) => {
+      const ch = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+      const testCases = Array.isArray(ch.test_cases) ? ch.test_cases : []
+      return {
+        title: typeof ch.title === 'string' ? ch.title : '',
+        difficulty: typeof ch.difficulty === 'string' ? ch.difficulty : '',
+        language: typeof ch.language === 'string' ? ch.language : 'multi-linguagem',
+        testCaseCount: testCases.length,
+      }
+    }),
+  }
+}
+
 const STARTER_PLACEHOLDER = `def somar_numeros(a, b):
     # TODO: implemente aqui
     return 0
@@ -72,6 +97,13 @@ export function ChallengeList() {
   const [testCases, setTestCases] = useState<TestCaseDraft[]>([{ ...EMPTY_TEST_CASE }])
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Import mode only exists when creating — editing an existing challenge
+  // keeps the manual form, same rule as ListFormPage.
+  const [mode, setMode] = useState<'manual' | 'json'>('manual')
+  const [jsonText, setJsonText] = useState('')
+  const [jsonError, setJsonError] = useState<string | null>(null)
+  const [jsonPreview, setJsonPreview] = useState<JsonImportPreview | null>(null)
 
   useEffect(() => {
     let active = true
@@ -120,6 +152,56 @@ export function ChallengeList() {
     setSaveError(null)
     setEditingChallengeId(null)
     setCreating(false)
+    setMode('manual')
+    setJsonText('')
+    setJsonError(null)
+    setJsonPreview(null)
+  }
+
+  function handlePreviewJson() {
+    setJsonError(null)
+    try {
+      const parsed: unknown = JSON.parse(jsonText)
+      setJsonPreview(toImportPreview(parsed))
+    } catch (err) {
+      setJsonPreview(null)
+      setJsonError(err instanceof Error ? err.message : 'JSON inválido')
+    }
+  }
+
+  async function handleImportSubmit() {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(jsonText)
+    } catch (err) {
+      setJsonError(err instanceof Error ? err.message : 'JSON inválido')
+      return
+    }
+    setJsonError(null)
+    setSaving(true)
+    try {
+      const created = await importChallenges(parsed as ImportChallengesInput)
+      setChallenges((prev) => [
+        ...created.map((c) => ({
+          ...c,
+          sample_test_cases: c.test_cases
+            .filter((tc) => tc.is_sample)
+            .map((tc) => ({
+              input: tc.input,
+              expected_output: tc.expected_output,
+              ordinal: tc.ordinal,
+            })),
+        })),
+        ...prev,
+      ])
+      closeStudio()
+    } catch (err) {
+      // Backend error is shown verbatim — it already identifies which
+      // challenge/test case and field failed.
+      setSaveError(err instanceof Error ? err.message : 'Falha ao importar desafios')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function openEditor(challenge: Challenge) {
@@ -158,6 +240,11 @@ export function ChallengeList() {
   async function handlePublish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSaveError(null)
+
+    if (mode === 'json') {
+      await handleImportSubmit()
+      return
+    }
 
     // Blank rows are ignored; a filled row without expected output is a
     // teacher mistake the backend would reject anyway — fail early.
@@ -275,6 +362,84 @@ export function ChallengeList() {
 
           {saveError ? <p className="status-message status-error">{saveError}</p> : null}
 
+          {editingChallengeId === null ? (
+            <div className="studio__mode-tabs" role="tablist" aria-label="Modo de criação">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'manual'}
+                className={
+                  mode === 'manual' ? 'studio__mode-tab studio__mode-tab--active' : 'studio__mode-tab'
+                }
+                onClick={() => setMode('manual')}
+                disabled={saving}
+              >
+                Preencher manualmente
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'json'}
+                className={
+                  mode === 'json' ? 'studio__mode-tab studio__mode-tab--active' : 'studio__mode-tab'
+                }
+                onClick={() => setMode('json')}
+                disabled={saving}
+              >
+                Importar JSON
+              </button>
+            </div>
+          ) : null}
+
+          {mode === 'json' ? (
+            <section className="studio__panel">
+              <h2 className="studio__panel-title">Importar JSON</h2>
+              <p className="studio__panel-hint">
+                Cole o JSON de um ou mais desafios (com suíte de testes completa) para criar tudo
+                de uma vez. Um desafio inválido no array cancela a importação inteira — nada é
+                salvo até que todos passem.
+              </p>
+              <label className="studio__field--full">
+                JSON
+                <textarea
+                  className="input-code input-code--tall"
+                  value={jsonText}
+                  onChange={(e) => {
+                    setJsonText(e.target.value)
+                    setJsonPreview(null)
+                    setJsonError(null)
+                  }}
+                  placeholder='{"challenges": [{"slug": "...", "title": "...", "difficulty": "easy", "test_cases": [...]}]}'
+                  disabled={saving}
+                />
+              </label>
+              {jsonError ? <p className="status-message status-error">{jsonError}</p> : null}
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handlePreviewJson}
+                disabled={saving || jsonText.trim() === ''}
+              >
+                Pré-visualizar
+              </button>
+              {jsonPreview ? (
+                <div className="studio__json-preview">
+                  <p className="studio__panel-hint">
+                    <strong>{jsonPreview.challenges.length}</strong> desafio(s)
+                  </p>
+                  <ul>
+                    {jsonPreview.challenges.map((ch, i) => (
+                      <li key={i}>
+                        {ch.title || '(sem título)'} — {ch.difficulty || '(sem dificuldade)'} —{' '}
+                        {ch.language} — {ch.testCaseCount} caso(s) de teste
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </section>
+          ) : (
+          <>
           <section className="studio__panel">
             <h2 className="studio__panel-title">Identidade &amp; Restrições</h2>
             <p className="studio__panel-hint">
@@ -490,6 +655,8 @@ export function ChallengeList() {
                 disabled={saving}
               />
             </section>
+          )}
+          </>
           )}
         </form>
       </main>

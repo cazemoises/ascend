@@ -47,6 +47,7 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter) chi.Rout
 			r.Group(func(r chi.Router) {
 				r.Use(auth.RequireAuthenticated, teacherOnly)
 				r.Post("/", ch.Create)
+				r.Post("/import", ch.Import)
 				r.Put("/{id}", ch.Update)
 				r.Delete("/{id}", ch.Delete)
 				r.Post("/{id}/test-cases", ch.CreateTestCase)

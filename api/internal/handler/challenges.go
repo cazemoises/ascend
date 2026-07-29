@@ -127,21 +127,28 @@ func validateSQLFields(language, sqlSchema *string) string {
 	return ""
 }
 
+// validate is shared by Create, Update, and Import so all three enforce the
+// exact same rules. Returns "" when valid.
+func (b createChallengeBody) validate() string {
+	if b.Slug == "" || b.Title == "" || b.Difficulty == "" {
+		return "slug, title, and difficulty are required"
+	}
+	if !validDifficulties[b.Difficulty] {
+		return "difficulty must be easy, medium, or hard"
+	}
+	if msg := validateSQLFields(b.Language, b.SQLSchema); msg != "" {
+		return msg
+	}
+	return ""
+}
+
 func (h *ChallengesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var body createChallengeBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
-	if body.Slug == "" || body.Title == "" || body.Difficulty == "" {
-		writeError(w, http.StatusUnprocessableEntity, "slug, title, and difficulty are required")
-		return
-	}
-	if !validDifficulties[body.Difficulty] {
-		writeError(w, http.StatusUnprocessableEntity, "difficulty must be easy, medium, or hard")
-		return
-	}
-	if msg := validateSQLFields(body.Language, body.SQLSchema); msg != "" {
+	if msg := body.validate(); msg != "" {
 		writeError(w, http.StatusUnprocessableEntity, msg)
 		return
 	}
@@ -175,15 +182,7 @@ func (h *ChallengesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
-	if body.Slug == "" || body.Title == "" || body.Difficulty == "" {
-		writeError(w, http.StatusUnprocessableEntity, "slug, title, and difficulty are required")
-		return
-	}
-	if !validDifficulties[body.Difficulty] {
-		writeError(w, http.StatusUnprocessableEntity, "difficulty must be easy, medium, or hard")
-		return
-	}
-	if msg := validateSQLFields(body.Language, body.SQLSchema); msg != "" {
+	if msg := body.validate(); msg != "" {
 		writeError(w, http.StatusUnprocessableEntity, msg)
 		return
 	}
@@ -259,14 +258,23 @@ type createTestCaseBody struct {
 	OrderMatters   bool   `json:"order_matters"`
 }
 
+// validate is shared by CreateTestCase, ReplaceTestCases, and Import so all
+// three enforce the exact same rule. Returns "" when valid.
+func (b createTestCaseBody) validate() string {
+	if b.ExpectedOutput == "" {
+		return "expected_output is required"
+	}
+	return ""
+}
+
 func (h *ChallengesHandler) CreateTestCase(w http.ResponseWriter, r *http.Request) {
 	var body createTestCaseBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
-	if body.ExpectedOutput == "" {
-		writeError(w, http.StatusUnprocessableEntity, "expected_output is required")
+	if msg := body.validate(); msg != "" {
+		writeError(w, http.StatusUnprocessableEntity, msg)
 		return
 	}
 
@@ -300,9 +308,9 @@ func (h *ChallengesHandler) ReplaceTestCases(w http.ResponseWriter, r *http.Requ
 	}
 	reqs := make([]store.CreateTestCaseRequest, 0, len(body.TestCases))
 	for i, tc := range body.TestCases {
-		if tc.ExpectedOutput == "" {
+		if msg := tc.validate(); msg != "" {
 			writeError(w, http.StatusUnprocessableEntity,
-				"expected_output is required (test case "+strconv.Itoa(i+1)+")")
+				"test case "+strconv.Itoa(i+1)+": "+msg)
 			return
 		}
 		reqs = append(reqs, store.CreateTestCaseRequest{
@@ -324,6 +332,92 @@ func (h *ChallengesHandler) ReplaceTestCases(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusOK, tcs)
+}
+
+// importTestCaseBody adds an optional explicit Ordinal to createTestCaseBody
+// (validated identically via the embedded validate()) — omitted means "use
+// this test case's position in the array", same as ReplaceTestCases.
+type importTestCaseBody struct {
+	createTestCaseBody
+	Ordinal *int `json:"ordinal"`
+}
+
+// importChallengeBody adds the full test suite to createChallengeBody,
+// validated identically via the embedded validate().
+type importChallengeBody struct {
+	createChallengeBody
+	TestCases []importTestCaseBody `json:"test_cases"`
+}
+
+type importChallengesBody struct {
+	Challenges []importChallengeBody `json:"challenges"`
+}
+
+// Import handles POST /api/v1/challenges/import (teacher only). Creates
+// every challenge and its full test suite from the JSON payload in one
+// transaction — any challenge or test case failing validation, or any slug
+// collision (within the batch or against an existing challenge), rolls back
+// the whole request, so nothing is persisted half-imported. Validation
+// reuses createChallengeBody.validate() and createTestCaseBody.validate(),
+// the exact same rules Create/CreateTestCase enforce.
+func (h *ChallengesHandler) Import(w http.ResponseWriter, r *http.Request) {
+	var body importChallengesBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	reqs := make([]store.ImportChallengeRequest, 0, len(body.Challenges))
+	for i, ch := range body.Challenges {
+		if msg := ch.validate(); msg != "" {
+			writeError(w, http.StatusUnprocessableEntity, "challenge "+strconv.Itoa(i)+": "+msg)
+			return
+		}
+
+		tcReqs := make([]store.ImportTestCaseRequest, 0, len(ch.TestCases))
+		for j, tc := range ch.TestCases {
+			if msg := tc.validate(); msg != "" {
+				writeError(w, http.StatusUnprocessableEntity,
+					"challenge "+strconv.Itoa(i)+", test case "+strconv.Itoa(j)+": "+msg)
+				return
+			}
+			tcReqs = append(tcReqs, store.ImportTestCaseRequest{
+				Input:          tc.Input,
+				ExpectedOutput: tc.ExpectedOutput,
+				IsSample:       tc.IsSample,
+				Ordinal:        tc.Ordinal,
+				OrderMatters:   tc.OrderMatters,
+			})
+		}
+
+		reqs = append(reqs, store.ImportChallengeRequest{
+			CreateChallengeRequest: store.CreateChallengeRequest{
+				Slug:          ch.Slug,
+				Title:         ch.Title,
+				Description:   ch.Description,
+				Difficulty:    ch.Difficulty,
+				TimeLimitMs:   ch.TimeLimitMs,
+				MemoryLimitMb: ch.MemoryLimitMb,
+				Notes:         ch.Notes,
+				StarterCode:   ch.StarterCode,
+				Language:      ch.Language,
+				SQLSchema:     ch.SQLSchema,
+			},
+			TestCases: tcReqs,
+		})
+	}
+
+	results, err := h.store.ImportChallenges(r.Context(), reqs)
+	if err != nil {
+		var conflictErr *store.ImportConflictError
+		if errors.As(err, &conflictErr) {
+			writeError(w, http.StatusUnprocessableEntity, conflictErr.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	writeJSON(w, http.StatusCreated, results)
 }
 
 func (h *ChallengesHandler) ListTestCases(w http.ResponseWriter, r *http.Request) {
