@@ -37,7 +37,7 @@ func TestEvaluate_CountsPassedWhenFailingMidway(t *testing.T) {
 		errs:    []error{nil, nil, nil, nil},
 	}
 
-	res := evaluate(context.Background(), exec, "python", "code", okCases(5), 1000, 128)
+	res := evaluate(context.Background(), exec, "python", "code", "", okCases(5), 1000, 128)
 
 	if res.status != "wrong_answer" {
 		t.Errorf("status = %q, want wrong_answer", res.status)
@@ -56,7 +56,7 @@ func TestEvaluate_CountsAllPassed(t *testing.T) {
 		errs:    make([]error, 5),
 	}
 
-	res := evaluate(context.Background(), exec, "python", "code", okCases(5), 1000, 128)
+	res := evaluate(context.Background(), exec, "python", "code", "", okCases(5), 1000, 128)
 
 	if res.status != "accepted" {
 		t.Errorf("status = %q, want accepted", res.status)
@@ -79,7 +79,7 @@ func TestEvaluate_FirstCaseErrorCountsZero(t *testing.T) {
 		errs:    []error{ErrRuntimeError},
 	}
 
-	res := evaluate(context.Background(), exec, "go", "code", okCases(5), 1000, 128)
+	res := evaluate(context.Background(), exec, "go", "code", "", okCases(5), 1000, 128)
 
 	if res.status != "runtime_error" {
 		t.Errorf("status = %q, want runtime_error", res.status)
@@ -93,4 +93,65 @@ func TestEvaluate_FirstCaseErrorCountsZero(t *testing.T) {
 	if res.stderr != "boom" {
 		t.Errorf("stderr = %q, want boom", res.stderr)
 	}
+}
+
+func TestEvaluate_SQLIgnoresRowOrderByDefault(t *testing.T) {
+	exec := &scriptedExecutor{
+		// Same rows as expected, reversed order.
+		results: []RunResult{{Stdout: "2|y\n1|x"}},
+		errs:    []error{nil},
+	}
+	cases := []testCaseRecord{{Input: "seed", ExpectedOutput: "1|x\n2|y", OrderMatters: false}}
+
+	res := evaluate(context.Background(), exec, "sql", "SELECT * FROM t", "CREATE TABLE t(a,b)", cases, 1000, 128)
+
+	if res.status != "accepted" {
+		t.Errorf("status = %q, want accepted (row order shouldn't matter)", res.status)
+	}
+}
+
+func TestEvaluate_SQLOrderMattersRejectsWrongOrder(t *testing.T) {
+	exec := &scriptedExecutor{
+		results: []RunResult{{Stdout: "2|y\n1|x"}},
+		errs:    []error{nil},
+	}
+	cases := []testCaseRecord{{Input: "seed", ExpectedOutput: "1|x\n2|y", OrderMatters: true}}
+
+	res := evaluate(context.Background(), exec, "sql", "SELECT * FROM t ORDER BY a", "CREATE TABLE t(a,b)", cases, 1000, 128)
+
+	if res.status != "wrong_answer" {
+		t.Errorf("status = %q, want wrong_answer (order_matters=true must compare exactly)", res.status)
+	}
+}
+
+func TestEvaluate_SQLConcatenatesSchemaSeedAndQuery(t *testing.T) {
+	var gotSource, gotInput string
+	exec := &recordingExecutor{
+		onRun: func(req RunRequest) (RunResult, error) {
+			gotSource = req.SourceCode
+			gotInput = req.Input
+			return RunResult{Stdout: "ok"}, nil
+		},
+	}
+	cases := []testCaseRecord{{Input: "INSERT INTO t VALUES (1)", ExpectedOutput: "ok"}}
+
+	evaluate(context.Background(), exec, "sql", "SELECT 'ok'", "CREATE TABLE t(a)", cases, 1000, 128)
+
+	wantSource := "CREATE TABLE t(a)\n\nINSERT INTO t VALUES (1)\n\nSELECT 'ok'"
+	if gotSource != wantSource {
+		t.Errorf("SourceCode = %q, want %q", gotSource, wantSource)
+	}
+	if gotInput != "" {
+		t.Errorf("Input = %q, want empty (sqlite3 reads the script, not stdin)", gotInput)
+	}
+}
+
+// recordingExecutor calls onRun for every RunRequest so a test can inspect
+// exactly what evaluate builds, rather than only replaying canned results.
+type recordingExecutor struct {
+	onRun func(RunRequest) (RunResult, error)
+}
+
+func (e *recordingExecutor) Run(ctx context.Context, req RunRequest) (RunResult, error) {
+	return e.onRun(req)
 }

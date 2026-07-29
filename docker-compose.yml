@@ -51,6 +51,18 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  # Sandbox image for SQL challenges: not a long-running service, just a
+  # build target so `docker compose build sqlite` tags ascend-sqlite:latest
+  # for the judge to launch as a sibling container (see executor.go). The
+  # build-only profile keeps `docker compose up` from starting it.
+  sqlite:
+    build:
+      context: .
+      dockerfile: docker/sqlite.Dockerfile
+    image: ascend-sqlite:latest
+    profiles: ["build-only"]
+    command: ["true"]
+
   judge:
     build:
       context: .
