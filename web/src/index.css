@@ -646,20 +646,27 @@ pre {
   margin: 24px 0 28px;
   padding: 0 0 8px;
   border: none;
-  border-bottom: 1px solid var(--border-hairline);
+  border-bottom: 2px solid var(--border-strong);
   background: transparent;
   cursor: pointer;
   text-align: left;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .challenge-collection-header:first-child {
   margin-top: 0;
+}
+
+/* Resting caret color reads too faint (--muted) at this header's larger
+   size — scoped here rather than in the shared .audit-caret rule so other
+   collapsible sections (audit log, submissions, etc.) are unaffected. */
+.challenge-collection-header .audit-caret {
+  color: var(--text-secondary);
 }
 
 /* Wrapper around one collection's header + feed. Bottom margin mirrors the
