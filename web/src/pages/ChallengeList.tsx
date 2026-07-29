@@ -4,11 +4,13 @@ import { Link } from 'react-router-dom'
 import {
   createChallenge,
   importChallenges,
+  listChallengeCollections,
   listChallenges,
   listTestCases,
   replaceTestCases,
   updateChallenge,
   type Challenge,
+  type ChallengeCollection,
   type ChallengeDifficulty,
   type ChallengeLanguage,
   type ImportChallengesInput,
@@ -38,6 +40,7 @@ const EMPTY_DRAFT = {
   starter_code: '',
   language: '' as LanguageDraft,
   sql_schema: '',
+  collection_id: '',
 }
 
 const EMPTY_TEST_CASE: TestCaseDraft = {
@@ -48,6 +51,7 @@ const EMPTY_TEST_CASE: TestCaseDraft = {
 }
 
 type JsonImportPreview = {
+  collectionTitle: string
   challenges: { title: string; difficulty: string; language: string; testCaseCount: number }[]
 }
 
@@ -57,6 +61,7 @@ function toImportPreview(raw: unknown): JsonImportPreview {
   const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const challengesRaw = Array.isArray(obj.challenges) ? obj.challenges : []
   return {
+    collectionTitle: typeof obj.collection_title === 'string' ? obj.collection_title : '',
     challenges: challengesRaw.map((raw) => {
       const ch = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
       const testCases = Array.isArray(ch.test_cases) ? ch.test_cases : []
@@ -68,6 +73,36 @@ function toImportPreview(raw: unknown): JsonImportPreview {
       }
     }),
   }
+}
+
+type CollectionGroup = {
+  key: string
+  label: string
+  challenges: Challenge[]
+}
+
+// Groups consecutive-by-key challenges into collection buckets, in the
+// order they arrive — the backend already sorts by collection.ordinal then
+// created_at, so this only detects group boundaries, it doesn't re-sort.
+// Uncategorized challenges land in one trailing "SEM COLEÇÃO" bucket.
+function groupByCollection(challenges: Challenge[]): CollectionGroup[] {
+  const groups: CollectionGroup[] = []
+  const byKey = new Map<string, CollectionGroup>()
+
+  for (const challenge of challenges) {
+    const key = challenge.collection_id ?? 'uncategorized'
+    const label = challenge.collection_id ? (challenge.collection_title ?? '') : 'SEM COLEÇÃO'
+
+    let group = byKey.get(key)
+    if (!group) {
+      group = { key, label, challenges: [] }
+      byKey.set(key, group)
+      groups.push(group)
+    }
+    group.challenges.push(challenge)
+  }
+
+  return groups
 }
 
 const STARTER_PLACEHOLDER = `def somar_numeros(a, b):
@@ -90,6 +125,7 @@ export function ChallengeList() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [collections, setCollections] = useState<ChallengeCollection[]>([])
 
   const [creating, setCreating] = useState(false)
   const [editingChallengeId, setEditingChallengeId] = useState<string | null>(null)
@@ -133,6 +169,19 @@ export function ChallengeList() {
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    if (!isTeacher) return
+    let active = true
+    listChallengeCollections()
+      .then((data) => {
+        if (active) setCollections(data)
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [isTeacher])
 
   function updateTestCase(index: number, patch: Partial<TestCaseDraft>) {
     setTestCases((prev) => prev.map((tc, i) => (i === index ? { ...tc, ...patch } : tc)))
@@ -219,6 +268,7 @@ export function ChallengeList() {
         starter_code: challenge.starter_code ?? '',
         language: challenge.language ?? '',
         sql_schema: challenge.sql_schema ?? '',
+        collection_id: challenge.collection_id ?? '',
       })
       setTestCases(
         cases.length > 0
@@ -275,6 +325,7 @@ export function ChallengeList() {
         starter_code: draft.starter_code.trim() === '' ? null : draft.starter_code,
         language: draft.language === '' ? null : draft.language,
         sql_schema: draft.language === 'sql' ? draft.sql_schema : null,
+        collection_id: draft.collection_id === '' ? null : draft.collection_id,
       }
       const suiteInput = suite.map((tc) => ({
         input: tc.input,
@@ -426,6 +477,12 @@ export function ChallengeList() {
                 <div className="studio__json-preview">
                   <p className="studio__panel-hint">
                     <strong>{jsonPreview.challenges.length}</strong> desafio(s)
+                    {jsonPreview.collectionTitle ? (
+                      <>
+                        {' '}
+                        — coleção: <strong>{jsonPreview.collectionTitle}</strong>
+                      </>
+                    ) : null}
                   </p>
                   <ul>
                     {jsonPreview.challenges.map((ch, i) => (
@@ -489,6 +546,21 @@ export function ChallengeList() {
                 >
                   <option value="">Multi-linguagem (Python/Go/JS)</option>
                   <option value="sql">SQL</option>
+                </select>
+              </label>
+              <label className="studio__field--2">
+                Coleção
+                <select
+                  value={draft.collection_id}
+                  onChange={(e) => setDraft({ ...draft, collection_id: e.target.value })}
+                  disabled={saving}
+                >
+                  <option value="">Sem coleção</option>
+                  {collections.map((cc) => (
+                    <option key={cc.id} value={cc.id}>
+                      {cc.title}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="studio__field--2">
@@ -693,59 +765,70 @@ export function ChallengeList() {
 
       {!loading && !error ? (
         challenges.length > 0 ? (
-          <div className="challenge-feed">
-            {challenges.map((challenge) => (
-              <article key={challenge.id} className="challenge-row">
-                <div className="challenge-row__badges">
-                  <span className={`difficulty difficulty--${challenge.difficulty}`}>
-                    {challenge.difficulty}
-                  </span>
-                  {challenge.solved ? (
-                    <span className="verdict verdict--accepted">CONCLUÍDO</span>
-                  ) : null}
+          (() => {
+            const groups = groupByCollection(challenges)
+            const showGroupHeaders = groups.length > 1
+            return groups.map((group) => (
+              <div key={group.key} className="challenge-collection-group">
+                {showGroupHeaders ? (
+                  <h2 className="challenge-collection-header">{group.label}</h2>
+                ) : null}
+                <div className="challenge-feed">
+                  {group.challenges.map((challenge) => (
+                    <article key={challenge.id} className="challenge-row">
+                      <div className="challenge-row__badges">
+                        <span className={`difficulty difficulty--${challenge.difficulty}`}>
+                          {challenge.difficulty}
+                        </span>
+                        {challenge.solved ? (
+                          <span className="verdict verdict--accepted">CONCLUÍDO</span>
+                        ) : null}
+                      </div>
+                      <div className="challenge-row__body">
+                        <h2>{challenge.title}</h2>
+                        <p>{challenge.description}</p>
+                        <div className="challenge-row__meta">
+                          <span className="challenge-row__slug">/{challenge.slug}</span>
+                          <TelemetryChip
+                            timeLimitMs={challenge.time_limit_ms}
+                            memoryLimitMb={challenge.memory_limit_mb}
+                          />
+                        </div>
+                      </div>
+                      <div className="challenge-row__actions">
+                        {isTeacher ? (
+                          <button
+                            type="button"
+                            className="challenge-row__edit"
+                            title="Editar desafio"
+                            aria-label={`Editar ${challenge.title}`}
+                            onClick={() => void openEditor(challenge)}
+                          >
+                            <svg
+                              width="17"
+                              height="17"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            </svg>
+                          </button>
+                        ) : null}
+                        <Link className="challenge-submit" to={`/challenges/${challenge.id}`}>
+                          Resolver desafio
+                        </Link>
+                      </div>
+                    </article>
+                  ))}
                 </div>
-                <div className="challenge-row__body">
-                  <h2>{challenge.title}</h2>
-                  <p>{challenge.description}</p>
-                  <div className="challenge-row__meta">
-                    <span className="challenge-row__slug">/{challenge.slug}</span>
-                    <TelemetryChip
-                      timeLimitMs={challenge.time_limit_ms}
-                      memoryLimitMb={challenge.memory_limit_mb}
-                    />
-                  </div>
-                </div>
-                <div className="challenge-row__actions">
-                  {isTeacher ? (
-                    <button
-                      type="button"
-                      className="challenge-row__edit"
-                      title="Editar desafio"
-                      aria-label={`Editar ${challenge.title}`}
-                      onClick={() => void openEditor(challenge)}
-                    >
-                      <svg
-                        width="17"
-                        height="17"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                      </svg>
-                    </button>
-                  ) : null}
-                  <Link className="challenge-submit" to={`/challenges/${challenge.id}`}>
-                    Resolver desafio
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
+              </div>
+            ))
+          })()
         ) : (
           <p className="status-message">Nenhum desafio cadastrado.</p>
         )

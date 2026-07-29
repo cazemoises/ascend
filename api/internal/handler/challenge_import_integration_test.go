@@ -246,3 +246,155 @@ func TestImportChallenges_DuplicateSlugAgainstExistingRejected(t *testing.T) {
 		t.Fatalf("status = %d, want 422: %s", w.Code, w.Body.String())
 	}
 }
+
+// doImportAsTeacher is like doImport but with a real, caller-supplied
+// teacher id — needed whenever the import actually touches
+// challenge_collections.teacher_id (an FK into users), unlike doImport's
+// fixed fake "teacher-1".
+func doImportAsTeacher(t *testing.T, r chi.Router, body, teacherID string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/challenges/import", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(auth.NewContext(req.Context(),
+		auth.Claims{UserID: teacherID, Email: "teacher@example.com", Role: "teacher"}))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+func TestImportChallenges_CollectionTitleCreatesAndLinksAll(t *testing.T) {
+	db := openHandlerTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	r := newImportRouter(s)
+
+	teacher, err := s.CreateUser(ctx, "import-collection-new-teacher@example.com", "unused-hash")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, teacher.ID) })
+	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM challenge_collections WHERE teacher_id = $1`, teacher.ID) })
+	slugs := []string{"import-collection-new-1", "import-collection-new-2"}
+	t.Cleanup(func() { cleanupImportedSlugs(t, db, ctx, slugs...) })
+
+	body := `{
+		"collection_title": "Ciclo Novo",
+		"challenges": [
+			{"slug": "import-collection-new-1", "title": "One", "description": "d", "difficulty": "easy"},
+			{"slug": "import-collection-new-2", "title": "Two", "description": "d", "difficulty": "easy"}
+		]
+	}`
+
+	w := doImportAsTeacher(t, r, body, teacher.ID)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
+	}
+
+	var collectionCount int
+	if err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM challenge_collections WHERE teacher_id = $1 AND title = $2`,
+		teacher.ID, "Ciclo Novo").Scan(&collectionCount); err != nil {
+		t.Fatalf("count collections: %v", err)
+	}
+	if collectionCount != 1 {
+		t.Fatalf("challenge_collections rows = %d, want 1", collectionCount)
+	}
+
+	var linkedCount int
+	if err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM challenges c
+		 JOIN challenge_collections cc ON cc.id = c.collection_id
+		 WHERE c.slug = ANY($1) AND cc.teacher_id = $2 AND cc.title = $3`,
+		pq.Array(slugs), teacher.ID, "Ciclo Novo").Scan(&linkedCount); err != nil {
+		t.Fatalf("count linked challenges: %v", err)
+	}
+	if linkedCount != 2 {
+		t.Errorf("linked challenges = %d, want 2 (both challenges in the batch)", linkedCount)
+	}
+}
+
+func TestImportChallenges_CollectionTitleReusesExisting(t *testing.T) {
+	db := openHandlerTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	r := newImportRouter(s)
+
+	teacher, err := s.CreateUser(ctx, "import-collection-reuse-teacher@example.com", "unused-hash")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, teacher.ID) })
+	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM challenge_collections WHERE teacher_id = $1`, teacher.ID) })
+
+	existing, err := s.CreateChallengeCollection(ctx, store.CreateChallengeCollectionRequest{
+		TeacherID: teacher.ID, Title: "Ciclo Existente",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallengeCollection: %v", err)
+	}
+
+	slug := "import-collection-reuse-1"
+	t.Cleanup(func() { cleanupImportedSlugs(t, db, ctx, slug) })
+
+	// Different casing from "Ciclo Existente" — match must be case-insensitive.
+	body := `{
+		"collection_title": "ciclo existente",
+		"challenges": [
+			{"slug": "import-collection-reuse-1", "title": "One", "description": "d", "difficulty": "easy"}
+		]
+	}`
+
+	w := doImportAsTeacher(t, r, body, teacher.ID)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
+	}
+
+	var collectionCount int
+	if err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM challenge_collections WHERE teacher_id = $1`,
+		teacher.ID).Scan(&collectionCount); err != nil {
+		t.Fatalf("count collections: %v", err)
+	}
+	if collectionCount != 1 {
+		t.Errorf("challenge_collections rows = %d, want 1 (reused, not duplicated)", collectionCount)
+	}
+
+	var linkedID *string
+	if err := db.QueryRowContext(ctx,
+		`SELECT collection_id FROM challenges WHERE slug = $1`, slug).Scan(&linkedID); err != nil {
+		t.Fatalf("query linked collection_id: %v", err)
+	}
+	if linkedID == nil || *linkedID != existing.ID {
+		t.Errorf("collection_id = %v, want %q (the pre-existing collection)", linkedID, existing.ID)
+	}
+}
+
+func TestImportChallenges_WithoutCollectionTitleLinksNothing(t *testing.T) {
+	db := openHandlerTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	r := newImportRouter(s)
+
+	slug := "import-no-collection-1"
+	t.Cleanup(func() { cleanupImportedSlugs(t, db, ctx, slug) })
+
+	body := `{
+		"challenges": [
+			{"slug": "import-no-collection-1", "title": "One", "description": "d", "difficulty": "easy"}
+		]
+	}`
+
+	w := doImport(t, r, body)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
+	}
+
+	var collectionID *string
+	if err := db.QueryRowContext(ctx,
+		`SELECT collection_id FROM challenges WHERE slug = $1`, slug).Scan(&collectionID); err != nil {
+		t.Fatalf("query collection_id: %v", err)
+	}
+	if collectionID != nil {
+		t.Errorf("collection_id = %v, want nil (no collection_title in the request)", collectionID)
+	}
+}

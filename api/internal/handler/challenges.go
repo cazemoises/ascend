@@ -108,6 +108,7 @@ type createChallengeBody struct {
 	StarterCode   *string `json:"starter_code"`
 	Language      *string `json:"language"`
 	SQLSchema     *string `json:"sql_schema"`
+	CollectionID  *string `json:"collection_id"`
 }
 
 // validateSQLFields enforces the scope of the SQL challenge modality: the
@@ -164,10 +165,15 @@ func (h *ChallengesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		StarterCode:   body.StarterCode,
 		Language:      body.Language,
 		SQLSchema:     body.SQLSchema,
+		CollectionID:  body.CollectionID,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			writeError(w, http.StatusConflict, "slug already exists")
+			return
+		}
+		if errors.Is(err, store.ErrCollectionNotFound) {
+			writeError(w, http.StatusUnprocessableEntity, "collection_id does not reference an existing challenge collection")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal server error")
@@ -199,6 +205,7 @@ func (h *ChallengesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		StarterCode:   body.StarterCode,
 		Language:      body.Language,
 		SQLSchema:     body.SQLSchema,
+		CollectionID:  body.CollectionID,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -207,6 +214,10 @@ func (h *ChallengesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, store.ErrConflict) {
 			writeError(w, http.StatusConflict, "slug already exists")
+			return
+		}
+		if errors.Is(err, store.ErrCollectionNotFound) {
+			writeError(w, http.StatusUnprocessableEntity, "collection_id does not reference an existing challenge collection")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal server error")
@@ -351,6 +362,12 @@ type importChallengeBody struct {
 
 type importChallengesBody struct {
 	Challenges []importChallengeBody `json:"challenges"`
+	// CollectionTitle, when present, links every challenge in the batch to
+	// that collection (matched case-insensitively against the caller's own
+	// collections, created if none matches) — a whole import normally
+	// belongs to one collection, so this lives at the payload root rather
+	// than per challenge.
+	CollectionTitle *string `json:"collection_title"`
 }
 
 // Import handles POST /api/v1/challenges/import (teacher only). Creates
@@ -361,6 +378,11 @@ type importChallengesBody struct {
 // reuses createChallengeBody.validate() and createTestCaseBody.validate(),
 // the exact same rules Create/CreateTestCase enforce.
 func (h *ChallengesHandler) Import(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.FromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
 	var body importChallengesBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
@@ -402,13 +424,22 @@ func (h *ChallengesHandler) Import(w http.ResponseWriter, r *http.Request) {
 				StarterCode:   ch.StarterCode,
 				Language:      ch.Language,
 				SQLSchema:     ch.SQLSchema,
+				CollectionID:  ch.CollectionID,
 			},
 			TestCases: tcReqs,
 		})
 	}
 
-	results, err := h.store.ImportChallenges(r.Context(), reqs)
+	results, err := h.store.ImportChallenges(r.Context(), store.ImportChallengesRequest{
+		TeacherID:       claims.UserID,
+		CollectionTitle: body.CollectionTitle,
+		Challenges:      reqs,
+	})
 	if err != nil {
+		if errors.Is(err, store.ErrCollectionNotFound) {
+			writeError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
 		var conflictErr *store.ImportConflictError
 		if errors.As(err, &conflictErr) {
 			writeError(w, http.StatusUnprocessableEntity, conflictErr.Error())

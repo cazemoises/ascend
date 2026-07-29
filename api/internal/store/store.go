@@ -32,8 +32,11 @@ type Challenge struct {
 	// challenge, which uses SQLSchema instead of StarterCode.
 	Language  *string   `json:"language"`
 	SQLSchema *string   `json:"sql_schema"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	// CollectionID groups this challenge under a named challenge_collections
+	// row (order only, no dates); nil means uncategorized.
+	CollectionID *string   `json:"collection_id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type CreateChallengeRequest struct {
@@ -47,6 +50,7 @@ type CreateChallengeRequest struct {
 	StarterCode   *string
 	Language      *string
 	SQLSchema     *string
+	CollectionID  *string
 }
 
 type TestCase struct {
@@ -86,9 +90,12 @@ type ChallengeDetail struct {
 // ChallengeFeedItem is a Challenge annotated with whether the requesting
 // viewer has already solved it — only ListChallengesForViewer populates
 // Solved; every other Challenge-returning query leaves it at its zero value.
+// CollectionTitle is a join-derived display value (not a real column, unlike
+// CollectionID), populated only when CollectionID is set.
 type ChallengeFeedItem struct {
 	Challenge
-	Solved bool `json:"solved"`
+	Solved          bool    `json:"solved"`
+	CollectionTitle *string `json:"collection_title"`
 }
 
 type Submission struct {
@@ -130,7 +137,7 @@ func New(db *sql.DB, rdb *redis.Client) *Store {
 	return &Store{db: db, rdb: rdb}
 }
 
-const challengeColumns = `id, slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, language, sql_schema, created_at, updated_at`
+const challengeColumns = `id, slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, language, sql_schema, collection_id, created_at, updated_at`
 
 func scanChallenge(row interface {
 	Scan(...any) error
@@ -138,7 +145,7 @@ func scanChallenge(row interface {
 	var c Challenge
 	err := row.Scan(&c.ID, &c.Slug, &c.Title, &c.Description, &c.Difficulty,
 		&c.TimeLimitMs, &c.MemoryLimitMb, &c.Notes, &c.StarterCode, &c.Language, &c.SQLSchema,
-		&c.CreatedAt, &c.UpdatedAt)
+		&c.CollectionID, &c.CreatedAt, &c.UpdatedAt)
 	return c, err
 }
 
@@ -157,7 +164,7 @@ func (s *Store) ListChallenges(ctx context.Context, limit, offset int) ([]Challe
 // challengeColumnsAliased is challengeColumns qualified with the "c" alias
 // ListChallengesForViewer joins under, so it can sit alongside the solved
 // subquery below in the same SELECT list.
-const challengeColumnsAliased = `c.id, c.slug, c.title, c.description, c.difficulty, c.time_limit_ms, c.memory_limit_mb, c.notes, c.starter_code, c.language, c.sql_schema, c.created_at, c.updated_at`
+const challengeColumnsAliased = `c.id, c.slug, c.title, c.description, c.difficulty, c.time_limit_ms, c.memory_limit_mb, c.notes, c.starter_code, c.language, c.sql_schema, c.collection_id, c.created_at, c.updated_at`
 
 // solvedExpr is the raw EXISTS(...) boolean expression reporting whether the
 // viewer (positional parameter paramIndex, '' for anonymous) has an
@@ -188,15 +195,20 @@ func scanChallengeFeedItem(row interface {
 	var item ChallengeFeedItem
 	err := row.Scan(&item.ID, &item.Slug, &item.Title, &item.Description, &item.Difficulty,
 		&item.TimeLimitMs, &item.MemoryLimitMb, &item.Notes, &item.StarterCode, &item.Language, &item.SQLSchema,
-		&item.CreatedAt, &item.UpdatedAt, &item.Solved)
+		&item.CollectionID, &item.CreatedAt, &item.UpdatedAt, &item.Solved, &item.CollectionTitle)
 	return item, err
 }
 
-// ListChallengesForViewer serves every challenge, ordered newest-first, with
+// ListChallengesForViewer serves every challenge grouped by collection
+// (collection.ordinal ASC, then created_at ASC within a collection),
+// uncategorized challenges last (created_at ASC among themselves), with
 // each item annotated with whether viewerID has already solved it.
 func (s *Store) ListChallengesForViewer(ctx context.Context, viewerID string, limit, offset int) ([]ChallengeFeedItem, error) {
-	query := `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn("c.id", 3) + ` FROM challenges c
-	 ORDER BY c.created_at DESC LIMIT $1 OFFSET $2`
+	query := `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn("c.id", 3) + `, cc.title AS collection_title
+	 FROM challenges c
+	 LEFT JOIN challenge_collections cc ON cc.id = c.collection_id
+	 ORDER BY (c.collection_id IS NULL) ASC, cc.ordinal ASC, c.created_at ASC
+	 LIMIT $1 OFFSET $2`
 	args := []any{limit, offset, viewerID}
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -239,12 +251,16 @@ func (s *Store) CreateChallenge(ctx context.Context, req CreateChallengeRequest)
 		memLimitMb = 256
 	}
 
+	if err := validateCollectionID(ctx, s.db, req.CollectionID); err != nil {
+		return Challenge{}, err
+	}
+
 	row := s.db.QueryRowContext(ctx,
-		`INSERT INTO challenges (slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, language, sql_schema)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		`INSERT INTO challenges (slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, language, sql_schema, collection_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		 RETURNING `+challengeColumns,
 		req.Slug, req.Title, req.Description, req.Difficulty, timeLimitMs, memLimitMb, req.Notes, req.StarterCode,
-		req.Language, req.SQLSchema)
+		req.Language, req.SQLSchema, req.CollectionID)
 
 	c, err := scanChallenge(row)
 	if err != nil {
@@ -258,8 +274,8 @@ func (s *Store) CreateChallenge(ctx context.Context, req CreateChallengeRequest)
 
 // UpdateChallenge overwrites the editable fields of a challenge. Notes are
 // preserved when the request carries nil (the studio has no notes field);
-// starter_code, language, and sql_schema are always written so teachers can
-// clear them.
+// starter_code, language, sql_schema, and collection_id are always written
+// so teachers can clear them.
 func (s *Store) UpdateChallenge(ctx context.Context, id string, req CreateChallengeRequest) (Challenge, error) {
 	timeLimitMs := req.TimeLimitMs
 	if timeLimitMs == 0 {
@@ -270,16 +286,20 @@ func (s *Store) UpdateChallenge(ctx context.Context, id string, req CreateChalle
 		memLimitMb = 256
 	}
 
+	if err := validateCollectionID(ctx, s.db, req.CollectionID); err != nil {
+		return Challenge{}, err
+	}
+
 	row := s.db.QueryRowContext(ctx,
 		`UPDATE challenges
 		 SET slug = $2, title = $3, description = $4, difficulty = $5,
 		     time_limit_ms = $6, memory_limit_mb = $7,
 		     notes = COALESCE($8, notes), starter_code = $9,
-		     language = $10, sql_schema = $11, updated_at = now()
+		     language = $10, sql_schema = $11, collection_id = $12, updated_at = now()
 		 WHERE id = $1
 		 RETURNING `+challengeColumns,
 		id, req.Slug, req.Title, req.Description, req.Difficulty,
-		timeLimitMs, memLimitMb, req.Notes, req.StarterCode, req.Language, req.SQLSchema)
+		timeLimitMs, memLimitMb, req.Notes, req.StarterCode, req.Language, req.SQLSchema, req.CollectionID)
 
 	c, err := scanChallenge(row)
 	if err != nil {
@@ -315,7 +335,7 @@ func (s *Store) GetChallengeDetail(ctx context.Context, id, viewerID string) (Ch
 	var d ChallengeDetail
 	err := row.Scan(&d.ID, &d.Slug, &d.Title, &d.Description, &d.Difficulty,
 		&d.TimeLimitMs, &d.MemoryLimitMb, &d.Notes, &d.StarterCode, &d.Language, &d.SQLSchema,
-		&d.CreatedAt, &d.UpdatedAt, &d.Solved)
+		&d.CollectionID, &d.CreatedAt, &d.UpdatedAt, &d.Solved)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ChallengeDetail{}, ErrNotFound
 	}
