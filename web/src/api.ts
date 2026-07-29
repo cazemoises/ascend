@@ -48,6 +48,7 @@ export interface Challenge {
   starter_code: string | null
   language: ChallengeLanguage | null
   sql_schema: string | null
+  collection_id: string | null
   sample_test_cases: SampleTestCase[]
   created_at: string
   updated_at: string
@@ -55,6 +56,18 @@ export interface Challenge {
   // this challenge. Present on GET /challenges and GET /challenges/:id;
   // absent on create/update responses.
   solved?: boolean
+  // Join-derived display value, only present on GET /challenges (absent
+  // elsewhere, and null on that endpoint too when collection_id is null).
+  collection_title?: string | null
+}
+
+export interface ChallengeCollection {
+  id: string
+  teacher_id: string
+  title: string
+  ordinal: number
+  created_at: string
+  updated_at: string
 }
 
 export interface SubmissionSummary {
@@ -156,6 +169,7 @@ export interface CreateChallengeInput {
   starter_code?: string | null
   language?: ChallengeLanguage | null
   sql_schema?: string | null
+  collection_id?: string | null
 }
 
 export function createChallenge(body: CreateChallengeInput) {
@@ -206,6 +220,10 @@ export interface ImportChallengeInput extends CreateChallengeInput {
 
 export interface ImportChallengesInput {
   challenges: ImportChallengeInput[]
+  // Links every challenge in the batch to this collection (matched
+  // case-insensitively against the teacher's own collections, created if
+  // none matches) — a whole import normally belongs to one collection.
+  collection_title?: string | null
 }
 
 export interface ChallengeWithTestCases extends Omit<Challenge, 'sample_test_cases'> {
@@ -221,6 +239,10 @@ export function importChallenges(body: ImportChallengesInput) {
 
 export function listTestCases(challengeId: string) {
   return requestJSON<TestCase[]>(`/api/v1/challenges/${challengeId}/test-cases`)
+}
+
+export function listChallengeCollections() {
+  return requestJSON<ChallengeCollection[]>('/api/v1/challenge-collections')
 }
 
 export function replaceTestCases(challengeId: string, testCases: CreateTestCaseInput[]) {

@@ -628,6 +628,37 @@ pre {
   gap: 12px;
 }
 
+/* Collection section header on the challenge feed — same spirit as
+   .list-month-header on the Listas page: mono, uppercase, muted, hairline
+   rule beneath. Bottom margin is deliberately larger than the inter-card
+   gap (.challenge-feed) so the group boundary reads clearly. */
+.challenge-collection-header {
+  margin: 24px 0 28px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-hairline);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.challenge-collection-header:first-child {
+  margin-top: 0;
+}
+
+/* Wrapper around one collection's header + feed. Bottom margin mirrors the
+   header's own bottom margin so the gap before the *next* collection's
+   header matches the gap after *this* collection's header. */
+.challenge-collection-group {
+  margin-bottom: 28px;
+}
+
+.challenge-collection-group:last-child {
+  margin-bottom: 0;
+}
+
 .challenge-row {
   position: relative;
   overflow: hidden;
