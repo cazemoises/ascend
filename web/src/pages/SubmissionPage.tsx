@@ -108,7 +108,7 @@ export function SubmissionPage() {
   }
 
   return (
-    <main className="page-shell">
+    <main className="page-shell page-shell--submission">
       <Link className="back-link" to={`/challenges/${id}`}>
         ← Voltar ao desafio
       </Link>

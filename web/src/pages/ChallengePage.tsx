@@ -102,6 +102,11 @@ export function ChallengePage() {
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [submissions, setSubmissions] = useState<SubmissionSummary[]>([])
   const [stats, setStats] = useState<ChallengeStats | null>(null)
+  // Métricas/Submissões live in a collapsible panel below the editor instead
+  // of stacking as full sections beneath the workspace — keeps the page
+  // fittable in the viewport (see .workspace/.page-shell--workspace).
+  const [insightsOpen, setInsightsOpen] = useState<boolean>(false)
+  const [insightsTab, setInsightsTab] = useState<'metrics' | 'submissions'>('metrics')
 
   useEffect(() => {
     let active = true
@@ -359,115 +364,170 @@ export function ChallengePage() {
                 {submitting ? 'Enviando...' : 'Enviar solução'}
               </button>
             </div>
+
+            <div className="workspace__insights">
+              <button
+                type="button"
+                className="workspace__insights-toggle"
+                aria-expanded={insightsOpen}
+                onClick={() => setInsightsOpen((prev) => !prev)}
+              >
+                <span
+                  className={insightsOpen ? 'audit-caret audit-caret--open' : 'audit-caret'}
+                  aria-hidden="true"
+                >
+                  ▸
+                </span>
+                Métricas e submissões recentes
+              </button>
+
+              {insightsOpen ? (
+                <div className="workspace__insights-body">
+                  <div className="studio__mode-tabs" role="tablist" aria-label="Painel de informações">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={insightsTab === 'metrics'}
+                      className={
+                        insightsTab === 'metrics'
+                          ? 'studio__mode-tab studio__mode-tab--active'
+                          : 'studio__mode-tab'
+                      }
+                      onClick={() => setInsightsTab('metrics')}
+                    >
+                      Métricas
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={insightsTab === 'submissions'}
+                      className={
+                        insightsTab === 'submissions'
+                          ? 'studio__mode-tab studio__mode-tab--active'
+                          : 'studio__mode-tab'
+                      }
+                      onClick={() => setInsightsTab('submissions')}
+                    >
+                      Submissões recentes
+                    </button>
+                  </div>
+
+                  <div className="workspace__insights-panel">
+                    {insightsTab === 'metrics' ? (
+                      stats !== null && stats.total_runs > 0 ? (
+                        <div className="panel metrics-panel">
+                          {stats.faster_than_pct !== null ? (
+                            <p className="metrics-highlight">
+                              Seu código foi mais rápido que{' '}
+                              <strong>{stats.faster_than_pct}%</strong> das submissões para este
+                              desafio!
+                            </p>
+                          ) : (
+                            <p className="metrics-highlight metrics-highlight--muted">
+                              Envie uma solução aceita para ver sua posição na distribuição.
+                            </p>
+                          )}
+                          {(() => {
+                            const maxCount = Math.max(...stats.buckets.map((b) => b.count), 1)
+                            const best = stats.user_best_ms
+                            const userBucketIdx =
+                              best !== null
+                                ? stats.buckets.findIndex((b) => best <= b.up_to_ms)
+                                : -1
+                            const lastBucket = stats.buckets[stats.buckets.length - 1]
+                            return (
+                              <>
+                                <div
+                                  className="histogram"
+                                  role="img"
+                                  aria-label={`Distribuição do tempo de execução de ${stats.total_runs} submissões aceitas`}
+                                >
+                                  {stats.buckets.map((b, i) => (
+                                    <div
+                                      className="histogram__slot"
+                                      key={b.up_to_ms}
+                                      title={`≤ ${b.up_to_ms}ms — ${b.count} ${b.count === 1 ? 'submissão' : 'submissões'}`}
+                                    >
+                                      <div
+                                        className={
+                                          i === userBucketIdx
+                                            ? 'histogram__bar histogram__bar--you'
+                                            : 'histogram__bar'
+                                        }
+                                        style={{
+                                          height: `${b.count > 0 ? Math.max((b.count / maxCount) * 100, 6) : 2}%`,
+                                        }}
+                                      />
+                                      {i === userBucketIdx ? (
+                                        <span className="histogram__you">você</span>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="histogram__axis">
+                                  <span>0ms</span>
+                                  <span>{lastBucket ? `${lastBucket.up_to_ms}ms` : ''}</span>
+                                </div>
+                                <p className="histogram__caption">
+                                  Tempo de execução — {stats.total_runs}{' '}
+                                  {stats.total_runs === 1
+                                    ? 'submissão aceita'
+                                    : 'submissões aceitas'}{' '}
+                                  na plataforma
+                                </p>
+                              </>
+                            )
+                          })()}
+                        </div>
+                      ) : (
+                        <p className="status-message">
+                          Ainda não há métricas de execução para este desafio — seja a primeira
+                          solução aceita.
+                        </p>
+                      )
+                    ) : (
+                      <div className="datagrid">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Veredito</th>
+                              <th>Linguagem</th>
+                              <th>Data</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {submissions.length > 0 ? (
+                              submissions.map((sub) => (
+                                <tr key={sub.id}>
+                                  <td>
+                                    <VerdictBadge status={sub.status} />
+                                    {isTeacher && sub.is_test_run ? (
+                                      <span className="verdict test-run-tag">TESTE</span>
+                                    ) : null}
+                                  </td>
+                                  <td>{sub.language}</td>
+                                  <td className="muted">
+                                    {new Date(sub.created_at).toLocaleString('pt-BR')}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={3} className="datagrid__empty">
+                                  Nenhuma submissão ainda — envie sua primeira solução.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </form>
         </div>
-
-          <section className="history-section">
-            <h2 className="section-title">Métricas</h2>
-            {stats !== null && stats.total_runs > 0 ? (
-              <div className="panel metrics-panel">
-                {stats.faster_than_pct !== null ? (
-                  <p className="metrics-highlight">
-                    Seu código foi mais rápido que <strong>{stats.faster_than_pct}%</strong> das
-                    submissões para este desafio!
-                  </p>
-                ) : (
-                  <p className="metrics-highlight metrics-highlight--muted">
-                    Envie uma solução aceita para ver sua posição na distribuição.
-                  </p>
-                )}
-                {(() => {
-                  const maxCount = Math.max(...stats.buckets.map((b) => b.count), 1)
-                  const best = stats.user_best_ms
-                  const userBucketIdx =
-                    best !== null ? stats.buckets.findIndex((b) => best <= b.up_to_ms) : -1
-                  const lastBucket = stats.buckets[stats.buckets.length - 1]
-                  return (
-                    <>
-                      <div
-                        className="histogram"
-                        role="img"
-                        aria-label={`Distribuição do tempo de execução de ${stats.total_runs} submissões aceitas`}
-                      >
-                        {stats.buckets.map((b, i) => (
-                          <div
-                            className="histogram__slot"
-                            key={b.up_to_ms}
-                            title={`≤ ${b.up_to_ms}ms — ${b.count} ${b.count === 1 ? 'submissão' : 'submissões'}`}
-                          >
-                            <div
-                              className={
-                                i === userBucketIdx
-                                  ? 'histogram__bar histogram__bar--you'
-                                  : 'histogram__bar'
-                              }
-                              style={{
-                                height: `${b.count > 0 ? Math.max((b.count / maxCount) * 100, 6) : 2}%`,
-                              }}
-                            />
-                            {i === userBucketIdx ? (
-                              <span className="histogram__you">você</span>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="histogram__axis">
-                        <span>0ms</span>
-                        <span>{lastBucket ? `${lastBucket.up_to_ms}ms` : ''}</span>
-                      </div>
-                      <p className="histogram__caption">
-                        Tempo de execução — {stats.total_runs}{' '}
-                        {stats.total_runs === 1 ? 'submissão aceita' : 'submissões aceitas'} na
-                        plataforma
-                      </p>
-                    </>
-                  )
-                })()}
-              </div>
-            ) : (
-              <p className="status-message">
-                Ainda não há métricas de execução para este desafio — seja a primeira solução
-                aceita.
-              </p>
-            )}
-          </section>
-
-          <section className="history-section">
-            <h2 className="section-title">Submissões recentes</h2>
-            <div className="datagrid">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Veredito</th>
-                    <th>Linguagem</th>
-                    <th>Data</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {submissions.length > 0 ? (
-                    submissions.map((sub) => (
-                      <tr key={sub.id}>
-                        <td>
-                          <VerdictBadge status={sub.status} />
-                          {isTeacher && sub.is_test_run ? (
-                            <span className="verdict test-run-tag">TESTE</span>
-                          ) : null}
-                        </td>
-                        <td>{sub.language}</td>
-                        <td className="muted">{new Date(sub.created_at).toLocaleString('pt-BR')}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={3} className="datagrid__empty">
-                        Nenhuma submissão ainda — envie sua primeira solução.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
         </>
       ) : null}
     </main>

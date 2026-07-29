@@ -192,8 +192,40 @@ pre {
   animation: fadeInUp 0.4s var(--ease-spring) both;
 }
 
+/* Locks the whole workspace page to the viewport height — the back-link
+   and .workspace below it become a flex column instead of the page itself
+   growing past 100vh and scrolling. .workspace fills the remainder via
+   flex: 1 (see below) rather than a hand-computed calc(100vh - Npx), so it
+   automatically adapts if the back-link's own height ever changes.
+   Reverted back to a normal scrolling page below 1020px, matching
+   .workspace's existing single-column fallback there. */
 .page-shell--workspace {
   width: min(1640px, 100% - 48px);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0;
+  overflow: hidden;
+}
+
+/* Same viewport-lock as .page-shell--workspace, for the submission result
+   page: back-link fixed at top, .submission-panel/.submission-pending fill
+   the rest via flex: 1 and scroll internally if their content is taller
+   than that (see the rule below) — the page itself never scrolls.
+   Reverted below 920px, matching the sidebar's own mobile breakpoint. */
+.page-shell--submission {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0;
+  overflow: hidden;
+}
+
+.page-shell--submission .submission-panel,
+.page-shell--submission .submission-pending {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .hero {
@@ -894,7 +926,7 @@ pre {
   display: grid;
   grid-template-columns: minmax(360px, 5fr) 7fr;
   gap: 16px;
-  height: calc(100vh - 24px);
+  flex: 1;
   min-height: 520px;
 }
 
@@ -1106,15 +1138,66 @@ pre {
   font-size: 0.78rem;
 }
 
+/* Métricas/Submissões, collapsed by default, nested below the editor
+   instead of stacking as full page sections (which used to push the
+   whole page past the viewport). Expanding it shrinks .editor-host via
+   flex, rather than growing .workspace__editor past its own bounds —
+   .workspace__editor's overflow: hidden plus this panel's own
+   max-height/overflow-y keep everything within the viewport-locked
+   .workspace. */
+.workspace__insights {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+}
+
+.workspace__insights-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.workspace__insights-toggle:hover {
+  color: var(--text);
+}
+
+.workspace__insights-body {
+  padding: 0 16px 16px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.workspace__insights-body .studio__mode-tabs {
+  margin: 0 0 12px;
+}
+
 /* History sits clearly below the split workspace. */
 .history-section {
   margin-top: 28px;
 }
 
 @media (max-width: 1020px) {
+  .page-shell--workspace {
+    height: auto;
+    display: block;
+    overflow: visible;
+    padding: 28px 0 64px;
+  }
+
   .workspace {
     grid-template-columns: 1fr;
     height: auto;
+    flex: none;
   }
 
   .workspace__brief {
@@ -1125,6 +1208,10 @@ pre {
   .editor-host {
     height: 420px;
     flex: none;
+  }
+
+  .workspace__insights-body {
+    max-height: none;
   }
 }
 
@@ -2548,6 +2635,8 @@ pre {
   border-radius: var(--radius-s);
   background: var(--inset);
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: 320px;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text);
@@ -2605,6 +2694,8 @@ pre {
   font-family: var(--font-mono);
   font-size: 13px;
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: 220px;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -2683,6 +2774,19 @@ pre {
 
   .sidebar--open {
     transform: translateX(0);
+  }
+
+  .page-shell--submission {
+    height: auto;
+    display: block;
+    overflow: visible;
+    padding: 20px 0 48px;
+  }
+
+  .page-shell--submission .submission-panel,
+  .page-shell--submission .submission-pending {
+    flex: none;
+    overflow: visible;
   }
 }
 
