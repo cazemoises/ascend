@@ -30,10 +30,20 @@ type ListItem struct {
 	IsBonus    bool   `json:"is_bonus"`
 	Body       string `json:"body"`
 	// Completed is only populated for a student viewer (GetProblemListDetail);
-	// nil for a teacher, since it isn't their completion to report.
-	Completed *bool     `json:"completed"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	// nil for a teacher, since it isn't their completion to report. For an
+	// item with LinkedChallengeID set, it's derived from the challenge
+	// "solved" rule instead of list_item_completions.
+	Completed *bool `json:"completed"`
+	// LinkedChallengeID, when set, means this item's completion is derived
+	// automatically from the student having solved that challenge, not a
+	// self-declared checkbox. ChallengeTitle/ChallengeSlug are populated
+	// alongside it in GetProblemListDetail (nil elsewhere) so the frontend
+	// can link to /challenges/:slug without a second request.
+	LinkedChallengeID *string   `json:"linked_challenge_id"`
+	ChallengeTitle    *string   `json:"challenge_title"`
+	ChallengeSlug     *string   `json:"challenge_slug"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type ProblemListDetail struct {
@@ -60,17 +70,19 @@ type UpdateProblemListRequest struct {
 }
 
 type CreateListItemRequest struct {
-	Title      string
-	Difficulty string
-	IsBonus    bool
-	Body       string
+	Title             string
+	Difficulty        string
+	IsBonus           bool
+	Body              string
+	LinkedChallengeID *string
 }
 
 type UpdateListItemRequest struct {
-	Title      string
-	Difficulty string
-	IsBonus    bool
-	Body       string
+	Title             string
+	Difficulty        string
+	IsBonus           bool
+	Body              string
+	LinkedChallengeID *string
 }
 
 // ReorderItem is one row of a PATCH /lists/:id/reorder batch.
@@ -178,8 +190,12 @@ func (s *Store) GetProblemListDetail(ctx context.Context, listID, viewerID, role
 func (s *Store) listItemsForDetail(ctx context.Context, listID, viewerID, role string) ([]ListItem, error) {
 	if role != "student" {
 		rows, err := s.db.QueryContext(ctx,
-			`SELECT id, list_id, ordinal, title, difficulty, is_bonus, body, created_at, updated_at
-			 FROM list_items WHERE list_id = $1 ORDER BY ordinal`, listID)
+			`SELECT li.id, li.list_id, li.ordinal, li.title, li.difficulty, li.is_bonus, li.body,
+			        li.created_at, li.updated_at, li.linked_challenge_id, c.title, c.slug
+			 FROM list_items li
+			 LEFT JOIN challenges c ON c.id = li.linked_challenge_id
+			 WHERE li.list_id = $1
+			 ORDER BY li.ordinal`, listID)
 		if err != nil {
 			return nil, fmt.Errorf("list items: %w", err)
 		}
@@ -189,7 +205,8 @@ func (s *Store) listItemsForDetail(ctx context.Context, listID, viewerID, role s
 		for rows.Next() {
 			var it ListItem
 			if err := rows.Scan(&it.ID, &it.ListID, &it.Ordinal, &it.Title, &it.Difficulty,
-				&it.IsBonus, &it.Body, &it.CreatedAt, &it.UpdatedAt); err != nil {
+				&it.IsBonus, &it.Body, &it.CreatedAt, &it.UpdatedAt,
+				&it.LinkedChallengeID, &it.ChallengeTitle, &it.ChallengeSlug); err != nil {
 				return nil, err
 			}
 			items = append(items, it)
@@ -197,14 +214,27 @@ func (s *Store) listItemsForDetail(ctx context.Context, listID, viewerID, role s
 		return items, rows.Err()
 	}
 
+	// completed: for a linked item, derived from the same "solved" rule
+	// challenges use (accepted, non-test-run submission) instead of
+	// list_item_completions — an item can't have both, so exactly one side
+	// of the CASE is ever meaningful for a given row. viewerID is passed
+	// twice (as $2 and $3): sharing one placeholder between the plain uuid
+	// comparison below and solvedExpr's NULLIF($N, '')::uuid cast makes
+	// Postgres unify both usages to the same type, which fails to parse the
+	// '' literal as a uuid — separate placeholders sidestep that entirely.
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT li.id, li.list_id, li.ordinal, li.title, li.difficulty, li.is_bonus, li.body,
-		        li.created_at, li.updated_at, (lic.id IS NOT NULL) AS completed
+		        li.created_at, li.updated_at, li.linked_challenge_id, c.title, c.slug,
+		        CASE WHEN li.linked_challenge_id IS NOT NULL
+		             THEN `+solvedExpr("li.linked_challenge_id", 3)+`
+		             ELSE (lic.id IS NOT NULL)
+		        END AS completed
 		 FROM list_items li
 		 LEFT JOIN list_item_completions lic
 		   ON lic.list_item_id = li.id AND lic.student_id = $2
+		 LEFT JOIN challenges c ON c.id = li.linked_challenge_id
 		 WHERE li.list_id = $1
-		 ORDER BY li.ordinal`, listID, viewerID)
+		 ORDER BY li.ordinal`, listID, viewerID, viewerID)
 	if err != nil {
 		return nil, fmt.Errorf("list items with completion: %w", err)
 	}
@@ -215,7 +245,8 @@ func (s *Store) listItemsForDetail(ctx context.Context, listID, viewerID, role s
 		var it ListItem
 		var completed bool
 		if err := rows.Scan(&it.ID, &it.ListID, &it.Ordinal, &it.Title, &it.Difficulty,
-			&it.IsBonus, &it.Body, &it.CreatedAt, &it.UpdatedAt, &completed); err != nil {
+			&it.IsBonus, &it.Body, &it.CreatedAt, &it.UpdatedAt,
+			&it.LinkedChallengeID, &it.ChallengeTitle, &it.ChallengeSlug, &completed); err != nil {
 			return nil, err
 		}
 		it.Completed = &completed
@@ -260,6 +291,12 @@ func (s *Store) DeleteProblemList(ctx context.Context, listID, teacherID string)
 	return nil
 }
 
+// ErrLinkedChallengeNotFound means a list item's linked_challenge_id doesn't
+// reference an existing challenge. Challenges have no per-teacher owner in
+// this system (any teacher can already edit/delete any challenge), so this
+// only checks existence, not ownership.
+var ErrLinkedChallengeNotFound = errors.New("linked challenge not found")
+
 // CreateListItem verifies the caller owns the target list before inserting,
 // inside one transaction so the ownership check and the ordinal-assignment
 // insert see a consistent snapshot.
@@ -280,14 +317,26 @@ func (s *Store) CreateListItem(ctx context.Context, listID, teacherID string, re
 		return ListItem{}, ErrNotFound
 	}
 
+	if req.LinkedChallengeID != nil {
+		var exists bool
+		if err := tx.QueryRowContext(ctx,
+			`SELECT EXISTS(SELECT 1 FROM challenges WHERE id = $1)`, *req.LinkedChallengeID,
+		).Scan(&exists); err != nil {
+			return ListItem{}, fmt.Errorf("check linked challenge: %w", err)
+		}
+		if !exists {
+			return ListItem{}, ErrLinkedChallengeNotFound
+		}
+	}
+
 	var it ListItem
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO list_items (list_id, ordinal, title, difficulty, is_bonus, body)
-		 VALUES ($1, (SELECT COALESCE(MAX(ordinal), -1) + 1 FROM list_items WHERE list_id = $1), $2, $3, $4, $5)
-		 RETURNING id, list_id, ordinal, title, difficulty, is_bonus, body, created_at, updated_at`,
-		listID, req.Title, req.Difficulty, req.IsBonus, req.Body,
+		`INSERT INTO list_items (list_id, ordinal, title, difficulty, is_bonus, body, linked_challenge_id)
+		 VALUES ($1, (SELECT COALESCE(MAX(ordinal), -1) + 1 FROM list_items WHERE list_id = $1), $2, $3, $4, $5, $6)
+		 RETURNING id, list_id, ordinal, title, difficulty, is_bonus, body, created_at, updated_at, linked_challenge_id`,
+		listID, req.Title, req.Difficulty, req.IsBonus, req.Body, req.LinkedChallengeID,
 	).Scan(&it.ID, &it.ListID, &it.Ordinal, &it.Title, &it.Difficulty, &it.IsBonus, &it.Body,
-		&it.CreatedAt, &it.UpdatedAt)
+		&it.CreatedAt, &it.UpdatedAt, &it.LinkedChallengeID)
 	if err != nil {
 		return ListItem{}, fmt.Errorf("insert list item: %w", err)
 	}
@@ -341,18 +390,30 @@ func (s *Store) ImportProblemList(ctx context.Context, req ImportProblemListRequ
 // UpdateListItem and DeleteListItem join through problem_lists to scope the
 // mutation to the requesting teacher's own items.
 func (s *Store) UpdateListItem(ctx context.Context, itemID, teacherID string, req UpdateListItemRequest) (ListItem, error) {
+	if req.LinkedChallengeID != nil {
+		var exists bool
+		if err := s.db.QueryRowContext(ctx,
+			`SELECT EXISTS(SELECT 1 FROM challenges WHERE id = $1)`, *req.LinkedChallengeID,
+		).Scan(&exists); err != nil {
+			return ListItem{}, fmt.Errorf("check linked challenge: %w", err)
+		}
+		if !exists {
+			return ListItem{}, ErrLinkedChallengeNotFound
+		}
+	}
+
 	row := s.db.QueryRowContext(ctx,
 		`UPDATE list_items li
-		 SET title = $3, difficulty = $4, is_bonus = $5, body = $6, updated_at = now()
+		 SET title = $3, difficulty = $4, is_bonus = $5, body = $6, linked_challenge_id = $7, updated_at = now()
 		 FROM problem_lists pl
 		 WHERE li.id = $1 AND li.list_id = pl.id AND pl.teacher_id = $2
 		 RETURNING li.id, li.list_id, li.ordinal, li.title, li.difficulty, li.is_bonus, li.body,
-		           li.created_at, li.updated_at`,
-		itemID, teacherID, req.Title, req.Difficulty, req.IsBonus, req.Body)
+		           li.created_at, li.updated_at, li.linked_challenge_id`,
+		itemID, teacherID, req.Title, req.Difficulty, req.IsBonus, req.Body, req.LinkedChallengeID)
 
 	var it ListItem
 	err := row.Scan(&it.ID, &it.ListID, &it.Ordinal, &it.Title, &it.Difficulty, &it.IsBonus, &it.Body,
-		&it.CreatedAt, &it.UpdatedAt)
+		&it.CreatedAt, &it.UpdatedAt, &it.LinkedChallengeID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ListItem{}, ErrNotFound
 	}

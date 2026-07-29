@@ -159,18 +159,27 @@ func (s *Store) ListChallenges(ctx context.Context, limit, offset int) ([]Challe
 // subquery below in the same SELECT list.
 const challengeColumnsAliased = `c.id, c.slug, c.title, c.description, c.difficulty, c.time_limit_ms, c.memory_limit_mb, c.notes, c.starter_code, c.language, c.sql_schema, c.created_at, c.updated_at`
 
-// solvedColumn reports whether the viewer (positional parameter paramIndex,
-// '' for anonymous) has an accepted, non-test-run submission for the
-// challenge "c" — shared by every c-aliased challenges query so the solved
-// rule lives in exactly one place. NULLIF('', '')::uuid turns an empty
-// viewerID into NULL, which never equals any user_id — so anonymous viewers
-// naturally always get false.
-func solvedColumn(paramIndex int) string {
+// solvedExpr is the raw EXISTS(...) boolean expression reporting whether the
+// viewer (positional parameter paramIndex, '' for anonymous) has an
+// accepted, non-test-run submission for the challenge identified by
+// challengeIDExpr (e.g. "c.id", or "li.linked_challenge_id" for a list item
+// linked to a challenge) — the one place this rule is defined, reused by
+// every query that needs it instead of a parallel copy. NULLIF('', '')::uuid
+// turns an empty viewerID into NULL, which never equals any user_id — so
+// anonymous viewers naturally always get false.
+func solvedExpr(challengeIDExpr string, paramIndex int) string {
 	return fmt.Sprintf(`EXISTS(
 		SELECT 1 FROM submissions sub
-		WHERE sub.challenge_id = c.id AND sub.user_id = NULLIF($%d, '')::uuid
+		WHERE sub.challenge_id = %s AND sub.user_id = NULLIF($%d, '')::uuid
 		  AND sub.status = 'accepted' AND sub.is_test_run = false
-	) AS solved`, paramIndex)
+	)`, challengeIDExpr, paramIndex)
+}
+
+// solvedColumn is solvedExpr aliased as "solved", for queries that select it
+// directly as a column (as opposed to embedding it inside a larger
+// expression, like the list-item completion CASE in lists.go).
+func solvedColumn(challengeIDExpr string, paramIndex int) string {
+	return solvedExpr(challengeIDExpr, paramIndex) + " AS solved"
 }
 
 func scanChallengeFeedItem(row interface {
@@ -186,7 +195,7 @@ func scanChallengeFeedItem(row interface {
 // ListChallengesForViewer serves every challenge, ordered newest-first, with
 // each item annotated with whether viewerID has already solved it.
 func (s *Store) ListChallengesForViewer(ctx context.Context, viewerID string, limit, offset int) ([]ChallengeFeedItem, error) {
-	query := `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn(3) + ` FROM challenges c
+	query := `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn("c.id", 3) + ` FROM challenges c
 	 ORDER BY c.created_at DESC LIMIT $1 OFFSET $2`
 	args := []any{limit, offset, viewerID}
 
@@ -300,7 +309,7 @@ func (s *Store) GetChallenge(ctx context.Context, id string) (Challenge, error) 
 // same rule and same solvedColumn helper as ListChallengesForViewer.
 func (s *Store) GetChallengeDetail(ctx context.Context, id, viewerID string) (ChallengeDetail, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT `+challengeColumnsAliased+`, `+solvedColumn(2)+` FROM challenges c WHERE c.id = $1`,
+		`SELECT `+challengeColumnsAliased+`, `+solvedColumn("c.id", 2)+` FROM challenges c WHERE c.id = $1`,
 		id, viewerID)
 
 	var d ChallengeDetail
