@@ -126,6 +126,10 @@ export function ChallengeList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [collections, setCollections] = useState<ChallengeCollection[]>([])
+  // Keys of collapsed collection groups; a key's absence means expanded.
+  // Starting empty means every group is expanded by default. Resets on
+  // reload — not persisted, per explicit scope.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
   const [creating, setCreating] = useState(false)
   const [editingChallengeId, setEditingChallengeId] = useState<string | null>(null)
@@ -182,6 +186,18 @@ export function ChallengeList() {
       active = false
     }
   }, [isTeacher])
+
+  function toggleGroupCollapsed(key: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
 
   function updateTestCase(index: number, patch: Partial<TestCaseDraft>) {
     setTestCases((prev) => prev.map((tc, i) => (i === index ? { ...tc, ...patch } : tc)))
@@ -768,11 +784,28 @@ export function ChallengeList() {
           (() => {
             const groups = groupByCollection(challenges)
             const showGroupHeaders = groups.length > 1
-            return groups.map((group) => (
+            return groups.map((group) => {
+              const isCollapsed = showGroupHeaders && collapsedGroups.has(group.key)
+              return (
               <div key={group.key} className="challenge-collection-group">
                 {showGroupHeaders ? (
-                  <h2 className="challenge-collection-header">{group.label}</h2>
+                  <button
+                    type="button"
+                    className="challenge-collection-header"
+                    aria-expanded={!isCollapsed}
+                    onClick={() => toggleGroupCollapsed(group.key)}
+                  >
+                    <span
+                      className={isCollapsed ? 'audit-caret' : 'audit-caret audit-caret--open'}
+                      aria-hidden="true"
+                    >
+                      ▸
+                    </span>
+                    {group.label}
+                    {isCollapsed ? ` (${group.challenges.length})` : null}
+                  </button>
                 ) : null}
+                {!isCollapsed ? (
                 <div className="challenge-feed">
                   {group.challenges.map((challenge) => (
                     <article key={challenge.id} className="challenge-row">
@@ -826,8 +859,10 @@ export function ChallengeList() {
                     </article>
                   ))}
                 </div>
+                ) : null}
               </div>
-            ))
+              )
+            })
           })()
         ) : (
           <p className="status-message">Nenhum desafio cadastrado.</p>
