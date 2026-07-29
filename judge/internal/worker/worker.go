@@ -165,8 +165,11 @@ type evalResult struct {
 	total       int
 	execTimeMs  int
 	stderr      string
-	// stdout/expectedOutput are only populated on wrong_answer — the failing
-	// case's actual vs. expected output, for the result page's diff display.
+	// stdout is the last-executed case's actual output — populated on
+	// accepted (the last case run) and on wrong_answer (the failing case),
+	// empty on runtime_error/time_limit_exceeded (stderr covers those).
+	// expectedOutput is only populated alongside stdout on wrong_answer, for
+	// the result page's diff display.
 	stdout         string
 	expectedOutput string
 }
@@ -229,6 +232,10 @@ func evaluate(ctx context.Context, executor DockerExecutor, language, sourceCode
 		}
 
 		res.passedCount++
+		// Overwritten every passing case, so once the loop ends (either here,
+		// falling through to accepted, or via an early return above) it holds
+		// the last-executed case's actual output.
+		res.stdout = result.Stdout
 	}
 
 	return res
