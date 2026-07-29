@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -30,11 +31,16 @@ type challengeRecord struct {
 	TimeLimitMs   int
 	MemoryLimitMB int
 	StarterCode   string
+	SQLSchema     string
 }
 
 type testCaseRecord struct {
 	Input          string
 	ExpectedOutput string
+	// OrderMatters opts a single case out of the default order-insensitive
+	// comparison SQL challenges use (see outputsMatch); irrelevant for every
+	// other language, which always compares exactly.
+	OrderMatters bool
 }
 
 type queue interface {
@@ -144,7 +150,7 @@ func (w *Worker) processSubmission(ctx context.Context, job SubmissionJob) error
 
 	sourceCode := buildExecutable(submission.SourceCode, challenge.StarterCode)
 
-	res := evaluate(ctx, w.executor, submission.Language, sourceCode, testCases, challenge.TimeLimitMs, challenge.MemoryLimitMB)
+	res := evaluate(ctx, w.executor, submission.Language, sourceCode, challenge.SQLSchema, testCases, challenge.TimeLimitMs, challenge.MemoryLimitMB)
 
 	if err := w.updateSubmissionResult(ctx, submission.ID, res); err != nil {
 		return fmt.Errorf("update submission %s status: %w", submission.ID, err)
@@ -165,16 +171,31 @@ type evalResult struct {
 // the first failure (fail-fast), and reports how many cases passed before it
 // stopped. total is len(testCases); passedCount is the number that produced
 // the expected output before a wrong answer or execution error ended the run.
-func evaluate(ctx context.Context, executor DockerExecutor, language, sourceCode string, testCases []testCaseRecord, timeLimitMs, memoryLimitMB int) evalResult {
+//
+// sqlSchema is the challenge's shared DDL/base data (only meaningful when
+// language is "sql"; ignored otherwise).
+func evaluate(ctx context.Context, executor DockerExecutor, language, sourceCode, sqlSchema string, testCases []testCaseRecord, timeLimitMs, memoryLimitMB int) evalResult {
 	res := evalResult{status: "accepted", total: len(testCases)}
 
 	for _, testCase := range testCases {
 		runCtx, cancel := context.WithTimeout(ctx, time.Duration(timeLimitMs)*time.Millisecond)
 		start := time.Now()
+
+		runSource := sourceCode
+		runInput := testCase.Input
+		if Language(language) == LanguageSQL {
+			// SQL challenges have no stdin harness: sqlite3 reads its entire
+			// script — shared schema, this case's seed INSERTs, then the
+			// student's query — from the "source file" instead, so Input is
+			// deliberately left empty (there's nothing to feed on stdin).
+			runSource = buildSQLScript(sqlSchema, testCase.Input, sourceCode)
+			runInput = ""
+		}
+
 		result, runErr := executor.Run(runCtx, RunRequest{
 			Language:      Language(language),
-			SourceCode:    sourceCode,
-			Input:         testCase.Input,
+			SourceCode:    runSource,
+			Input:         runInput,
 			MemoryLimitMB: memoryLimitMB,
 		})
 		cancel()
@@ -196,7 +217,7 @@ func evaluate(ctx context.Context, executor DockerExecutor, language, sourceCode
 			return res
 		}
 
-		if normalizeOutput(result.Stdout) != normalizeOutput(testCase.ExpectedOutput) {
+		if !outputsMatch(language, testCase.OrderMatters, result.Stdout, testCase.ExpectedOutput) {
 			res.status = "wrong_answer"
 			return res
 		}
@@ -205,6 +226,37 @@ func evaluate(ctx context.Context, executor DockerExecutor, language, sourceCode
 	}
 
 	return res
+}
+
+// buildSQLScript assembles the script executed for one SQL test case: the
+// challenge's shared DDL/base data, this case's seed INSERTs (which vary per
+// case so a hardcoded answer can't pass), and finally the student's query —
+// all plain SQL statements run in sequence by sqlite3.
+func buildSQLScript(schema, seed, studentQuery string) string {
+	return strings.Join([]string{schema, seed, studentQuery}, "\n\n")
+}
+
+// outputsMatch compares a run's stdout against a test case's expected
+// output. SQL result sets are unordered by default — a query has no defined
+// row order without an explicit ORDER BY — so SQL cases compare the sorted
+// lines of both sides unless order_matters opts a specific case out (e.g. an
+// exercise that specifically tests correct ORDER BY usage). Every other
+// language, and SQL cases with order_matters, compare exactly.
+func outputsMatch(language string, orderMatters bool, actual, expected string) bool {
+	if Language(language) == LanguageSQL && !orderMatters {
+		return sortedLines(actual) == sortedLines(expected)
+	}
+	return normalizeOutput(actual) == normalizeOutput(expected)
+}
+
+func sortedLines(s string) string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return ""
+	}
+	lines := strings.Split(trimmed, "\n")
+	sort.Strings(lines)
+	return strings.Join(lines, "\n")
 }
 
 func (w *Worker) fetchSubmission(ctx context.Context, id string) (submissionRecord, error) {
@@ -220,11 +272,12 @@ func (w *Worker) fetchSubmission(ctx context.Context, id string) (submissionReco
 
 func (w *Worker) fetchChallenge(ctx context.Context, id string) (challengeRecord, error) {
 	row := w.db.QueryRowContext(ctx,
-		`SELECT time_limit_ms, memory_limit_mb, COALESCE(starter_code, '') FROM challenges WHERE id = $1`, id)
+		`SELECT time_limit_ms, memory_limit_mb, COALESCE(starter_code, ''), COALESCE(sql_schema, '')
+		 FROM challenges WHERE id = $1`, id)
 
 	var challenge challengeRecord
 	challenge.ID = id
-	if err := row.Scan(&challenge.TimeLimitMs, &challenge.MemoryLimitMB, &challenge.StarterCode); err != nil {
+	if err := row.Scan(&challenge.TimeLimitMs, &challenge.MemoryLimitMB, &challenge.StarterCode, &challenge.SQLSchema); err != nil {
 		return challengeRecord{}, fmt.Errorf("scan challenge %s: %w", id, err)
 	}
 	return challenge, nil
@@ -256,7 +309,7 @@ func buildExecutable(studentCode, starterCode string) string {
 
 func (w *Worker) fetchTestCases(ctx context.Context, challengeID string) ([]testCaseRecord, error) {
 	rows, err := w.db.QueryContext(ctx,
-		`SELECT input, expected_output FROM test_cases WHERE challenge_id = $1 ORDER BY ordinal`, challengeID)
+		`SELECT input, expected_output, order_matters FROM test_cases WHERE challenge_id = $1 ORDER BY ordinal`, challengeID)
 	if err != nil {
 		return nil, fmt.Errorf("query test cases %s: %w", challengeID, err)
 	}
@@ -265,7 +318,7 @@ func (w *Worker) fetchTestCases(ctx context.Context, challengeID string) ([]test
 	var testCases []testCaseRecord
 	for rows.Next() {
 		var testCase testCaseRecord
-		if err := rows.Scan(&testCase.Input, &testCase.ExpectedOutput); err != nil {
+		if err := rows.Scan(&testCase.Input, &testCase.ExpectedOutput, &testCase.OrderMatters); err != nil {
 			return nil, fmt.Errorf("scan test case %s: %w", challengeID, err)
 		}
 		testCases = append(testCases, testCase)

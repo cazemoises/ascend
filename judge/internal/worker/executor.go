@@ -21,6 +21,7 @@ const (
 	LanguagePython     Language = "python"
 	LanguageJavaScript Language = "javascript"
 	LanguageGo         Language = "go"
+	LanguageSQL        Language = "sql"
 )
 
 type RunRequest struct {
@@ -125,6 +126,16 @@ func containerConfig(language Language) (image string, command []string, fileNam
 		return "node:20-alpine", []string{"sh", "-c", "tar -xf - -C /tmp && node /tmp/solution.js < /tmp/input.txt"}, "solution.js", nil
 	case LanguageGo:
 		return "golang:1.26-alpine", []string{"sh", "-c", "tar -xf - -C /tmp && cd /tmp && go run solution.go < input.txt"}, "solution.go", nil
+	case LanguageSQL:
+		// -list -separator '|' makes sqlite3's output deterministic: one row
+		// per line, columns pipe-separated — the same format test_case rows
+		// are stored in, so the judge can string-compare stdout directly.
+		// solution.sql is the schema + seed + student query already
+		// concatenated by the worker (see buildSQLScript); input.txt is
+		// written but unused for this language.
+		return "ascend-sqlite:latest",
+			[]string{"sh", "-c", "tar -xf - -C /tmp && sqlite3 -list -separator '|' :memory: < /tmp/solution.sql"},
+			"solution.sql", nil
 	default:
 		return "", nil, "", fmt.Errorf("unsupported language: %s", language)
 	}

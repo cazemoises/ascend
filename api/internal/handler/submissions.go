@@ -20,6 +20,7 @@ var validLanguages = map[string]bool{
 	"go":         true,
 	"python":     true,
 	"javascript": true,
+	"sql":        true,
 }
 
 type createSubmissionBody struct {
@@ -40,7 +41,7 @@ func (h *ChallengesHandler) CreateSubmission(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if !validLanguages[body.Language] {
-		writeError(w, http.StatusUnprocessableEntity, "language must be go, python, or javascript")
+		writeError(w, http.StatusUnprocessableEntity, "language must be go, python, javascript, or sql")
 		return
 	}
 	if body.SourceCode == "" {
@@ -68,6 +69,10 @@ func (h *ChallengesHandler) CreateSubmission(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "challenge not found")
+			return
+		}
+		if errors.Is(err, store.ErrLanguageMismatch) {
+			writeError(w, http.StatusUnprocessableEntity, "language does not match this challenge's language")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal server error")

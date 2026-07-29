@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/caze/ascend/api/internal/auth"
@@ -105,6 +106,25 @@ type createChallengeBody struct {
 	MemoryLimitMb int     `json:"memory_limit_mb"`
 	Notes         *string `json:"notes"`
 	StarterCode   *string `json:"starter_code"`
+	Language      *string `json:"language"`
+	SQLSchema     *string `json:"sql_schema"`
+}
+
+// validateSQLFields enforces the scope of the SQL challenge modality: the
+// only accepted explicit language is "sql" (nil/omitted keeps today's
+// multi-language behavior), and a SQL-only challenge must carry the shared
+// DDL/seed schema its test cases run against. Returns "" when valid.
+func validateSQLFields(language, sqlSchema *string) string {
+	if language == nil || *language == "" {
+		return ""
+	}
+	if *language != "sql" {
+		return `language must be omitted or "sql"`
+	}
+	if sqlSchema == nil || strings.TrimSpace(*sqlSchema) == "" {
+		return `sql_schema is required when language is "sql"`
+	}
+	return ""
 }
 
 func (h *ChallengesHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -121,6 +141,10 @@ func (h *ChallengesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "difficulty must be easy, medium, or hard")
 		return
 	}
+	if msg := validateSQLFields(body.Language, body.SQLSchema); msg != "" {
+		writeError(w, http.StatusUnprocessableEntity, msg)
+		return
+	}
 
 	c, err := h.store.CreateChallenge(r.Context(), store.CreateChallengeRequest{
 		Slug:          body.Slug,
@@ -131,6 +155,8 @@ func (h *ChallengesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		MemoryLimitMb: body.MemoryLimitMb,
 		Notes:         body.Notes,
 		StarterCode:   body.StarterCode,
+		Language:      body.Language,
+		SQLSchema:     body.SQLSchema,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
@@ -157,6 +183,10 @@ func (h *ChallengesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "difficulty must be easy, medium, or hard")
 		return
 	}
+	if msg := validateSQLFields(body.Language, body.SQLSchema); msg != "" {
+		writeError(w, http.StatusUnprocessableEntity, msg)
+		return
+	}
 
 	id := chi.URLParam(r, "id")
 	c, err := h.store.UpdateChallenge(r.Context(), id, store.CreateChallengeRequest{
@@ -168,6 +198,8 @@ func (h *ChallengesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		MemoryLimitMb: body.MemoryLimitMb,
 		Notes:         body.Notes,
 		StarterCode:   body.StarterCode,
+		Language:      body.Language,
+		SQLSchema:     body.SQLSchema,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -224,6 +256,7 @@ type createTestCaseBody struct {
 	Input          string `json:"input"`
 	ExpectedOutput string `json:"expected_output"`
 	IsSample       bool   `json:"is_sample"`
+	OrderMatters   bool   `json:"order_matters"`
 }
 
 func (h *ChallengesHandler) CreateTestCase(w http.ResponseWriter, r *http.Request) {
@@ -242,6 +275,7 @@ func (h *ChallengesHandler) CreateTestCase(w http.ResponseWriter, r *http.Reques
 		Input:          body.Input,
 		ExpectedOutput: body.ExpectedOutput,
 		IsSample:       body.IsSample,
+		OrderMatters:   body.OrderMatters,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -275,6 +309,7 @@ func (h *ChallengesHandler) ReplaceTestCases(w http.ResponseWriter, r *http.Requ
 			Input:          tc.Input,
 			ExpectedOutput: tc.ExpectedOutput,
 			IsSample:       tc.IsSample,
+			OrderMatters:   tc.OrderMatters,
 		})
 	}
 

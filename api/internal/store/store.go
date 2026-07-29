@@ -27,8 +27,13 @@ type Challenge struct {
 	MemoryLimitMb int       `json:"memory_limit_mb"`
 	Notes         *string   `json:"notes"`
 	StarterCode   *string   `json:"starter_code"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	// Language is nil for today's multi-language challenges (the student
+	// picks python/go/javascript per submission) or "sql" for a SQL-only
+	// challenge, which uses SQLSchema instead of StarterCode.
+	Language  *string   `json:"language"`
+	SQLSchema *string   `json:"sql_schema"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type CreateChallengeRequest struct {
@@ -40,6 +45,8 @@ type CreateChallengeRequest struct {
 	MemoryLimitMb int
 	Notes         *string
 	StarterCode   *string
+	Language      *string
+	SQLSchema     *string
 }
 
 type TestCase struct {
@@ -49,12 +56,16 @@ type TestCase struct {
 	ExpectedOutput string `json:"expected_output"`
 	IsSample       bool   `json:"is_sample"`
 	Ordinal        int    `json:"ordinal"`
+	// OrderMatters opts this case out of the default order-insensitive
+	// comparison SQL challenges use; meaningless for every other language.
+	OrderMatters bool `json:"order_matters"`
 }
 
 type CreateTestCaseRequest struct {
 	Input          string
 	ExpectedOutput string
 	IsSample       bool
+	OrderMatters   bool
 }
 
 type SampleTestCase struct {
@@ -119,14 +130,15 @@ func New(db *sql.DB, rdb *redis.Client) *Store {
 	return &Store{db: db, rdb: rdb}
 }
 
-const challengeColumns = `id, slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, created_at, updated_at`
+const challengeColumns = `id, slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, language, sql_schema, created_at, updated_at`
 
 func scanChallenge(row interface {
 	Scan(...any) error
 }) (Challenge, error) {
 	var c Challenge
 	err := row.Scan(&c.ID, &c.Slug, &c.Title, &c.Description, &c.Difficulty,
-		&c.TimeLimitMs, &c.MemoryLimitMb, &c.Notes, &c.StarterCode, &c.CreatedAt, &c.UpdatedAt)
+		&c.TimeLimitMs, &c.MemoryLimitMb, &c.Notes, &c.StarterCode, &c.Language, &c.SQLSchema,
+		&c.CreatedAt, &c.UpdatedAt)
 	return c, err
 }
 
@@ -145,7 +157,7 @@ func (s *Store) ListChallenges(ctx context.Context, limit, offset int) ([]Challe
 // challengeColumnsAliased is challengeColumns qualified with the "c" alias
 // ListChallengesForViewer joins under, so it can sit alongside the solved
 // subquery below in the same SELECT list.
-const challengeColumnsAliased = `c.id, c.slug, c.title, c.description, c.difficulty, c.time_limit_ms, c.memory_limit_mb, c.notes, c.starter_code, c.created_at, c.updated_at`
+const challengeColumnsAliased = `c.id, c.slug, c.title, c.description, c.difficulty, c.time_limit_ms, c.memory_limit_mb, c.notes, c.starter_code, c.language, c.sql_schema, c.created_at, c.updated_at`
 
 // solvedColumn reports whether the viewer (positional parameter paramIndex,
 // '' for anonymous) has an accepted, non-test-run submission for the
@@ -166,7 +178,7 @@ func scanChallengeFeedItem(row interface {
 }) (ChallengeFeedItem, error) {
 	var item ChallengeFeedItem
 	err := row.Scan(&item.ID, &item.Slug, &item.Title, &item.Description, &item.Difficulty,
-		&item.TimeLimitMs, &item.MemoryLimitMb, &item.Notes, &item.StarterCode,
+		&item.TimeLimitMs, &item.MemoryLimitMb, &item.Notes, &item.StarterCode, &item.Language, &item.SQLSchema,
 		&item.CreatedAt, &item.UpdatedAt, &item.Solved)
 	return item, err
 }
@@ -219,10 +231,11 @@ func (s *Store) CreateChallenge(ctx context.Context, req CreateChallengeRequest)
 	}
 
 	row := s.db.QueryRowContext(ctx,
-		`INSERT INTO challenges (slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`INSERT INTO challenges (slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, language, sql_schema)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		 RETURNING `+challengeColumns,
-		req.Slug, req.Title, req.Description, req.Difficulty, timeLimitMs, memLimitMb, req.Notes, req.StarterCode)
+		req.Slug, req.Title, req.Description, req.Difficulty, timeLimitMs, memLimitMb, req.Notes, req.StarterCode,
+		req.Language, req.SQLSchema)
 
 	c, err := scanChallenge(row)
 	if err != nil {
@@ -236,7 +249,8 @@ func (s *Store) CreateChallenge(ctx context.Context, req CreateChallengeRequest)
 
 // UpdateChallenge overwrites the editable fields of a challenge. Notes are
 // preserved when the request carries nil (the studio has no notes field);
-// starter_code is always written so teachers can clear it.
+// starter_code, language, and sql_schema are always written so teachers can
+// clear them.
 func (s *Store) UpdateChallenge(ctx context.Context, id string, req CreateChallengeRequest) (Challenge, error) {
 	timeLimitMs := req.TimeLimitMs
 	if timeLimitMs == 0 {
@@ -251,11 +265,12 @@ func (s *Store) UpdateChallenge(ctx context.Context, id string, req CreateChalle
 		`UPDATE challenges
 		 SET slug = $2, title = $3, description = $4, difficulty = $5,
 		     time_limit_ms = $6, memory_limit_mb = $7,
-		     notes = COALESCE($8, notes), starter_code = $9, updated_at = now()
+		     notes = COALESCE($8, notes), starter_code = $9,
+		     language = $10, sql_schema = $11, updated_at = now()
 		 WHERE id = $1
 		 RETURNING `+challengeColumns,
 		id, req.Slug, req.Title, req.Description, req.Difficulty,
-		timeLimitMs, memLimitMb, req.Notes, req.StarterCode)
+		timeLimitMs, memLimitMb, req.Notes, req.StarterCode, req.Language, req.SQLSchema)
 
 	c, err := scanChallenge(row)
 	if err != nil {
@@ -290,7 +305,7 @@ func (s *Store) GetChallengeDetail(ctx context.Context, id, viewerID string) (Ch
 
 	var d ChallengeDetail
 	err := row.Scan(&d.ID, &d.Slug, &d.Title, &d.Description, &d.Difficulty,
-		&d.TimeLimitMs, &d.MemoryLimitMb, &d.Notes, &d.StarterCode,
+		&d.TimeLimitMs, &d.MemoryLimitMb, &d.Notes, &d.StarterCode, &d.Language, &d.SQLSchema,
 		&d.CreatedAt, &d.UpdatedAt, &d.Solved)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ChallengeDetail{}, ErrNotFound
@@ -371,12 +386,12 @@ func (s *Store) CreateTestCase(ctx context.Context, challengeID string, req Crea
 
 	var tc TestCase
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO test_cases (challenge_id, input, expected_output, is_sample, ordinal)
-		 VALUES ($1, $2, $3, $4,
+		`INSERT INTO test_cases (challenge_id, input, expected_output, is_sample, order_matters, ordinal)
+		 VALUES ($1, $2, $3, $4, $5,
 		         (SELECT COALESCE(MAX(ordinal), -1) + 1 FROM test_cases WHERE challenge_id = $1))
-		 RETURNING id, challenge_id, input, expected_output, is_sample, ordinal`,
-		challengeID, req.Input, req.ExpectedOutput, req.IsSample,
-	).Scan(&tc.ID, &tc.ChallengeID, &tc.Input, &tc.ExpectedOutput, &tc.IsSample, &tc.Ordinal)
+		 RETURNING id, challenge_id, input, expected_output, is_sample, ordinal, order_matters`,
+		challengeID, req.Input, req.ExpectedOutput, req.IsSample, req.OrderMatters,
+	).Scan(&tc.ID, &tc.ChallengeID, &tc.Input, &tc.ExpectedOutput, &tc.IsSample, &tc.Ordinal, &tc.OrderMatters)
 	if err != nil {
 		return TestCase{}, err
 	}
@@ -410,11 +425,11 @@ func (s *Store) ReplaceTestCases(ctx context.Context, challengeID string, reqs [
 	for i, req := range reqs {
 		var tc TestCase
 		err := tx.QueryRowContext(ctx,
-			`INSERT INTO test_cases (challenge_id, input, expected_output, is_sample, ordinal)
-			 VALUES ($1, $2, $3, $4, $5)
-			 RETURNING id, challenge_id, input, expected_output, is_sample, ordinal`,
-			challengeID, req.Input, req.ExpectedOutput, req.IsSample, i,
-		).Scan(&tc.ID, &tc.ChallengeID, &tc.Input, &tc.ExpectedOutput, &tc.IsSample, &tc.Ordinal)
+			`INSERT INTO test_cases (challenge_id, input, expected_output, is_sample, order_matters, ordinal)
+			 VALUES ($1, $2, $3, $4, $5, $6)
+			 RETURNING id, challenge_id, input, expected_output, is_sample, ordinal, order_matters`,
+			challengeID, req.Input, req.ExpectedOutput, req.IsSample, req.OrderMatters, i,
+		).Scan(&tc.ID, &tc.ChallengeID, &tc.Input, &tc.ExpectedOutput, &tc.IsSample, &tc.Ordinal, &tc.OrderMatters)
 		if err != nil {
 			return nil, err
 		}
@@ -423,9 +438,42 @@ func (s *Store) ReplaceTestCases(ctx context.Context, challengeID string, reqs [
 	return tcs, tx.Commit()
 }
 
+// ErrLanguageMismatch means the submission's language doesn't match what the
+// challenge accepts: a SQL-only challenge (language='sql') requires a 'sql'
+// submission, and a multi-language challenge (language IS NULL) can't take a
+// 'sql' one, since only SQL-only challenges carry the sql_schema a SQL
+// submission needs to run against.
+var ErrLanguageMismatch = errors.New("language mismatch")
+
+func languageAllowed(challengeLanguage sql.NullString, submissionLanguage string) bool {
+	if challengeLanguage.Valid {
+		return submissionLanguage == challengeLanguage.String
+	}
+	return submissionLanguage != "sql"
+}
+
 func (s *Store) CreateSubmission(ctx context.Context, req CreateSubmissionRequest) (Submission, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Submission{}, err
+	}
+	defer tx.Rollback()
+
+	var challengeLanguage sql.NullString
+	if err := tx.QueryRowContext(ctx,
+		`SELECT language FROM challenges WHERE id = $1`, req.ChallengeID,
+	).Scan(&challengeLanguage); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Submission{}, ErrNotFound
+		}
+		return Submission{}, err
+	}
+	if !languageAllowed(challengeLanguage, req.Language) {
+		return Submission{}, ErrLanguageMismatch
+	}
+
 	var sub Submission
-	err := s.db.QueryRowContext(ctx,
+	err = tx.QueryRowContext(ctx,
 		`INSERT INTO submissions (challenge_id, user_id, language, source_code, is_test_run)
 		 VALUES ($1, NULLIF($2, '')::uuid, $3, $4, $5)
 		 RETURNING id, challenge_id, language, source_code, status, created_at, updated_at`,
@@ -436,6 +484,10 @@ func (s *Store) CreateSubmission(ctx context.Context, req CreateSubmissionReques
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23503" {
 			return Submission{}, ErrNotFound
 		}
+		return Submission{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
 		return Submission{}, err
 	}
 
@@ -657,7 +709,7 @@ func (s *Store) ListTestCases(ctx context.Context, challengeID string) ([]TestCa
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, challenge_id, input, expected_output, is_sample, ordinal
+		`SELECT id, challenge_id, input, expected_output, is_sample, ordinal, order_matters
 		 FROM test_cases WHERE challenge_id = $1 ORDER BY ordinal ASC`, challengeID)
 	if err != nil {
 		return nil, err
@@ -667,7 +719,7 @@ func (s *Store) ListTestCases(ctx context.Context, challengeID string) ([]TestCa
 	tcs := make([]TestCase, 0)
 	for rows.Next() {
 		var tc TestCase
-		if err := rows.Scan(&tc.ID, &tc.ChallengeID, &tc.Input, &tc.ExpectedOutput, &tc.IsSample, &tc.Ordinal); err != nil {
+		if err := rows.Scan(&tc.ID, &tc.ChallengeID, &tc.Input, &tc.ExpectedOutput, &tc.IsSample, &tc.Ordinal, &tc.OrderMatters); err != nil {
 			return nil, err
 		}
 		tcs = append(tcs, tc)
