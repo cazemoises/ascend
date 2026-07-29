@@ -9,6 +9,7 @@ import {
   updateChallenge,
   type Challenge,
   type ChallengeDifficulty,
+  type ChallengeLanguage,
 } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { TelemetryChip } from '../components/TelemetryChip'
@@ -17,7 +18,13 @@ type TestCaseDraft = {
   input: string
   expected_output: string
   is_sample: boolean
+  order_matters: boolean
 }
+
+// '' means today's multi-language behavior (student picks a tab); 'sql'
+// marks the challenge as SQL-only. The scope is deliberately just these two
+// options — not a generic per-language restriction.
+type LanguageDraft = '' | ChallengeLanguage
 
 const EMPTY_DRAFT = {
   slug: '',
@@ -27,12 +34,15 @@ const EMPTY_DRAFT = {
   time_limit_ms: '2000',
   memory_limit_mb: '256',
   starter_code: '',
+  language: '' as LanguageDraft,
+  sql_schema: '',
 }
 
 const EMPTY_TEST_CASE: TestCaseDraft = {
   input: '',
   expected_output: '',
   is_sample: false,
+  order_matters: false,
 }
 
 const STARTER_PLACEHOLDER = `def somar_numeros(a, b):
@@ -125,6 +135,8 @@ export function ChallengeList() {
         time_limit_ms: String(challenge.time_limit_ms),
         memory_limit_mb: String(challenge.memory_limit_mb),
         starter_code: challenge.starter_code ?? '',
+        language: challenge.language ?? '',
+        sql_schema: challenge.sql_schema ?? '',
       })
       setTestCases(
         cases.length > 0
@@ -132,6 +144,7 @@ export function ChallengeList() {
               input: tc.input,
               expected_output: tc.expected_output,
               is_sample: tc.is_sample,
+              order_matters: tc.order_matters,
             }))
           : [{ ...EMPTY_TEST_CASE }],
       )
@@ -156,6 +169,10 @@ export function ChallengeList() {
       setSaveError(`Caso de teste ${invalid + 1}: a saída esperada (stdout) é obrigatória.`)
       return
     }
+    if (draft.language === 'sql' && draft.sql_schema.trim() === '') {
+      setSaveError('Schema SQL é obrigatório para desafios SQL.')
+      return
+    }
 
     setSaving(true)
     try {
@@ -169,11 +186,14 @@ export function ChallengeList() {
         time_limit_ms: Number.isNaN(timeLimit) ? undefined : timeLimit,
         memory_limit_mb: Number.isNaN(memoryLimit) ? undefined : memoryLimit,
         starter_code: draft.starter_code.trim() === '' ? null : draft.starter_code,
+        language: draft.language === '' ? null : draft.language,
+        sql_schema: draft.language === 'sql' ? draft.sql_schema : null,
       }
       const suiteInput = suite.map((tc) => ({
         input: tc.input,
         expected_output: tc.expected_output,
         is_sample: tc.is_sample,
+        order_matters: tc.order_matters,
       }))
 
       if (editingChallengeId !== null) {
@@ -296,6 +316,17 @@ export function ChallengeList() {
                 </select>
               </label>
               <label className="studio__field--2">
+                Modalidade
+                <select
+                  value={draft.language}
+                  onChange={(e) => setDraft({ ...draft, language: e.target.value as LanguageDraft })}
+                  disabled={saving}
+                >
+                  <option value="">Multi-linguagem (Python/Go/JS)</option>
+                  <option value="sql">SQL</option>
+                </select>
+              </label>
+              <label className="studio__field--2">
                 Limite de Tempo (ms)
                 <input
                   type="number"
@@ -359,6 +390,20 @@ export function ChallengeList() {
                       <span className="tc-visibility__track" aria-hidden="true" />
                       <span className="tc-visibility__text">Caso de Teste Público</span>
                     </label>
+                    {draft.language === 'sql' ? (
+                      <label className="tc-visibility">
+                        <input
+                          type="checkbox"
+                          checked={tc.order_matters}
+                          onChange={(e) =>
+                            updateTestCase(index, { order_matters: e.target.checked })
+                          }
+                          disabled={saving}
+                        />
+                        <span className="tc-visibility__track" aria-hidden="true" />
+                        <span className="tc-visibility__text">Ordem importa</span>
+                      </label>
+                    ) : null}
                     <button
                       type="button"
                       className="btn-remove"
@@ -370,24 +415,30 @@ export function ChallengeList() {
                   </div>
                   <div className="tc-card__io">
                     <label>
-                      Entrada Padrão (stdin)
+                      {draft.language === 'sql' ? 'Dados de Seed (INSERTs)' : 'Entrada Padrão (stdin)'}
                       <textarea
                         className="input-code"
                         value={tc.input}
                         onChange={(e) => updateTestCase(index, { input: e.target.value })}
-                        placeholder={'2 3'}
+                        placeholder={
+                          draft.language === 'sql'
+                            ? "INSERT INTO students VALUES (1,'Ana',9.5);"
+                            : '2 3'
+                        }
                         disabled={saving}
                       />
                     </label>
                     <label>
-                      Saída Esperada (stdout)
+                      {draft.language === 'sql'
+                        ? 'Resultado Esperado (colunas separadas por |, uma linha por registro)'
+                        : 'Saída Esperada (stdout)'}
                       <textarea
                         className="input-code"
                         value={tc.expected_output}
                         onChange={(e) =>
                           updateTestCase(index, { expected_output: e.target.value })
                         }
-                        placeholder={'5'}
+                        placeholder={draft.language === 'sql' ? 'Ana|9.5' : '5'}
                         disabled={saving}
                       />
                     </label>
@@ -401,25 +452,45 @@ export function ChallengeList() {
             </button>
           </section>
 
-          <section className="studio__panel">
-            <h2 className="studio__panel-title">Template de Código Inicial</h2>
-            <p className="studio__panel-hint">
-              O que fica <strong>acima</strong> da linha <code>[[ASCEND::RUNNER]]</code> é o stub
-              visível que inicializa o editor do estudante; o que fica <strong>abaixo</strong> é o
-              harness oculto de stdin/stdout que o judge concatena à solução na execução. Sem o
-              marcador, o snippet inteiro é exibido e a solução roda como enviada. Deixe em branco
-              para usar os templates padrão por linguagem.
-            </p>
-            <textarea
-              className="input-code input-code--tall"
-              aria-label="Template de Código Inicial"
-              value={draft.starter_code}
-              onChange={(e) => setDraft({ ...draft, starter_code: e.target.value })}
-              placeholder={STARTER_PLACEHOLDER}
-              spellCheck={false}
-              disabled={saving}
-            />
-          </section>
+          {draft.language === 'sql' ? (
+            <section className="studio__panel">
+              <h2 className="studio__panel-title">Schema SQL</h2>
+              <p className="studio__panel-hint">
+                DDL e dados base compartilhados por todos os casos de teste (ex:{' '}
+                <code>CREATE TABLE</code> + linhas comuns a todo caso). Os dados que variam entre
+                casos vão no campo "Dados de Seed" de cada caso de teste, não aqui.
+              </p>
+              <textarea
+                className="input-code input-code--tall"
+                aria-label="Schema SQL"
+                value={draft.sql_schema}
+                onChange={(e) => setDraft({ ...draft, sql_schema: e.target.value })}
+                placeholder={'CREATE TABLE students(id INTEGER, name TEXT, grade REAL);'}
+                spellCheck={false}
+                disabled={saving}
+              />
+            </section>
+          ) : (
+            <section className="studio__panel">
+              <h2 className="studio__panel-title">Template de Código Inicial</h2>
+              <p className="studio__panel-hint">
+                O que fica <strong>acima</strong> da linha <code>[[ASCEND::RUNNER]]</code> é o stub
+                visível que inicializa o editor do estudante; o que fica <strong>abaixo</strong> é
+                o harness oculto de stdin/stdout que o judge concatena à solução na execução. Sem o
+                marcador, o snippet inteiro é exibido e a solução roda como enviada. Deixe em
+                branco para usar os templates padrão por linguagem.
+              </p>
+              <textarea
+                className="input-code input-code--tall"
+                aria-label="Template de Código Inicial"
+                value={draft.starter_code}
+                onChange={(e) => setDraft({ ...draft, starter_code: e.target.value })}
+                placeholder={STARTER_PLACEHOLDER}
+                spellCheck={false}
+                disabled={saving}
+              />
+            </section>
+          )}
         </form>
       </main>
     )

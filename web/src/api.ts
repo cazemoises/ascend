@@ -24,7 +24,11 @@ export class ApiError extends Error {
 }
 
 export type ChallengeDifficulty = 'easy' | 'medium' | 'hard'
-export type SubmissionLanguage = 'python' | 'go' | 'javascript'
+export type SubmissionLanguage = 'python' | 'go' | 'javascript' | 'sql'
+// A challenge's language: null keeps today's multi-language behavior (the
+// student picks python/go/javascript per submission); 'sql' marks a
+// SQL-only challenge, which uses sql_schema instead of starter_code.
+export type ChallengeLanguage = 'sql'
 
 export interface SampleTestCase {
   input: string
@@ -42,6 +46,8 @@ export interface Challenge {
   memory_limit_mb: number
   notes: string | null
   starter_code: string | null
+  language: ChallengeLanguage | null
+  sql_schema: string | null
   sample_test_cases: SampleTestCase[]
   created_at: string
   updated_at: string
@@ -148,6 +154,8 @@ export interface CreateChallengeInput {
   memory_limit_mb?: number
   notes?: string | null
   starter_code?: string | null
+  language?: ChallengeLanguage | null
+  sql_schema?: string | null
 }
 
 export function createChallenge(body: CreateChallengeInput) {
@@ -161,6 +169,7 @@ export interface CreateTestCaseInput {
   input: string
   expected_output: string
   is_sample: boolean
+  order_matters: boolean
 }
 
 export interface TestCase extends CreateTestCaseInput {
