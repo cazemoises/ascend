@@ -465,6 +465,28 @@ func (h *ChallengesHandler) ListTestCases(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, tcs)
 }
 
+// GetLastSubmission handles GET /api/v1/challenges/:id/submissions/last
+// (authenticated) — the caller's own newest submission for this challenge,
+// used to restore their editor state instead of resetting to starter_code.
+func (h *ChallengesHandler) GetLastSubmission(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.FromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	last, err := h.store.GetLastSubmission(r.Context(), claims.UserID, id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "no submission found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	writeJSON(w, http.StatusOK, last)
+}
+
 func (h *ChallengesHandler) listSubmissions(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	subs, err := h.store.ListRecentSubmissions(r.Context(), id, 10)

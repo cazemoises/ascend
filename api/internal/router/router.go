@@ -43,6 +43,7 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter) chi.Rout
 			ch.Routes(r)
 			r.Get("/", ch.List)
 			r.With(auth.RequireAuthenticated).Get("/{id}/stats", ch.Stats)
+			r.With(auth.RequireAuthenticated).Get("/{id}/submissions/last", ch.GetLastSubmission)
 			r.With(auth.RequireAuthenticated, rl.Handler).Post("/{id}/submissions", ch.CreateSubmission)
 			r.Group(func(r chi.Router) {
 				r.Use(auth.RequireAuthenticated, teacherOnly)
