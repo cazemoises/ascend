@@ -2506,6 +2506,16 @@ pre {
   display: block;
 }
 
+/* Dedicated (not .studio__actions, which is reused as zero-margin header
+   chrome elsewhere — e.g. ChallengeList's studio header, ListFormPage —
+   giving it margin here would ripple spacing into every other user of
+   that class). .submission-code has no bottom margin of its own, so
+   without this the button sat flush against the code block. */
+.submission-next-action {
+  display: flex;
+  margin-top: 24px;
+}
+
 /* Wrong-answer diff (obtida/esperada) and runtime-error/timeout "Erro"
    block on the submission result page — side by side, wrapping to stacked
    on narrow viewports since each block has a min-width via flex-basis. */

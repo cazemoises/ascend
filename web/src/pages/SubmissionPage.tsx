@@ -173,17 +173,19 @@ export function SubmissionPage() {
             </pre>
           </section>
 
-          <div className="studio__actions">
-            {nextChallengeId ? (
-              <Link className="challenge-submit" to={`/challenges/${nextChallengeId}`}>
-                Próximo desafio →
-              </Link>
-            ) : nextChallengeId === null ? (
-              <button type="button" className="challenge-submit" disabled title="Não há mais desafios">
-                Não há mais desafios
-              </button>
-            ) : null}
-          </div>
+          {submission.status === 'accepted' ? (
+            <div className="submission-next-action">
+              {nextChallengeId ? (
+                <Link className="challenge-submit" to={`/challenges/${nextChallengeId}`}>
+                  Próximo desafio →
+                </Link>
+              ) : nextChallengeId === null ? (
+                <button type="button" className="challenge-submit" disabled title="Não há mais desafios">
+                  Não há mais desafios
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       ) : null}
     </main>
