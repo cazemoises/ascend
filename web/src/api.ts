@@ -372,8 +372,16 @@ export interface ListItem {
   difficulty: ListItemDifficulty
   is_bonus: boolean
   body: string
-  // Only meaningful for a student viewer; null for a teacher's own view.
+  // Only meaningful for a student viewer; null for a teacher's own view. For
+  // an item with linked_challenge_id set, this is derived automatically from
+  // the student having solved that challenge, not a self-declared checkbox.
   completed: boolean | null
+  // When set, this item's completion is automatic — resolve the challenge at
+  // /challenges/{linked_challenge_id} instead of self-declaring via
+  // complete/uncomplete (the API rejects those calls for a linked item).
+  linked_challenge_id: string | null
+  challenge_title: string | null
+  challenge_slug: string | null
   created_at: string
   updated_at: string
 }
