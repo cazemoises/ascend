@@ -2506,6 +2506,44 @@ pre {
   display: block;
 }
 
+/* Wrong-answer diff (obtida/esperada) and runtime-error/timeout "Erro"
+   block on the submission result page — side by side, wrapping to stacked
+   on narrow viewports since each block has a min-width via flex-basis. */
+.submission-output {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 16px 0 0;
+}
+
+.submission-output__block {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.submission-output__label {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.submission-output__pre {
+  margin: 0;
+  padding: 12px 16px;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ===================== Sidebar responsive ===================== */
 
 .mobile-topbar {
