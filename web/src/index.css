@@ -2472,6 +2472,62 @@ pre {
   animation: fadeInUp 0.4s var(--ease-spring) both;
 }
 
+/* Reserved-space "evaluating" panel shown in place of the result panel
+   while status="pending" — replaces the old small polling text, which
+   read as easy to miss ("a submissão sumiu?"). --blue matches
+   .verdict--pending/.verdict--running's own established pending color. */
+.submission-pending {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  min-height: 220px;
+  text-align: center;
+}
+
+.submission-pending__spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-strong);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: submission-spin 800ms linear infinite;
+}
+
+@keyframes submission-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.submission-pending__text {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* One-time pop when the result panel first mounts (pending -> final status),
+   so the verdict doesn't just silently appear. Same green/amber/red palette
+   as .verdict — this only adds motion, not a new color. */
+.submission-verdict-reveal {
+  display: inline-block;
+  animation: submission-verdict-reveal 420ms var(--ease-spring) both;
+}
+
+@keyframes submission-verdict-reveal {
+  0% {
+    transform: scale(0.75);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 .submission-meta {
   display: flex;
   flex-wrap: wrap;

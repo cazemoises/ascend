@@ -14,7 +14,6 @@ export function SubmissionPage() {
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-  const [polling, setPolling] = useState<boolean>(false)
   // undefined = still resolving; null = determined, no next challenge;
   // string = the next challenge's id. Same display order as /desafios —
   // GET /challenges already returns challenges grouped by collection
@@ -55,7 +54,6 @@ export function SubmissionPage() {
         setLoading(false)
 
         if (data.status === 'pending') {
-          setPolling(true)
           clearPollingTimer()
           timeoutRef.current = window.setTimeout(() => {
             void fetchSubmission()
@@ -63,7 +61,6 @@ export function SubmissionPage() {
           return
         }
 
-        setPolling(false)
         clearPollingTimer()
       } catch (err) {
         if (!active) {
@@ -72,7 +69,6 @@ export function SubmissionPage() {
 
         setError(err instanceof Error ? err.message : 'Failed to load submission')
         setLoading(false)
-        setPolling(false)
         clearPollingTimer()
       }
     }
@@ -121,13 +117,22 @@ export function SubmissionPage() {
 
       {error ? <p className="status-message status-error">{error}</p> : null}
 
-      {submission ? (
+      {submission && submission.status === 'pending' ? (
+        <section className="panel submission-panel submission-pending">
+          <span className="submission-pending__spinner" aria-hidden="true" />
+          <p className="submission-pending__text">Avaliando sua solução...</p>
+        </section>
+      ) : null}
+
+      {submission && submission.status !== 'pending' ? (
         <section className="panel submission-panel">
           <p className="eyebrow">Submissão</p>
           <h1>Resultado</h1>
 
           <div className="submission-meta">
-            <VerdictBadge status={submission.status} />
+            <span className="submission-verdict-reveal">
+              <VerdictBadge status={submission.status} />
+            </span>
             <TelemetryChip
               timeLimitMs={submission.time_limit_ms}
               memoryLimitMb={submission.memory_limit_mb}
@@ -138,8 +143,6 @@ export function SubmissionPage() {
               <span className="submission-meta__item">
                 {submission.passed_count} de {submission.total_test_cases} test cases passaram
               </span>
-            ) : polling ? (
-              <span className="submission-meta__item">atualizando...</span>
             ) : null}
           </div>
 
