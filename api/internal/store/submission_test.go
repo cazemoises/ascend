@@ -141,6 +141,58 @@ func TestCreateSubmission_IsTestRunPersisted(t *testing.T) {
 	}
 }
 
+// TestGetSubmission_ExposesStdoutAndExpectedOutput covers the store's read
+// side of the worker's wrong-answer snapshot: once stdout/expected_output
+// are written directly (simulating what the judge worker does), GetSubmission
+// must scan them back onto the Submission struct.
+func TestGetSubmission_ExposesStdoutAndExpectedOutput(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+
+	ch, err := s.CreateChallenge(ctx, store.CreateChallengeRequest{
+		Slug: "get-submission-output", Title: "Get Submission Output", Difficulty: "easy",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallenge: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteChallenge(ctx, ch.ID) })
+	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM submissions WHERE challenge_id = $1`, ch.ID) })
+
+	sub, err := s.CreateSubmission(ctx, store.CreateSubmissionRequest{
+		ChallengeID: ch.ID, Language: "python", SourceCode: "print('nope')",
+	})
+	if err != nil {
+		t.Fatalf("CreateSubmission: %v", err)
+	}
+
+	// Before judging, both columns are NULL.
+	before, err := s.GetSubmission(ctx, sub.ID)
+	if err != nil {
+		t.Fatalf("GetSubmission (before): %v", err)
+	}
+	if before.Stdout != nil || before.ExpectedOutput != nil {
+		t.Errorf("stdout=%v expected_output=%v, want both nil before judging", before.Stdout, before.ExpectedOutput)
+	}
+
+	if _, err := db.ExecContext(ctx,
+		`UPDATE submissions SET status = 'wrong_answer', stdout = $1, expected_output = $2 WHERE id = $3`,
+		"nope", "expected value", sub.ID); err != nil {
+		t.Fatalf("simulate worker update: %v", err)
+	}
+
+	after, err := s.GetSubmission(ctx, sub.ID)
+	if err != nil {
+		t.Fatalf("GetSubmission (after): %v", err)
+	}
+	if after.Stdout == nil || *after.Stdout != "nope" {
+		t.Errorf("stdout = %v, want %q", after.Stdout, "nope")
+	}
+	if after.ExpectedOutput == nil || *after.ExpectedOutput != "expected value" {
+		t.Errorf("expected_output = %v, want %q", after.ExpectedOutput, "expected value")
+	}
+}
+
 func TestCreateSubmission_ChallengeNotFound(t *testing.T) {
 	db := openTestDB(t)
 	rdb := openTestRedis(t)

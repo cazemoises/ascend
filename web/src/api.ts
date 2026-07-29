@@ -87,6 +87,10 @@ export interface Submission {
   exec_time_ms: number | null
   memory_peak_mb: number | null
   stderr: string | null
+  // Only non-null on a wrong_answer verdict — the failing case's actual vs.
+  // expected output.
+  stdout: string | null
+  expected_output: string | null
   passed_count: number | null
   total_test_cases: number | null
   time_limit_ms: number

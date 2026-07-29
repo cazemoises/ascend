@@ -119,6 +119,29 @@ export function SubmissionPage() {
             ) : null}
           </div>
 
+          {submission.status === 'wrong_answer' && submission.stdout !== null ? (
+            <section className="submission-output">
+              <div className="submission-output__block">
+                <p className="submission-output__label">Saída obtida</p>
+                <pre className="submission-output__pre">{submission.stdout}</pre>
+              </div>
+              <div className="submission-output__block">
+                <p className="submission-output__label">Saída esperada</p>
+                <pre className="submission-output__pre">{submission.expected_output}</pre>
+              </div>
+            </section>
+          ) : null}
+
+          {(submission.status === 'runtime_error' || submission.status === 'time_limit_exceeded') &&
+          submission.stderr !== null ? (
+            <section className="submission-output">
+              <div className="submission-output__block">
+                <p className="submission-output__label">Erro</p>
+                <pre className="submission-output__pre">{submission.stderr}</pre>
+              </div>
+            </section>
+          ) : null}
+
           <section>
             <p className="muted">Código enviado</p>
             <pre className="submission-code">

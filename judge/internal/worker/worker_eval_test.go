@@ -95,6 +95,45 @@ func TestEvaluate_FirstCaseErrorCountsZero(t *testing.T) {
 	}
 }
 
+// A wrong_answer verdict must carry the failing case's actual stdout and
+// its expected output — the result page's diff display depends on both.
+func TestEvaluate_WrongAnswerCapturesActualAndExpectedOutput(t *testing.T) {
+	exec := &scriptedExecutor{
+		results: []RunResult{{Stdout: "ok"}, {Stdout: "nope"}},
+		errs:    []error{nil, nil},
+	}
+	cases := []testCaseRecord{
+		{Input: "a", ExpectedOutput: "ok"},
+		{Input: "b", ExpectedOutput: "definitely not nope"},
+	}
+
+	res := evaluate(context.Background(), exec, "python", "code", "", cases, 1000, 128)
+
+	if res.status != "wrong_answer" {
+		t.Fatalf("status = %q, want wrong_answer", res.status)
+	}
+	if res.stdout != "nope" {
+		t.Errorf("stdout = %q, want %q", res.stdout, "nope")
+	}
+	if res.expectedOutput != "definitely not nope" {
+		t.Errorf("expectedOutput = %q, want %q", res.expectedOutput, "definitely not nope")
+	}
+}
+
+// An accepted run has no failing case, so stdout/expectedOutput must stay
+// empty — nothing for the result page to show on a clean pass.
+func TestEvaluate_AcceptedLeavesOutputEmpty(t *testing.T) {
+	exec := &scriptedExecutor{
+		results: []RunResult{{Stdout: "ok"}},
+		errs:    []error{nil},
+	}
+	res := evaluate(context.Background(), exec, "python", "code", "", okCases(1), 1000, 128)
+
+	if res.stdout != "" || res.expectedOutput != "" {
+		t.Errorf("stdout=%q expectedOutput=%q, want both empty on accepted", res.stdout, res.expectedOutput)
+	}
+}
+
 func TestEvaluate_SQLIgnoresRowOrderByDefault(t *testing.T) {
 	exec := &scriptedExecutor{
 		// Same rows as expected, reversed order.

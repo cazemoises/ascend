@@ -165,6 +165,10 @@ type evalResult struct {
 	total       int
 	execTimeMs  int
 	stderr      string
+	// stdout/expectedOutput are only populated on wrong_answer — the failing
+	// case's actual vs. expected output, for the result page's diff display.
+	stdout         string
+	expectedOutput string
 }
 
 // evaluate runs the submission against every test case in order, stopping at
@@ -219,6 +223,8 @@ func evaluate(ctx context.Context, executor DockerExecutor, language, sourceCode
 
 		if !outputsMatch(language, testCase.OrderMatters, result.Stdout, testCase.ExpectedOutput) {
 			res.status = "wrong_answer"
+			res.stdout = result.Stdout
+			res.expectedOutput = testCase.ExpectedOutput
 			return res
 		}
 
@@ -334,17 +340,33 @@ func (w *Worker) fetchTestCases(ctx context.Context, challengeID string) ([]test
 // the row by spamming stderr.
 const maxStderrBytes = 64 * 1024
 
-func (w *Worker) updateSubmissionResult(ctx context.Context, submissionID string, res evalResult) error {
-	stderrLog := res.stderr
-	if len(stderrLog) > maxStderrBytes {
-		stderrLog = stderrLog[:maxStderrBytes]
+// maxOutputBytes bounds the stored stdout/expected-output snapshot shown on
+// a wrong-answer result — smaller than maxStderrBytes since this is a
+// side-by-side diff display, not a scrollable crash log.
+const maxOutputBytes = 8000
+
+// truncate caps s at max bytes, leaving it unchanged if it's already
+// shorter — used for every large field persisted onto a submission row so
+// none of them can bloat it.
+func truncate(s string, max int) string {
+	if len(s) > max {
+		return s[:max]
 	}
+	return s
+}
+
+func (w *Worker) updateSubmissionResult(ctx context.Context, submissionID string, res evalResult) error {
+	stderrLog := truncate(res.stderr, maxStderrBytes)
+	stdoutLog := truncate(res.stdout, maxOutputBytes)
+	expectedLog := truncate(res.expectedOutput, maxOutputBytes)
 	_, err := w.db.ExecContext(ctx,
 		`UPDATE submissions
 		 SET status = $1, passed_count = $2, total_test_cases = $3,
-		     exec_time_ms = $4, stderr = NULLIF($5, ''), updated_at = NOW()
-		 WHERE id = $6`,
-		res.status, res.passedCount, res.total, res.execTimeMs, stderrLog, submissionID)
+		     exec_time_ms = $4, stderr = NULLIF($5, ''),
+		     stdout = NULLIF($6, ''), expected_output = NULLIF($7, ''),
+		     updated_at = NOW()
+		 WHERE id = $8`,
+		res.status, res.passedCount, res.total, res.execTimeMs, stderrLog, stdoutLog, expectedLog, submissionID)
 	if err != nil {
 		return fmt.Errorf("exec submission update %s: %w", submissionID, err)
 	}
