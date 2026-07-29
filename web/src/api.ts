@@ -461,6 +461,9 @@ export interface CreateListItemInput {
   difficulty: ListItemDifficulty
   is_bonus: boolean
   body: string
+  // When set, this item's completion is derived from the student having
+  // solved that challenge instead of a self-declared checkbox.
+  linked_challenge_id?: string | null
 }
 
 export function createListItem(listId: string, body: CreateListItemInput) {

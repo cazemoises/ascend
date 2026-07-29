@@ -9,8 +9,10 @@ import {
   deleteListItem,
   getProblemList,
   importProblemList,
+  listChallenges,
   updateListItem,
   updateProblemList,
+  type Challenge,
   type ImportProblemListInput,
   type ListItemDifficulty,
 } from '../api'
@@ -23,6 +25,8 @@ type ItemDraft = {
   difficulty: ListItemDifficulty
   is_bonus: boolean
   body: string
+  // '' means no linked challenge (self-declared completion, as today).
+  linked_challenge_id: string
 }
 
 const EMPTY_ITEM: ItemDraft = {
@@ -30,6 +34,7 @@ const EMPTY_ITEM: ItemDraft = {
   difficulty: 'easy',
   is_bonus: false,
   body: '',
+  linked_challenge_id: '',
 }
 
 const DIFFICULTY_OPTIONS: { value: ListItemDifficulty; label: string }[] = [
@@ -104,6 +109,7 @@ export function ListFormPage() {
   const [published, setPublished] = useState(false)
   const [items, setItems] = useState<ItemDraft[]>([{ ...EMPTY_ITEM }])
   const [originalItemIds, setOriginalItemIds] = useState<string[]>([])
+  const [challenges, setChallenges] = useState<Challenge[]>([])
 
   const [loading, setLoading] = useState(editing)
   const [error, setError] = useState<string | null>(null)
@@ -145,6 +151,7 @@ export function ListFormPage() {
                 difficulty: it.difficulty,
                 is_bonus: it.is_bonus,
                 body: it.body,
+                linked_challenge_id: it.linked_challenge_id ?? '',
               }))
             : [{ ...EMPTY_ITEM }],
         )
@@ -166,6 +173,18 @@ export function ListFormPage() {
       active = false
     }
   }, [editing, id])
+
+  useEffect(() => {
+    let active = true
+    listChallenges()
+      .then((data) => {
+        if (active) setChallenges(data)
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [])
 
   function updateItem(index: number, patch: Partial<ItemDraft>) {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)))
@@ -265,6 +284,7 @@ export function ListFormPage() {
           difficulty: it.difficulty,
           is_bonus: it.is_bonus,
           body: it.body,
+          linked_challenge_id: it.linked_challenge_id === '' ? null : it.linked_challenge_id,
         }
         if (it.id) {
           keptIds.add(it.id)
@@ -533,7 +553,28 @@ export function ListFormPage() {
                       ))}
                     </select>
                   </label>
+                  <label>
+                    Vincular a desafio (opcional)
+                    <select
+                      value={item.linked_challenge_id}
+                      onChange={(e) => updateItem(index, { linked_challenge_id: e.target.value })}
+                      disabled={saving}
+                    >
+                      <option value="">Nenhum</option>
+                      {challenges.map((ch) => (
+                        <option key={ch.id} value={ch.id}>
+                          {ch.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
+                {item.linked_challenge_id !== '' ? (
+                  <p className="studio__panel-hint">
+                    A conclusão deste item passa a ser automática — assim que o aluno resolver o
+                    desafio vinculado, ele aparece como concluído, sem precisar marcar manualmente.
+                  </p>
+                ) : null}
                 <label>
                   Corpo (markdown)
                   <textarea
