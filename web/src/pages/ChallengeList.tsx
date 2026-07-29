@@ -809,8 +809,14 @@ export function ChallengeList() {
                     {isCollapsed ? ` (${group.challenges.length})` : null}
                   </button>
                 ) : null}
-                {!isCollapsed ? (
-                <div className="challenge-feed">
+                {/* Always mounted, hidden via CSS rather than conditionally
+                    unmounted — React unmounting/remounting this subtree on
+                    every collapse toggle is what let a "removeChild: node is
+                    not a child of this node" crash surface (a DOM-mutating
+                    browser extension, e.g. page translation, can move/replace
+                    text nodes in here between renders; if React never has to
+                    tear the subtree down, it never fights that mutation). */}
+                <div className="challenge-feed" hidden={isCollapsed}>
                   {group.challenges.map((challenge) => (
                     <article key={challenge.id} className="challenge-row">
                       <div className="challenge-row__badges">

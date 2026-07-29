@@ -628,6 +628,15 @@ pre {
   gap: 12px;
 }
 
+/* Collapsed collection groups hide this via the `hidden` attribute (kept
+   mounted rather than conditionally rendered — see ChallengeList.tsx). The
+   attribute alone wouldn't win: author CSS always beats the UA stylesheet's
+   default `[hidden] { display: none }`, so without this override the
+   `display: flex` above would keep it visible. */
+.challenge-feed[hidden] {
+  display: none;
+}
+
 /* Collection section header on the challenge feed — same spirit as
    .list-month-header on the Listas page: mono, uppercase, muted, hairline
    rule beneath. Bottom margin is deliberately larger than the inter-card
