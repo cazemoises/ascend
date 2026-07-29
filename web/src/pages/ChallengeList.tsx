@@ -1,14 +1,17 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 
 import {
   createChallenge,
+  createChallengeCollection,
   importChallenges,
   listChallengeCollections,
   listChallenges,
   listTestCases,
   replaceTestCases,
+  reorderChallengeCollections,
   updateChallenge,
+  updateChallengeCollection,
   type Challenge,
   type ChallengeCollection,
   type ChallengeDifficulty,
@@ -145,6 +148,40 @@ export function ChallengeList() {
   const [jsonError, setJsonError] = useState<string | null>(null)
   const [jsonPreview, setJsonPreview] = useState<JsonImportPreview | null>(null)
 
+  // Tracks whether the component is still mounted, for refreshChallenges'
+  // post-mutation calls below (fired from event handlers, not an effect —
+  // the mount fetch below guards itself the same way local effects
+  // elsewhere in this file do, with its own `active` flag).
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  // Re-fetches the canonical, server-sorted-and-joined listing (collection
+  // ordinal, then created_at, with collection_title already resolved).
+  // Called after any mutation that can affect a challenge's collection
+  // (create/update/import) instead of splicing the mutation's own response
+  // into state — that response never carries collection_title (it isn't a
+  // real column, only ListChallengesForViewer's join produces it), and a
+  // naive prepend doesn't land the item in its collection's position
+  // either. Re-fetching sidesteps both problems at once.
+  async function refreshChallenges() {
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await listChallenges()
+      if (mountedRef.current) setChallenges(data)
+    } catch (err) {
+      if (mountedRef.current) {
+        setError(err instanceof Error ? err.message : 'Falha ao carregar desafios')
+      }
+    } finally {
+      if (mountedRef.current) setLoading(false)
+    }
+  }
+
   useEffect(() => {
     let active = true
 
@@ -186,6 +223,70 @@ export function ChallengeList() {
       active = false
     }
   }, [isTeacher])
+
+  const [managingCollections, setManagingCollections] = useState(false)
+  const [newCollectionTitle, setNewCollectionTitle] = useState('')
+  // Per-row draft title, keyed by collection id — only entries the teacher
+  // has actually touched exist here; everything else falls back to the
+  // collection's own title.
+  const [collectionEdits, setCollectionEdits] = useState<Record<string, string>>({})
+  const [collectionActionError, setCollectionActionError] = useState<string | null>(null)
+  const [collectionSaving, setCollectionSaving] = useState(false)
+
+  async function handleCreateCollection() {
+    const title = newCollectionTitle.trim()
+    if (title === '') return
+    setCollectionSaving(true)
+    setCollectionActionError(null)
+    try {
+      const created = await createChallengeCollection({ title })
+      setCollections((prev) => [...prev, created])
+      setNewCollectionTitle('')
+    } catch (err) {
+      setCollectionActionError(err instanceof Error ? err.message : 'Falha ao criar coleção')
+    } finally {
+      setCollectionSaving(false)
+    }
+  }
+
+  async function handleRenameCollection(cc: ChallengeCollection) {
+    const title = (collectionEdits[cc.id] ?? cc.title).trim()
+    if (title === '' || title === cc.title) return
+    setCollectionSaving(true)
+    setCollectionActionError(null)
+    try {
+      const updated = await updateChallengeCollection(cc.id, { title, ordinal: cc.ordinal })
+      setCollections((prev) => prev.map((c) => (c.id === cc.id ? updated : c)))
+      await refreshChallenges()
+    } catch (err) {
+      setCollectionActionError(err instanceof Error ? err.message : 'Falha ao renomear coleção')
+    } finally {
+      setCollectionSaving(false)
+    }
+  }
+
+  async function handleMoveCollection(index: number, direction: -1 | 1) {
+    const targetIndex = index + direction
+    if (targetIndex < 0 || targetIndex >= collections.length) return
+    const a = collections[index]
+    const b = collections[targetIndex]
+    setCollectionActionError(null)
+    try {
+      await reorderChallengeCollections([
+        { id: a.id, ordinal: b.ordinal },
+        { id: b.id, ordinal: a.ordinal },
+      ])
+      setCollections((prev) => {
+        const next = [...prev]
+        next[index] = { ...b, ordinal: a.ordinal }
+        next[targetIndex] = { ...a, ordinal: b.ordinal }
+        return next
+      })
+      await refreshChallenges()
+    } catch (err) {
+      setCollectionActionError(err instanceof Error ? err.message : 'Falha ao reordenar coleções')
+    }
+  }
 
   function toggleGroupCollapsed(key: string) {
     setCollapsedGroups((prev) => {
@@ -245,20 +346,8 @@ export function ChallengeList() {
     setJsonError(null)
     setSaving(true)
     try {
-      const created = await importChallenges(parsed as ImportChallengesInput)
-      setChallenges((prev) => [
-        ...created.map((c) => ({
-          ...c,
-          sample_test_cases: c.test_cases
-            .filter((tc) => tc.is_sample)
-            .map((tc) => ({
-              input: tc.input,
-              expected_output: tc.expected_output,
-              ordinal: tc.ordinal,
-            })),
-        })),
-        ...prev,
-      ])
+      await importChallenges(parsed as ImportChallengesInput)
+      await refreshChallenges()
       closeStudio()
     } catch (err) {
       // Backend error is shown verbatim — it already identifies which
@@ -351,37 +440,18 @@ export function ChallengeList() {
       }))
 
       if (editingChallengeId !== null) {
-        const updated = await updateChallenge(editingChallengeId, payload)
-        const savedCases = await replaceTestCases(editingChallengeId, suiteInput)
-        const samples = savedCases
-          .filter((tc) => tc.is_sample)
-          .map((tc) => ({
-            input: tc.input,
-            expected_output: tc.expected_output,
-            ordinal: tc.ordinal,
-          }))
-        setChallenges((prev) =>
-          prev.map((c) =>
-            c.id === editingChallengeId ? { ...updated, sample_test_cases: samples } : c,
-          ),
-        )
+        await updateChallenge(editingChallengeId, payload)
+        await replaceTestCases(editingChallengeId, suiteInput)
+        await refreshChallenges()
         closeStudio()
         return
       }
 
       const created = await createChallenge(payload)
       try {
-        const savedCases = await replaceTestCases(created.id, suiteInput)
-        const samples = savedCases
-          .filter((tc) => tc.is_sample)
-          .map((tc) => ({
-            input: tc.input,
-            expected_output: tc.expected_output,
-            ordinal: tc.ordinal,
-          }))
-        setChallenges((prev) => [{ ...created, sample_test_cases: samples }, ...prev])
+        await replaceTestCases(created.id, suiteInput)
       } catch (err) {
-        setChallenges((prev) => [{ ...created, sample_test_cases: [] }, ...prev])
+        await refreshChallenges()
         setSaveError(
           'O desafio foi publicado, mas a suíte de testes falhou ao salvar' +
             (err instanceof Error ? ` (${err.message})` : '') +
@@ -390,6 +460,7 @@ export function ChallengeList() {
         return
       }
 
+      await refreshChallenges()
       closeStudio()
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Falha ao salvar o desafio')
@@ -762,16 +833,88 @@ export function ChallengeList() {
       {isTeacher ? (
         <div className="action-bar">
           <span className="action-bar__label">Área do professor</span>
-          <button
-            type="button"
-            className="challenge-submit"
-            onClick={() => {
-              setSaveError(null)
-              setCreating(true)
-            }}
-          >
-            Criar desafio
-          </button>
+          <div className="studio__actions">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setManagingCollections((prev) => !prev)}
+            >
+              {managingCollections ? 'Fechar coleções' : 'Gerenciar coleções'}
+            </button>
+            <button
+              type="button"
+              className="challenge-submit"
+              onClick={() => {
+                setSaveError(null)
+                setCreating(true)
+              }}
+            >
+              Criar desafio
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {isTeacher && managingCollections ? (
+        <div className="collection-manager">
+          <h2 className="collection-manager__title">Coleções</h2>
+          {collectionActionError ? (
+            <p className="status-message status-error">{collectionActionError}</p>
+          ) : null}
+          {collections.length === 0 ? (
+            <p className="studio__panel-hint">Nenhuma coleção criada ainda.</p>
+          ) : (
+            collections.map((cc, index) => (
+              <div className="collection-manager__row" key={cc.id}>
+                <input
+                  value={collectionEdits[cc.id] ?? cc.title}
+                  onChange={(e) =>
+                    setCollectionEdits((prev) => ({ ...prev, [cc.id]: e.target.value }))
+                  }
+                  onBlur={() => void handleRenameCollection(cc)}
+                  disabled={collectionSaving}
+                />
+                <div className="list-item__actions">
+                  <button
+                    type="button"
+                    className="list-item__icon-btn"
+                    title="Mover para cima"
+                    aria-label="Mover coleção para cima"
+                    disabled={collectionSaving || index === 0}
+                    onClick={() => void handleMoveCollection(index, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="list-item__icon-btn"
+                    title="Mover para baixo"
+                    aria-label="Mover coleção para baixo"
+                    disabled={collectionSaving || index === collections.length - 1}
+                    onClick={() => void handleMoveCollection(index, 1)}
+                  >
+                    ↓
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+          <div className="collection-manager__create">
+            <input
+              value={newCollectionTitle}
+              onChange={(e) => setNewCollectionTitle(e.target.value)}
+              placeholder="Nova coleção"
+              disabled={collectionSaving}
+            />
+            <button
+              type="button"
+              className="btn-add"
+              onClick={() => void handleCreateCollection()}
+              disabled={collectionSaving || newCollectionTitle.trim() === ''}
+            >
+              + Criar coleção
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -805,8 +948,14 @@ export function ChallengeList() {
                     {isCollapsed ? ` (${group.challenges.length})` : null}
                   </button>
                 ) : null}
-                {!isCollapsed ? (
-                <div className="challenge-feed">
+                {/* Always mounted, hidden via CSS rather than conditionally
+                    unmounted — React unmounting/remounting this subtree on
+                    every collapse toggle is what let a "removeChild: node is
+                    not a child of this node" crash surface (a DOM-mutating
+                    browser extension, e.g. page translation, can move/replace
+                    text nodes in here between renders; if React never has to
+                    tear the subtree down, it never fights that mutation). */}
+                <div className="challenge-feed" hidden={isCollapsed}>
                   {group.challenges.map((challenge) => (
                     <article key={challenge.id} className="challenge-row">
                       <div className="challenge-row__badges">
@@ -859,7 +1008,6 @@ export function ChallengeList() {
                     </article>
                   ))}
                 </div>
-                ) : null}
               </div>
               )
             })

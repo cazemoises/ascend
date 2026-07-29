@@ -107,6 +107,44 @@ func (h *ChallengeCollectionsHandler) Update(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, cc)
 }
 
+type collectionReorderBody struct {
+	Items []struct {
+		ID      string `json:"id"`
+		Ordinal int    `json:"ordinal"`
+	} `json:"items"`
+}
+
+// Reorder handles PATCH /api/v1/challenge-collections/reorder (teacher
+// only, owner of every collection in the batch) — applied atomically by the
+// store, mirroring ListsHandler.Reorder.
+func (h *ChallengeCollectionsHandler) Reorder(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.FromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	var body collectionReorderBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	items := make([]store.CollectionReorderItem, 0, len(body.Items))
+	for _, it := range body.Items {
+		items = append(items, store.CollectionReorderItem{ID: it.ID, Ordinal: it.Ordinal})
+	}
+
+	if err := h.store.ReorderChallengeCollections(r.Context(), claims.UserID, items); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "challenge collection not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // Delete handles DELETE /api/v1/challenge-collections/:id (teacher only,
 // owner of the collection only). Challenges in the collection are un-linked
 // (collection_id set to NULL), never deleted — enforced by the FK's ON

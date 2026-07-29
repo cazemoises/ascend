@@ -245,6 +245,36 @@ export function listChallengeCollections() {
   return requestJSON<ChallengeCollection[]>('/api/v1/challenge-collections')
 }
 
+export interface ChallengeCollectionInput {
+  title: string
+  // Omitted on create means "next available ordinal"; required on update
+  // (the backend defaults a missing value to 0, which would silently reset
+  // the collection's position) — always pass the collection's current
+  // ordinal when only renaming it.
+  ordinal?: number
+}
+
+export function createChallengeCollection(body: ChallengeCollectionInput) {
+  return requestJSON<ChallengeCollection>('/api/v1/challenge-collections', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateChallengeCollection(id: string, body: Required<ChallengeCollectionInput>) {
+  return requestJSON<ChallengeCollection>(`/api/v1/challenge-collections/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function reorderChallengeCollections(items: { id: string; ordinal: number }[]) {
+  return requestJSON<void>('/api/v1/challenge-collections/reorder', {
+    method: 'PATCH',
+    body: JSON.stringify({ items }),
+  })
+}
+
 export function replaceTestCases(challengeId: string, testCases: CreateTestCaseInput[]) {
   return requestJSON<TestCase[]>(`/api/v1/challenges/${challengeId}/test-cases`, {
     method: 'PUT',

@@ -127,6 +127,110 @@ func TestCreateChallenge_CollectionNotFoundRejected(t *testing.T) {
 	}
 }
 
+func TestReorderChallengeCollections_HappyPathSwapsOrdinals(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	teacher := createTestUser(t, s, db, ctx, "collections-reorder-teacher@example.com")
+
+	first, err := s.CreateChallengeCollection(ctx, store.CreateChallengeCollectionRequest{
+		TeacherID: teacher.ID, Title: "First",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallengeCollection (first): %v", err)
+	}
+	t.Cleanup(func() { s.DeleteChallengeCollection(ctx, first.ID, teacher.ID) })
+
+	second, err := s.CreateChallengeCollection(ctx, store.CreateChallengeCollectionRequest{
+		TeacherID: teacher.ID, Title: "Second",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallengeCollection (second): %v", err)
+	}
+	t.Cleanup(func() { s.DeleteChallengeCollection(ctx, second.ID, teacher.ID) })
+
+	err = s.ReorderChallengeCollections(ctx, teacher.ID, []store.CollectionReorderItem{
+		{ID: first.ID, Ordinal: second.Ordinal},
+		{ID: second.ID, Ordinal: first.Ordinal},
+	})
+	if err != nil {
+		t.Fatalf("ReorderChallengeCollections: %v", err)
+	}
+
+	ccs, err := s.ListChallengeCollections(ctx, teacher.ID)
+	if err != nil {
+		t.Fatalf("ListChallengeCollections: %v", err)
+	}
+	for _, cc := range ccs {
+		switch cc.ID {
+		case first.ID:
+			if cc.Ordinal != second.Ordinal {
+				t.Errorf("first ordinal = %d, want %d (swapped)", cc.Ordinal, second.Ordinal)
+			}
+		case second.ID:
+			if cc.Ordinal != first.Ordinal {
+				t.Errorf("second ordinal = %d, want %d (swapped)", cc.Ordinal, first.Ordinal)
+			}
+		}
+	}
+}
+
+func TestReorderChallengeCollections_AtomicOnPartialFailure(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	teacher := createTestUser(t, s, db, ctx, "collections-reorder-atomic-teacher@example.com")
+
+	cc, err := s.CreateChallengeCollection(ctx, store.CreateChallengeCollectionRequest{
+		TeacherID: teacher.ID, Title: "Solo",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallengeCollection: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteChallengeCollection(ctx, cc.ID, teacher.ID) })
+
+	// The second entry targets a nonexistent collection id — the whole batch
+	// must roll back, leaving cc's ordinal untouched.
+	err = s.ReorderChallengeCollections(ctx, teacher.ID, []store.CollectionReorderItem{
+		{ID: cc.ID, Ordinal: 9},
+		{ID: "00000000-0000-0000-0000-000000000000", Ordinal: 10},
+	})
+	if err != store.ErrNotFound {
+		t.Fatalf("expected ErrNotFound from the batch, got %v", err)
+	}
+
+	ccs, err := s.ListChallengeCollections(ctx, teacher.ID)
+	if err != nil {
+		t.Fatalf("ListChallengeCollections: %v", err)
+	}
+	if ccs[0].Ordinal != cc.Ordinal {
+		t.Errorf("ordinal = %d, want %d (unchanged — the batch should have rolled back)", ccs[0].Ordinal, cc.Ordinal)
+	}
+}
+
+func TestReorderChallengeCollections_NotOwnerNotFound(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	owner := createTestUser(t, s, db, ctx, "collections-reorder-owner@example.com")
+	other := createTestUser(t, s, db, ctx, "collections-reorder-other@example.com")
+
+	cc, err := s.CreateChallengeCollection(ctx, store.CreateChallengeCollectionRequest{
+		TeacherID: owner.ID, Title: "Owner's",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallengeCollection: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteChallengeCollection(ctx, cc.ID, owner.ID) })
+
+	err = s.ReorderChallengeCollections(ctx, other.ID, []store.CollectionReorderItem{
+		{ID: cc.ID, Ordinal: 9},
+	})
+	if err != store.ErrNotFound {
+		t.Errorf("err = %v, want ErrNotFound (non-owner can't reorder)", err)
+	}
+}
+
 func TestListChallengesForViewer_GroupedByCollectionOrdinalThenCreatedAt(t *testing.T) {
 	db := openTestDB(t)
 	s := store.New(db, nil)
