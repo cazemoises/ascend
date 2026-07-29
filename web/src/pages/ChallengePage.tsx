@@ -1,6 +1,8 @@
 import Editor from '@monaco-editor/react'
 import { useEffect, useState, type FormEvent } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import rehypeHighlight from 'rehype-highlight'
 
 import {
   createSubmission,
@@ -253,9 +255,15 @@ export function ChallengePage() {
               <span className="constraint">/{challenge.slug}</span>
             </div>
 
-            <p className="muted">{challenge.description}</p>
+            <div className="muted markdown-content">
+              <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{challenge.description}</ReactMarkdown>
+            </div>
 
-            {challenge.notes ? <p className="notes-callout">{challenge.notes}</p> : null}
+            {challenge.notes ? (
+              <div className="notes-callout markdown-content">
+                <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{challenge.notes}</ReactMarkdown>
+              </div>
+            ) : null}
 
             {challenge.language === 'sql' && challenge.sql_schema ? (
               <>

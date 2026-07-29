@@ -950,7 +950,6 @@ pre {
   border-radius: var(--radius-s);
   background: var(--inset);
   font-size: 0.85rem;
-  white-space: pre-wrap;
   color: var(--text);
 }
 
