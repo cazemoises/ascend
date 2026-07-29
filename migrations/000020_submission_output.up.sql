@@ -1,0 +1,2 @@
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS stdout TEXT NULL;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS expected_output TEXT NULL;
