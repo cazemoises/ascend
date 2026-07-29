@@ -71,12 +71,16 @@ func (s *Store) ImportChallenges(ctx context.Context, reqs []ImportChallengeRequ
 			memLimitMb = 256
 		}
 
+		if err := validateCollectionID(ctx, tx, req.CollectionID); err != nil {
+			return nil, fmt.Errorf("challenge %d: %w", i, err)
+		}
+
 		row := tx.QueryRowContext(ctx,
-			`INSERT INTO challenges (slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, language, sql_schema)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			`INSERT INTO challenges (slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, language, sql_schema, collection_id)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			 RETURNING `+challengeColumns,
 			req.Slug, req.Title, req.Description, req.Difficulty, timeLimitMs, memLimitMb, req.Notes, req.StarterCode,
-			req.Language, req.SQLSchema)
+			req.Language, req.SQLSchema, req.CollectionID)
 		c, err := scanChallenge(row)
 		if err != nil {
 			if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {

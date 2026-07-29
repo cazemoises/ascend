@@ -108,6 +108,7 @@ type createChallengeBody struct {
 	StarterCode   *string `json:"starter_code"`
 	Language      *string `json:"language"`
 	SQLSchema     *string `json:"sql_schema"`
+	CollectionID  *string `json:"collection_id"`
 }
 
 // validateSQLFields enforces the scope of the SQL challenge modality: the
@@ -164,10 +165,15 @@ func (h *ChallengesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		StarterCode:   body.StarterCode,
 		Language:      body.Language,
 		SQLSchema:     body.SQLSchema,
+		CollectionID:  body.CollectionID,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			writeError(w, http.StatusConflict, "slug already exists")
+			return
+		}
+		if errors.Is(err, store.ErrCollectionNotFound) {
+			writeError(w, http.StatusUnprocessableEntity, "collection_id does not reference an existing challenge collection")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal server error")
@@ -199,6 +205,7 @@ func (h *ChallengesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		StarterCode:   body.StarterCode,
 		Language:      body.Language,
 		SQLSchema:     body.SQLSchema,
+		CollectionID:  body.CollectionID,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -207,6 +214,10 @@ func (h *ChallengesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, store.ErrConflict) {
 			writeError(w, http.StatusConflict, "slug already exists")
+			return
+		}
+		if errors.Is(err, store.ErrCollectionNotFound) {
+			writeError(w, http.StatusUnprocessableEntity, "collection_id does not reference an existing challenge collection")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal server error")
@@ -402,6 +413,7 @@ func (h *ChallengesHandler) Import(w http.ResponseWriter, r *http.Request) {
 				StarterCode:   ch.StarterCode,
 				Language:      ch.Language,
 				SQLSchema:     ch.SQLSchema,
+				CollectionID:  ch.CollectionID,
 			},
 			TestCases: tcReqs,
 		})
@@ -409,6 +421,10 @@ func (h *ChallengesHandler) Import(w http.ResponseWriter, r *http.Request) {
 
 	results, err := h.store.ImportChallenges(r.Context(), reqs)
 	if err != nil {
+		if errors.Is(err, store.ErrCollectionNotFound) {
+			writeError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
 		var conflictErr *store.ImportConflictError
 		if errors.As(err, &conflictErr) {
 			writeError(w, http.StatusUnprocessableEntity, conflictErr.Error())
