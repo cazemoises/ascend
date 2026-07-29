@@ -631,11 +631,25 @@ pre {
 /* Collection section header on the challenge feed — same spirit as
    .list-month-header on the Listas page: mono, uppercase, muted, hairline
    rule beneath. Bottom margin is deliberately larger than the inter-card
-   gap (.challenge-feed) so the group boundary reads clearly. */
+   gap (.challenge-feed) so the group boundary reads clearly. A <button>
+   (not <h2>): the whole bar toggles the group, same as .audit-toggle
+   elsewhere, so it's reset to plain-text button chrome and made a
+   full-width flex row for the caret + label instead of reusing
+   .audit-toggle's inline-flex (which isn't full-width and would reset
+   this header's own font styling via its `font: inherit`).
+*/
 .challenge-collection-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
   margin: 24px 0 28px;
-  padding-bottom: 8px;
+  padding: 0 0 8px;
+  border: none;
   border-bottom: 1px solid var(--border-hairline);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
   font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 700;
