@@ -177,10 +177,12 @@ func (h *ListsHandler) Import(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		items = append(items, store.CreateListItemRequest{
-			Title:      it.Title,
-			Difficulty: it.Difficulty,
-			IsBonus:    it.IsBonus,
-			Body:       it.Body,
+			Title:               it.Title,
+			Difficulty:          it.Difficulty,
+			IsBonus:             it.IsBonus,
+			Body:                it.Body,
+			LinkedChallengeID:   it.LinkedChallengeID,
+			LinkedChallengeSlug: it.LinkedChallengeSlug,
 		})
 	}
 
@@ -194,6 +196,15 @@ func (h *ListsHandler) Import(w http.ResponseWriter, r *http.Request) {
 		Items:       items,
 	})
 	if err != nil {
+		var slugNotFoundErr *store.ImportChallengeSlugNotFoundError
+		if errors.As(err, &slugNotFoundErr) {
+			writeError(w, http.StatusUnprocessableEntity, slugNotFoundErr.Error())
+			return
+		}
+		if errors.Is(err, store.ErrLinkedChallengeNotFound) {
+			writeError(w, http.StatusUnprocessableEntity, "linked_challenge_id does not reference an existing challenge")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -326,6 +337,11 @@ type listItemBody struct {
 	// automatically from the student having solved that challenge instead
 	// of a self-declared checkbox.
 	LinkedChallengeID *string `json:"linked_challenge_id"`
+	// LinkedChallengeSlug is only meaningful on Import: a teacher writing
+	// the JSON by hand knows a challenge's slug, not its UUID.
+	// CreateItem/UpdateItem ignore it (the studio dropdown already sends
+	// LinkedChallengeID directly).
+	LinkedChallengeSlug *string `json:"linked_challenge_slug"`
 }
 
 func (b listItemBody) validate() (string, bool) {
