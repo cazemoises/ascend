@@ -6,6 +6,7 @@ import {
   createSubmission,
   getChallenge,
   getChallengeStats,
+  getLastSubmission,
   listChallengeSubmissions,
   type Challenge,
   type ChallengeStats,
@@ -134,6 +135,22 @@ export function ChallengePage() {
               data.starter_code ? visibleTemplate(data.starter_code) : CODE_TEMPLATES.python,
             )
           }
+        }
+
+        // Restore the student's own last attempt at this challenge, in
+        // whichever language they last used, instead of leaving them to
+        // re-type work "Voltar ao desafio" would otherwise have discarded.
+        // 404 (never submitted) is the common case, not an error — the
+        // starter_code default set above stays in place.
+        try {
+          const last = await getLastSubmission(id)
+          if (active) {
+            setLanguage(last.language)
+            setSourceCode(last.source_code)
+          }
+        } catch {
+          // No previous submission, or a transient fetch error — either
+          // way, keep the starter_code default.
         }
       } catch (err) {
         if (active) {
