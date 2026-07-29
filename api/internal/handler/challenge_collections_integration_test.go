@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -20,6 +21,7 @@ func newChallengeCollectionsRouter(s *store.Store) chi.Router {
 	r := chi.NewRouter()
 	r.With(auth.RequireAuthenticated, auth.RequireRole("teacher")).Post("/challenge-collections", h.Create)
 	r.With(auth.RequireAuthenticated, auth.RequireRole("teacher")).Get("/challenge-collections", h.List)
+	r.With(auth.RequireAuthenticated, auth.RequireRole("teacher")).Patch("/challenge-collections/reorder", h.Reorder)
 	return r
 }
 
@@ -53,6 +55,64 @@ func TestCreateChallengeCollection_TeacherOnly(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/challenge-collections",
 				bytes.NewBufferString(`{"title":"Teacher Only Test"}`))
+			req.Header.Set("Content-Type", "application/json")
+			if tc.claims != nil {
+				req = req.WithContext(auth.NewContext(req.Context(), *tc.claims))
+			}
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			if w.Code != tc.wantStatus {
+				t.Errorf("status = %d, want %d: %s", w.Code, tc.wantStatus, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestReorderChallengeCollections_Handler(t *testing.T) {
+	db := openHandlerTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	r := newChallengeCollectionsRouter(s)
+
+	teacher, err := s.CreateUser(ctx, "collections-reorder-handler@example.com", "unused-hash")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, teacher.ID) })
+	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM challenge_collections WHERE teacher_id = $1`, teacher.ID) })
+
+	first, err := s.CreateChallengeCollection(ctx, store.CreateChallengeCollectionRequest{
+		TeacherID: teacher.ID, Title: "First",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallengeCollection (first): %v", err)
+	}
+	second, err := s.CreateChallengeCollection(ctx, store.CreateChallengeCollectionRequest{
+		TeacherID: teacher.ID, Title: "Second",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallengeCollection (second): %v", err)
+	}
+
+	teacherClaims := auth.Claims{UserID: teacher.ID, Email: teacher.Email, Role: "teacher"}
+	studentClaims := auth.Claims{UserID: "s1", Email: "s@example.com", Role: "student"}
+
+	cases := []struct {
+		name       string
+		claims     *auth.Claims
+		wantStatus int
+	}{
+		{"student is forbidden", &studentClaims, http.StatusForbidden},
+		{"unauthenticated is rejected", nil, http.StatusUnauthorized},
+		{"teacher is allowed", &teacherClaims, http.StatusNoContent},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := `{"items":[{"id":"` + first.ID + `","ordinal":` + strconv.Itoa(second.Ordinal) + `},` +
+				`{"id":"` + second.ID + `","ordinal":` + strconv.Itoa(first.Ordinal) + `}]}`
+			req := httptest.NewRequest(http.MethodPatch, "/challenge-collections/reorder", bytes.NewBufferString(body))
 			req.Header.Set("Content-Type", "application/json")
 			if tc.claims != nil {
 				req = req.WithContext(auth.NewContext(req.Context(), *tc.claims))

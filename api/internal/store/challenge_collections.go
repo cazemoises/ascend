@@ -137,6 +137,45 @@ func (s *Store) UpdateChallengeCollection(ctx context.Context, id, teacherID str
 	return cc, nil
 }
 
+// CollectionReorderItem is one row of a PATCH /challenge-collections/reorder
+// batch.
+type CollectionReorderItem struct {
+	ID      string
+	Ordinal int
+}
+
+// ReorderChallengeCollections applies a batch of ordinal updates atomically:
+// any item that doesn't exist or isn't owned by teacherID rolls back the
+// whole batch instead of leaving it half-reordered. Unlike
+// ReorderListItems, there's no separate parent entity to check ownership
+// of first — collections carry teacher_id directly — so each row's own
+// UPDATE ... WHERE id = $1 AND teacher_id = $2 does the ownership check.
+func (s *Store) ReorderChallengeCollections(ctx context.Context, teacherID string, items []CollectionReorderItem) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, item := range items {
+		res, err := tx.ExecContext(ctx,
+			`UPDATE challenge_collections SET ordinal = $1, updated_at = now() WHERE id = $2 AND teacher_id = $3`,
+			item.Ordinal, item.ID, teacherID)
+		if err != nil {
+			return fmt.Errorf("update ordinal for collection %s: %w", item.ID, err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return ErrNotFound
+		}
+	}
+
+	return tx.Commit()
+}
+
 func (s *Store) DeleteChallengeCollection(ctx context.Context, id, teacherID string) error {
 	res, err := s.db.ExecContext(ctx,
 		`DELETE FROM challenge_collections WHERE id = $1 AND teacher_id = $2`, id, teacherID)

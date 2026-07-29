@@ -61,6 +61,7 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter) chi.Rout
 				r.Use(auth.RequireAuthenticated, teacherOnly)
 				r.Get("/", cch.List)
 				r.Post("/", cch.Create)
+				r.Patch("/reorder", cch.Reorder)
 				r.Patch("/{id}", cch.Update)
 				r.Delete("/{id}", cch.Delete)
 			})
