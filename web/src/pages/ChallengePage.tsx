@@ -16,7 +16,11 @@ import {
 import { useAuth } from '../auth/useAuth'
 import { VerdictBadge } from '../components/VerdictBadge'
 
+// SQL challenges have no starter template or tab — the student writes the
+// whole query from scratch, so its entries here are unused placeholders that
+// exist only to satisfy Record<SubmissionLanguage, string>.
 const CODE_TEMPLATES: Record<SubmissionLanguage, string> = {
+  sql: '',
   python: `import sys
 
 def main():
@@ -71,9 +75,12 @@ function visibleTemplate(starter: string): string {
   return stub === '' ? '' : `${stub}\n`
 }
 
+// SQL is deliberately excluded: it has no tab of its own (see the editor
+// toolbar below), so it never needs a template swap or a tab label.
 const LANGUAGES: SubmissionLanguage[] = ['python', 'go', 'javascript']
 
 const FILE_NAMES: Record<SubmissionLanguage, string> = {
+  sql: 'query.sql',
   python: 'solution.py',
   go: 'main.go',
   javascript: 'solution.js',
@@ -111,15 +118,22 @@ export function ChallengePage() {
         const data = await getChallenge(id)
         if (active) {
           setChallenge(data)
-          // Loading a challenge resets the workspace to the default tab and
-          // force-injects the student-visible stub of the teacher's
-          // starter_code (the hidden runner below the marker is stripped).
-          // The single starter_code field belongs to the Python tab; other
-          // tabs fall back to the built-in templates.
-          setLanguage('python')
-          setSourceCode(
-            data.starter_code ? visibleTemplate(data.starter_code) : CODE_TEMPLATES.python,
-          )
+          if (data.language === 'sql') {
+            // SQL challenges have no harness/stub: the whole query the
+            // student writes is the submission, so the editor starts empty.
+            setLanguage('sql')
+            setSourceCode('')
+          } else {
+            // Loading a challenge resets the workspace to the default tab
+            // and force-injects the student-visible stub of the teacher's
+            // starter_code (the hidden runner below the marker is
+            // stripped). The single starter_code field belongs to the
+            // Python tab; other tabs fall back to the built-in templates.
+            setLanguage('python')
+            setSourceCode(
+              data.starter_code ? visibleTemplate(data.starter_code) : CODE_TEMPLATES.python,
+            )
+          }
         }
       } catch (err) {
         if (active) {
@@ -226,6 +240,13 @@ export function ChallengePage() {
 
             {challenge.notes ? <p className="notes-callout">{challenge.notes}</p> : null}
 
+            {challenge.language === 'sql' && challenge.sql_schema ? (
+              <>
+                <h2 className="section-title">Schema SQL</h2>
+                <pre className="sample__io">{challenge.sql_schema}</pre>
+              </>
+            ) : null}
+
             {challenge.sample_test_cases.length > 0 ? (
               <>
                 <h2 className="section-title">Exemplos</h2>
@@ -234,11 +255,13 @@ export function ChallengePage() {
                     <div className="sample__label">Exemplo {i + 1}</div>
                     <div className="sample__io">
                       <div>
-                        <span>Entrada</span>
+                        <span>{challenge.language === 'sql' ? 'Dados de Seed' : 'Entrada'}</span>
                         <pre>{tc.input || '(vazio)'}</pre>
                       </div>
                       <div>
-                        <span>Saída esperada</span>
+                        <span>
+                          {challenge.language === 'sql' ? 'Resultado Esperado' : 'Saída esperada'}
+                        </span>
                         <pre>{tc.expected_output}</pre>
                       </div>
                     </div>
@@ -250,31 +273,37 @@ export function ChallengePage() {
 
           <form className="workspace__editor" onSubmit={handleSubmit}>
             <div className="editor-toolbar">
-              <div className="editor-tabs" role="tablist" aria-label="Linguagem">
-                {LANGUAGES.map((lang) => (
-                  <button
-                    key={lang}
-                    type="button"
-                    role="tab"
-                    aria-selected={language === lang}
-                    className={
-                      language === lang ? 'editor-tab editor-tab--active' : 'editor-tab'
-                    }
-                    disabled={submitting}
-                    onClick={() => {
-                      // Swap templates only while the editor still holds the
-                      // untouched template of the active tab; user edits stay.
-                      if (sourceCode === '' || sourceCode === templateFor(language)) {
-                        setSourceCode(templateFor(lang))
-                      }
-                      setLanguage(lang)
-                    }}
-                  >
-                    {FILE_NAMES[lang]}
-                  </button>
-                ))}
-              </div>
-              <span className="editor-toolbar__title">Editor de código</span>
+              {challenge.language === 'sql' ? (
+                <span className="editor-toolbar__title">{FILE_NAMES.sql}</span>
+              ) : (
+                <>
+                  <div className="editor-tabs" role="tablist" aria-label="Linguagem">
+                    {LANGUAGES.map((lang) => (
+                      <button
+                        key={lang}
+                        type="button"
+                        role="tab"
+                        aria-selected={language === lang}
+                        className={
+                          language === lang ? 'editor-tab editor-tab--active' : 'editor-tab'
+                        }
+                        disabled={submitting}
+                        onClick={() => {
+                          // Swap templates only while the editor still holds the
+                          // untouched template of the active tab; user edits stay.
+                          if (sourceCode === '' || sourceCode === templateFor(language)) {
+                            setSourceCode(templateFor(lang))
+                          }
+                          setLanguage(lang)
+                        }}
+                      >
+                        {FILE_NAMES[lang]}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="editor-toolbar__title">Editor de código</span>
+                </>
+              )}
             </div>
 
             <div className="editor-host">
@@ -297,7 +326,9 @@ export function ChallengePage() {
 
             <div className="editor-actions">
               <p className="editor-actions__hint">
-                Sua solução roda em um sandbox isolado contra todos os casos de teste.
+                {challenge.language === 'sql'
+                  ? 'Sua query roda em um sandbox isolado contra todos os casos de teste.'
+                  : 'Sua solução roda em um sandbox isolado contra todos os casos de teste.'}
               </p>
               <button type="submit" className="challenge-submit" disabled={submitting}>
                 {submitting ? 'Enviando...' : 'Enviar solução'}
