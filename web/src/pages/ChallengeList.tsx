@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 
 import {
@@ -145,6 +145,40 @@ export function ChallengeList() {
   const [jsonError, setJsonError] = useState<string | null>(null)
   const [jsonPreview, setJsonPreview] = useState<JsonImportPreview | null>(null)
 
+  // Tracks whether the component is still mounted, for refreshChallenges'
+  // post-mutation calls below (fired from event handlers, not an effect —
+  // the mount fetch below guards itself the same way local effects
+  // elsewhere in this file do, with its own `active` flag).
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  // Re-fetches the canonical, server-sorted-and-joined listing (collection
+  // ordinal, then created_at, with collection_title already resolved).
+  // Called after any mutation that can affect a challenge's collection
+  // (create/update/import) instead of splicing the mutation's own response
+  // into state — that response never carries collection_title (it isn't a
+  // real column, only ListChallengesForViewer's join produces it), and a
+  // naive prepend doesn't land the item in its collection's position
+  // either. Re-fetching sidesteps both problems at once.
+  async function refreshChallenges() {
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await listChallenges()
+      if (mountedRef.current) setChallenges(data)
+    } catch (err) {
+      if (mountedRef.current) {
+        setError(err instanceof Error ? err.message : 'Falha ao carregar desafios')
+      }
+    } finally {
+      if (mountedRef.current) setLoading(false)
+    }
+  }
+
   useEffect(() => {
     let active = true
 
@@ -245,20 +279,8 @@ export function ChallengeList() {
     setJsonError(null)
     setSaving(true)
     try {
-      const created = await importChallenges(parsed as ImportChallengesInput)
-      setChallenges((prev) => [
-        ...created.map((c) => ({
-          ...c,
-          sample_test_cases: c.test_cases
-            .filter((tc) => tc.is_sample)
-            .map((tc) => ({
-              input: tc.input,
-              expected_output: tc.expected_output,
-              ordinal: tc.ordinal,
-            })),
-        })),
-        ...prev,
-      ])
+      await importChallenges(parsed as ImportChallengesInput)
+      await refreshChallenges()
       closeStudio()
     } catch (err) {
       // Backend error is shown verbatim — it already identifies which
@@ -351,37 +373,18 @@ export function ChallengeList() {
       }))
 
       if (editingChallengeId !== null) {
-        const updated = await updateChallenge(editingChallengeId, payload)
-        const savedCases = await replaceTestCases(editingChallengeId, suiteInput)
-        const samples = savedCases
-          .filter((tc) => tc.is_sample)
-          .map((tc) => ({
-            input: tc.input,
-            expected_output: tc.expected_output,
-            ordinal: tc.ordinal,
-          }))
-        setChallenges((prev) =>
-          prev.map((c) =>
-            c.id === editingChallengeId ? { ...updated, sample_test_cases: samples } : c,
-          ),
-        )
+        await updateChallenge(editingChallengeId, payload)
+        await replaceTestCases(editingChallengeId, suiteInput)
+        await refreshChallenges()
         closeStudio()
         return
       }
 
       const created = await createChallenge(payload)
       try {
-        const savedCases = await replaceTestCases(created.id, suiteInput)
-        const samples = savedCases
-          .filter((tc) => tc.is_sample)
-          .map((tc) => ({
-            input: tc.input,
-            expected_output: tc.expected_output,
-            ordinal: tc.ordinal,
-          }))
-        setChallenges((prev) => [{ ...created, sample_test_cases: samples }, ...prev])
+        await replaceTestCases(created.id, suiteInput)
       } catch (err) {
-        setChallenges((prev) => [{ ...created, sample_test_cases: [] }, ...prev])
+        await refreshChallenges()
         setSaveError(
           'O desafio foi publicado, mas a suíte de testes falhou ao salvar' +
             (err instanceof Error ? ` (${err.message})` : '') +
@@ -390,6 +393,7 @@ export function ChallengeList() {
         return
       }
 
+      await refreshChallenges()
       closeStudio()
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Falha ao salvar o desafio')
