@@ -44,6 +44,17 @@ function groupByMonth(lists: ProblemList[]): MonthGroup[] {
   return groups
 }
 
+function matchesListSearch(list: ProblemList, query: string): boolean {
+  const trimmed = query.trim().toLowerCase()
+  if (trimmed === '') {
+    return true
+  }
+  return (
+    list.title.toLowerCase().includes(trimmed) ||
+    (list.week_label?.toLowerCase().includes(trimmed) ?? false)
+  )
+}
+
 // Shared row markup for every list card on this page — the current-week
 // spotlight, the upcoming section, and the month-grouped history all render
 // the same title/badge/meta/link body; only the spotlight gets the extra
@@ -77,6 +88,7 @@ export function ListsPage() {
   const [lists, setLists] = useState<ProblemList[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     let active = true
@@ -103,13 +115,14 @@ export function ListsPage() {
     }
   }, [])
 
-  const currentLists = lists.filter((list) => list.is_current)
+  const searchedLists = lists.filter((list) => matchesListSearch(list, searchQuery))
+  const currentLists = searchedLists.filter((list) => list.is_current)
   // Soonest-first — the opposite of the API's general DESC order, so this
   // subset gets its own sort rather than relying on the fetch order.
-  const upcomingLists = [...lists]
+  const upcomingLists = [...searchedLists]
     .filter((list) => list.is_upcoming)
     .sort((a, b) => (a.week_start ?? '').localeCompare(b.week_start ?? ''))
-  const remainingLists = lists.filter((list) => !list.is_current && !list.is_upcoming)
+  const remainingLists = searchedLists.filter((list) => !list.is_current && !list.is_upcoming)
 
   return (
     <main className="page-shell lists-page">
@@ -121,6 +134,27 @@ export function ListsPage() {
           autodeclarado.
         </p>
       </section>
+
+      {lists.length > 0 ? (
+        <div className="challenge-filters">
+          <input
+            type="search"
+            className="challenge-filters__search"
+            placeholder="Buscar por título ou semana..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+          />
+          {searchQuery.trim() !== '' ? (
+            <button
+              type="button"
+              className="btn-secondary btn-ghost"
+              onClick={() => setSearchQuery('')}
+            >
+              Limpar filtros
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {isTeacher ? (
         <div className="action-bar">
@@ -135,7 +169,7 @@ export function ListsPage() {
       {error ? <p className="status-message status-error">{error}</p> : null}
 
       {!loading && !error ? (
-        lists.length > 0 ? (
+        searchedLists.length > 0 ? (
           <>
             {currentLists.length > 0 ? (
               <section className="list-current">
@@ -184,9 +218,11 @@ export function ListsPage() {
           </>
         ) : (
           <p className="status-message">
-            {isTeacher
-              ? 'Você ainda não publicou nenhuma lista.'
-              : 'Nenhuma lista publicada ainda.'}
+            {lists.length === 0
+              ? isTeacher
+                ? 'Você ainda não publicou nenhuma lista.'
+                : 'Nenhuma lista publicada ainda.'
+              : 'Nenhuma lista encontrada para essa busca.'}
           </p>
         )
       ) : null}
