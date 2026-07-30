@@ -1463,6 +1463,12 @@ pre {
   color: var(--muted);
 }
 
+.collection-manager__title--spaced {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-hairline);
+}
+
 .collection-manager__row {
   display: flex;
   align-items: center;
@@ -1477,6 +1483,12 @@ pre {
 
 .collection-manager__row input {
   flex: 1;
+}
+
+.collection-manager__row select,
+.collection-manager__create select {
+  flex-shrink: 0;
+  width: 160px;
 }
 
 .collection-manager__create {

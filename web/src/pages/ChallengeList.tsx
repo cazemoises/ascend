@@ -4,17 +4,22 @@ import { Link } from 'react-router-dom'
 import {
   createChallenge,
   createChallengeCollection,
+  createChallengeGroup,
   importChallenges,
   listChallengeCollections,
+  listChallengeGroups,
   listChallenges,
   listTestCases,
   replaceTestCases,
   reorderChallengeCollections,
+  reorderChallengeGroups,
   updateChallenge,
   updateChallengeCollection,
+  updateChallengeGroup,
   type Challenge,
   type ChallengeCollection,
   type ChallengeDifficulty,
+  type ChallengeGroup,
   type ChallengeLanguage,
   type ImportChallengesInput,
 } from '../api'
@@ -323,8 +328,24 @@ export function ChallengeList() {
     }
   }, [isTeacher])
 
+  const [groups, setGroups] = useState<ChallengeGroup[]>([])
+
+  useEffect(() => {
+    if (!isTeacher) return
+    let active = true
+    listChallengeGroups()
+      .then((data) => {
+        if (active) setGroups(data)
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [isTeacher])
+
   const [managingCollections, setManagingCollections] = useState(false)
   const [newCollectionTitle, setNewCollectionTitle] = useState('')
+  const [newCollectionGroupId, setNewCollectionGroupId] = useState('')
   // Per-row draft title, keyed by collection id — only entries the teacher
   // has actually touched exist here; everything else falls back to the
   // collection's own title.
@@ -332,15 +353,22 @@ export function ChallengeList() {
   const [collectionActionError, setCollectionActionError] = useState<string | null>(null)
   const [collectionSaving, setCollectionSaving] = useState(false)
 
+  const [newGroupTitle, setNewGroupTitle] = useState('')
+  const [groupEdits, setGroupEdits] = useState<Record<string, string>>({})
+
   async function handleCreateCollection() {
     const title = newCollectionTitle.trim()
     if (title === '') return
     setCollectionSaving(true)
     setCollectionActionError(null)
     try {
-      const created = await createChallengeCollection({ title })
+      const created = await createChallengeCollection({
+        title,
+        group_id: newCollectionGroupId === '' ? null : newCollectionGroupId,
+      })
       setCollections((prev) => [...prev, created])
       setNewCollectionTitle('')
+      setNewCollectionGroupId('')
     } catch (err) {
       setCollectionActionError(err instanceof Error ? err.message : 'Falha ao criar coleção')
     } finally {
@@ -368,6 +396,24 @@ export function ChallengeList() {
     }
   }
 
+  async function handleChangeCollectionGroup(cc: ChallengeCollection, groupId: string) {
+    setCollectionSaving(true)
+    setCollectionActionError(null)
+    try {
+      const updated = await updateChallengeCollection(cc.id, {
+        title: cc.title,
+        ordinal: cc.ordinal,
+        group_id: groupId === '' ? null : groupId,
+      })
+      setCollections((prev) => prev.map((c) => (c.id === cc.id ? updated : c)))
+      await refreshChallenges()
+    } catch (err) {
+      setCollectionActionError(err instanceof Error ? err.message : 'Falha ao mudar o grupo da coleção')
+    } finally {
+      setCollectionSaving(false)
+    }
+  }
+
   async function handleMoveCollection(index: number, direction: -1 | 1) {
     const targetIndex = index + direction
     if (targetIndex < 0 || targetIndex >= collections.length) return
@@ -388,6 +434,60 @@ export function ChallengeList() {
       await refreshChallenges()
     } catch (err) {
       setCollectionActionError(err instanceof Error ? err.message : 'Falha ao reordenar coleções')
+    }
+  }
+
+  async function handleCreateGroup() {
+    const title = newGroupTitle.trim()
+    if (title === '') return
+    setCollectionSaving(true)
+    setCollectionActionError(null)
+    try {
+      const created = await createChallengeGroup({ title })
+      setGroups((prev) => [...prev, created])
+      setNewGroupTitle('')
+    } catch (err) {
+      setCollectionActionError(err instanceof Error ? err.message : 'Falha ao criar grupo')
+    } finally {
+      setCollectionSaving(false)
+    }
+  }
+
+  async function handleRenameGroup(cg: ChallengeGroup) {
+    const title = (groupEdits[cg.id] ?? cg.title).trim()
+    if (title === '' || title === cg.title) return
+    setCollectionSaving(true)
+    setCollectionActionError(null)
+    try {
+      const updated = await updateChallengeGroup(cg.id, { title, ordinal: cg.ordinal })
+      setGroups((prev) => prev.map((g) => (g.id === cg.id ? updated : g)))
+    } catch (err) {
+      setCollectionActionError(err instanceof Error ? err.message : 'Falha ao renomear grupo')
+    } finally {
+      setCollectionSaving(false)
+    }
+  }
+
+  async function handleMoveGroup(index: number, direction: -1 | 1) {
+    const targetIndex = index + direction
+    if (targetIndex < 0 || targetIndex >= groups.length) return
+    const a = groups[index]
+    const b = groups[targetIndex]
+    setCollectionActionError(null)
+    try {
+      await reorderChallengeGroups([
+        { id: a.id, ordinal: b.ordinal },
+        { id: b.id, ordinal: a.ordinal },
+      ])
+      setGroups((prev) => {
+        const next = [...prev]
+        next[index] = { ...b, ordinal: a.ordinal }
+        next[targetIndex] = { ...a, ordinal: b.ordinal }
+        return next
+      })
+      await refreshChallenges()
+    } catch (err) {
+      setCollectionActionError(err instanceof Error ? err.message : 'Falha ao reordenar grupos')
     }
   }
 
@@ -972,10 +1072,65 @@ export function ChallengeList() {
 
       {isTeacher && managingCollections ? (
         <div className="collection-manager">
-          <h2 className="collection-manager__title">Coleções</h2>
           {collectionActionError ? (
             <p className="status-message status-error">{collectionActionError}</p>
           ) : null}
+
+          <h2 className="collection-manager__title">Grupos</h2>
+          {groups.length === 0 ? (
+            <p className="studio__panel-hint">Nenhum grupo criado ainda.</p>
+          ) : (
+            groups.map((cg, index) => (
+              <div className="collection-manager__row" key={cg.id}>
+                <input
+                  value={groupEdits[cg.id] ?? cg.title}
+                  onChange={(e) => setGroupEdits((prev) => ({ ...prev, [cg.id]: e.target.value }))}
+                  onBlur={() => void handleRenameGroup(cg)}
+                  disabled={collectionSaving}
+                />
+                <div className="list-item__actions">
+                  <button
+                    type="button"
+                    className="list-item__icon-btn"
+                    title="Mover para cima"
+                    aria-label="Mover grupo para cima"
+                    disabled={collectionSaving || index === 0}
+                    onClick={() => void handleMoveGroup(index, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="list-item__icon-btn"
+                    title="Mover para baixo"
+                    aria-label="Mover grupo para baixo"
+                    disabled={collectionSaving || index === groups.length - 1}
+                    onClick={() => void handleMoveGroup(index, 1)}
+                  >
+                    ↓
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+          <div className="collection-manager__create">
+            <input
+              value={newGroupTitle}
+              onChange={(e) => setNewGroupTitle(e.target.value)}
+              placeholder="Novo grupo"
+              disabled={collectionSaving}
+            />
+            <button
+              type="button"
+              className="btn-add"
+              onClick={() => void handleCreateGroup()}
+              disabled={collectionSaving || newGroupTitle.trim() === ''}
+            >
+              + Criar grupo
+            </button>
+          </div>
+
+          <h2 className="collection-manager__title collection-manager__title--spaced">Coleções</h2>
           {collections.length === 0 ? (
             <p className="studio__panel-hint">Nenhuma coleção criada ainda.</p>
           ) : (
@@ -989,6 +1144,19 @@ export function ChallengeList() {
                   onBlur={() => void handleRenameCollection(cc)}
                   disabled={collectionSaving}
                 />
+                <select
+                  value={cc.group_id ?? ''}
+                  onChange={(e) => void handleChangeCollectionGroup(cc, e.target.value)}
+                  disabled={collectionSaving}
+                  aria-label={`Grupo de ${cc.title}`}
+                >
+                  <option value="">Sem grupo</option>
+                  {groups.map((cg) => (
+                    <option key={cg.id} value={cg.id}>
+                      {cg.title}
+                    </option>
+                  ))}
+                </select>
                 <div className="list-item__actions">
                   <button
                     type="button"
@@ -1021,6 +1189,19 @@ export function ChallengeList() {
               placeholder="Nova coleção"
               disabled={collectionSaving}
             />
+            <select
+              value={newCollectionGroupId}
+              onChange={(e) => setNewCollectionGroupId(e.target.value)}
+              disabled={collectionSaving}
+              aria-label="Grupo da nova coleção"
+            >
+              <option value="">Sem grupo</option>
+              {groups.map((cg) => (
+                <option key={cg.id} value={cg.id}>
+                  {cg.title}
+                </option>
+              ))}
+            </select>
             <button
               type="button"
               className="btn-add"

@@ -292,6 +292,38 @@ export function updateChallengeCollection(id: string, body: Required<ChallengeCo
   })
 }
 
+export function listChallengeGroups() {
+  return requestJSON<ChallengeGroup[]>('/api/v1/challenge-groups')
+}
+
+export interface ChallengeGroupInput {
+  title: string
+  // Same "omitted on create = next available, required on update" rule as
+  // ChallengeCollectionInput.ordinal.
+  ordinal?: number
+}
+
+export function createChallengeGroup(body: ChallengeGroupInput) {
+  return requestJSON<ChallengeGroup>('/api/v1/challenge-groups', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateChallengeGroup(id: string, body: Required<ChallengeGroupInput>) {
+  return requestJSON<ChallengeGroup>(`/api/v1/challenge-groups/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function reorderChallengeGroups(items: { id: string; ordinal: number }[]) {
+  return requestJSON<void>('/api/v1/challenge-groups/reorder', {
+    method: 'PATCH',
+    body: JSON.stringify({ items }),
+  })
+}
+
 export function reorderChallengeCollections(items: { id: string; ordinal: number }[]) {
   return requestJSON<void>('/api/v1/challenge-collections/reorder', {
     method: 'PATCH',
