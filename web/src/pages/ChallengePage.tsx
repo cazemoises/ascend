@@ -57,6 +57,26 @@ process.stdin.on('end', () => {
   console.log();
 });
 `,
+  // Plain and complete, like the go/javascript templates above — not using
+  // the [[ASCEND::RUNNER]] marker split. That convention is scoped to a
+  // challenge's own custom starter_code (Python tab only, see templateFor
+  // below), not these generic per-language fallbacks; go/javascript don't
+  // use it here either, so this stays consistent with them rather than
+  // inventing a new split just for Java's default template. The judge
+  // compiles this as Solution.java and runs `java Solution`, so the
+  // runnable class must keep this exact name.
+  java: `import java.util.Scanner;
+
+public class Solution {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int a = scanner.nextInt();
+        int b = scanner.nextInt();
+        // TODO
+        System.out.println();
+    }
+}
+`,
 }
 
 // Mirrors the judge worker's split-marker convention: in starter_code, the
@@ -80,13 +100,14 @@ function visibleTemplate(starter: string): string {
 
 // SQL is deliberately excluded: it has no tab of its own (see the editor
 // toolbar below), so it never needs a template swap or a tab label.
-const LANGUAGES: SubmissionLanguage[] = ['python', 'go', 'javascript']
+const LANGUAGES: SubmissionLanguage[] = ['python', 'go', 'javascript', 'java']
 
 const FILE_NAMES: Record<SubmissionLanguage, string> = {
   sql: 'query.sql',
   python: 'solution.py',
   go: 'main.go',
   javascript: 'solution.js',
+  java: 'Solution.java',
 }
 
 export function ChallengePage() {

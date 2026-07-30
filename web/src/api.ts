@@ -24,7 +24,7 @@ export class ApiError extends Error {
 }
 
 export type ChallengeDifficulty = 'easy' | 'medium' | 'hard'
-export type SubmissionLanguage = 'python' | 'go' | 'javascript' | 'sql'
+export type SubmissionLanguage = 'python' | 'go' | 'javascript' | 'sql' | 'java'
 // A challenge's language: null keeps today's multi-language behavior (the
 // student picks python/go/javascript per submission); 'sql' marks a
 // SQL-only challenge, which uses sql_schema instead of starter_code.
