@@ -205,20 +205,29 @@ pre {
   display: flex;
   flex-direction: column;
   padding: 16px 0;
-  overflow: hidden;
+  /* Belt-and-suspenders: .workspace's own min-height (520px) plus
+     .workspace__editor's internal scroll fallback handle almost every
+     real screen height, but if a viewport is short enough that even
+     those floors don't leave room, the page itself can still scroll as
+     a last resort — silently clipping the submit button is never
+     acceptable, even in a case this extreme. */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* Same viewport-lock as .page-shell--workspace, for the submission result
    page: back-link fixed at top, .submission-panel/.submission-pending fill
    the rest via flex: 1 and scroll internally if their content is taller
-   than that (see the rule below) — the page itself never scrolls.
-   Reverted below 920px, matching the sidebar's own mobile breakpoint. */
+   than that (see the rule below). overflow-y is a last-resort fallback
+   for the same reason as .page-shell--workspace's — normally never
+   engages. Reverted below 920px, matching the sidebar's own breakpoint. */
 .page-shell--submission {
   height: 100vh;
   display: flex;
   flex-direction: column;
   padding: 16px 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .page-shell--submission .submission-panel,
@@ -1047,7 +1056,15 @@ pre {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel-solid);
-  overflow: hidden;
+  /* Fallback for viewport heights shorter than this column's fixed chrome
+     (toolbar + editor-actions + collapsed insights toggle) plus
+     .editor-host's own floor below: the column scrolls as a last resort
+     instead of silently clipping — .editor-actions stays reachable via
+     its own sticky positioning below, so "scrolls" never means "the
+     submit button becomes unreachable". Horizontal stays clipped since
+     Monaco/toolbar never need to overflow that axis. */
+  overflow-x: hidden;
+  overflow-y: auto;
   box-shadow: var(--shadow-card);
   animation: fadeInUp 0.4s var(--ease-spring) 60ms both;
 }
@@ -1061,6 +1078,8 @@ pre {
   padding: 8px 14px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(9, 13, 20, 0.9);
+  /* Never shrunk by .workspace__editor's flex column, even under squeeze. */
+  flex-shrink: 0;
 }
 
 .editor-toolbar__title {
@@ -1119,7 +1138,10 @@ pre {
 
 .editor-host {
   flex: 1;
-  min-height: 0;
+  /* A real floor, not 0 — Monaco needs some minimum usable height, and
+     this is also what guarantees .workspace__editor has genuine content
+     to scroll past rather than everything collapsing invisibly. */
+  min-height: 160px;
 }
 
 .editor-actions {
@@ -1130,6 +1152,14 @@ pre {
   padding: 12px 16px;
   border-top: 1px solid var(--border);
   background: var(--panel-alt);
+  /* Never shrunk, and pinned to the bottom of .workspace__editor's own
+     scroll (its nearest scrolling ancestor) — the submit button stays
+     visible at any viewport height instead of relying on two tested
+     resolutions being "tall enough". */
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
 }
 
 .editor-actions__hint {

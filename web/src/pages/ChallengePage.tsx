@@ -354,17 +354,6 @@ export function ChallengePage() {
               />
             </div>
 
-            <div className="editor-actions">
-              <p className="editor-actions__hint">
-                {challenge.language === 'sql'
-                  ? 'Sua query roda em um sandbox isolado contra todos os casos de teste.'
-                  : 'Sua solução roda em um sandbox isolado contra todos os casos de teste.'}
-              </p>
-              <button type="submit" className="challenge-submit" disabled={submitting}>
-                {submitting ? 'Enviando...' : 'Enviar solução'}
-              </button>
-            </div>
-
             <div className="workspace__insights">
               <button
                 type="button"
@@ -525,6 +514,17 @@ export function ChallengePage() {
                   </div>
                 </div>
               ) : null}
+            </div>
+
+            <div className="editor-actions">
+              <p className="editor-actions__hint">
+                {challenge.language === 'sql'
+                  ? 'Sua query roda em um sandbox isolado contra todos os casos de teste.'
+                  : 'Sua solução roda em um sandbox isolado contra todos os casos de teste.'}
+              </p>
+              <button type="submit" className="challenge-submit" disabled={submitting}>
+                {submitting ? 'Enviando...' : 'Enviar solução'}
+              </button>
             </div>
           </form>
         </div>
