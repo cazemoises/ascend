@@ -791,6 +791,47 @@ pre {
   padding-left: 4px;
 }
 
+/* Label + solved/total count on one line, a thin progress bar below —
+   shared markup (HeaderProgress) for both header levels. Sits inside a
+   button that already sets font-family/size/weight/uppercase/color, so
+   only the count needs its own (lighter, non-uppercase-shouting) treatment. */
+.challenge-progress-header {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 6px;
+}
+
+.challenge-progress-header__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.challenge-progress-header__count {
+  flex-shrink: 0;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.challenge-progress-header__bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--bg-surface-alt);
+  overflow: hidden;
+}
+
+.challenge-progress-header__bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent-green);
+  border-radius: 2px;
+  transition: width 200ms ease;
+}
+
 .challenge-group-body[hidden] {
   display: none;
 }
@@ -862,6 +903,30 @@ pre {
    standing in for a dedicated "current" treatment. */
 .challenge-row--current {
   border-left: 2px solid var(--accent-green);
+}
+
+/* First not-yet-solved challenge within its collection — same accent-border
+   pattern as .challenge-row--current/.sidebar__link--active, just thicker,
+   per spec. Purely a visual "suggested next" cue: no disabled state, no
+   pointer-events changes, every other card stays exactly as clickable. */
+.challenge-row--next {
+  border-left: 3px solid var(--accent-green);
+}
+
+.challenge-row__next-label {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--radius-s);
+  background: var(--accent-green-dim);
+  color: var(--accent-green);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  vertical-align: middle;
 }
 
 .challenge-row__body {

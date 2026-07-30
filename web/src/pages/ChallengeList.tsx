@@ -145,19 +145,71 @@ function groupByGroupAndCollection(challenges: Challenge[]): TopLevelEntry[] {
   return entries
 }
 
+type Progress = { solved: number; total: number }
+
+function bucketProgress(bucket: CollectionBucket): Progress {
+  return {
+    solved: bucket.challenges.filter((c) => c.solved).length,
+    total: bucket.challenges.length,
+  }
+}
+
+function groupProgress(collections: CollectionBucket[]): Progress {
+  return collections.reduce(
+    (acc, bucket) => {
+      const p = bucketProgress(bucket)
+      return { solved: acc.solved + p.solved, total: acc.total + p.total }
+    },
+    { solved: 0, total: 0 },
+  )
+}
+
+// The first not-yet-solved challenge in display order, within one bucket —
+// purely a visual "suggested next" cue (see ChallengeCard's isNext prop),
+// never used to gate access to anything else in the bucket.
+function firstUnsolvedId(challenges: Challenge[]): string | null {
+  return challenges.find((c) => !c.solved)?.id ?? null
+}
+
+// Shared header content for both header levels: label + solved/total count
+// on one line, a thin progress bar below. Module-level for the same reason
+// as ChallengeCard.
+function HeaderProgress({ label, progress }: { label: string; progress: Progress }) {
+  const pct = progress.total > 0 ? Math.round((progress.solved / progress.total) * 100) : 0
+  return (
+    <span className="challenge-progress-header">
+      <span className="challenge-progress-header__row">
+        <span className="challenge-progress-header__label">{label}</span>
+        <span className="challenge-progress-header__count">
+          {progress.solved}/{progress.total} concluídos
+        </span>
+      </span>
+      <span className="challenge-progress-header__bar">
+        <span className="challenge-progress-header__bar-fill" style={{ width: `${pct}%` }} />
+      </span>
+    </span>
+  )
+}
+
 // Module-level (not defined inside ChallengeList) so it isn't recreated,
 // and remounted, on every render.
 function ChallengeCard({
   challenge,
   isTeacher,
+  isNext,
   onEdit,
 }: {
   challenge: Challenge
   isTeacher: boolean
+  // The first not-yet-solved challenge within its collection, in display
+  // order — a purely visual "suggested path" cue. Every other challenge,
+  // solved or not, renders identically and stays fully clickable; this
+  // never gates access to anything.
+  isNext: boolean
   onEdit: (challenge: Challenge) => void
 }) {
   return (
-    <article className="challenge-row">
+    <article className={isNext ? 'challenge-row challenge-row--next' : 'challenge-row'}>
       <div className="challenge-row__badges">
         <span className={`difficulty difficulty--${challenge.difficulty}`}>
           {challenge.difficulty}
@@ -165,7 +217,10 @@ function ChallengeCard({
         {challenge.solved ? <span className="verdict verdict--accepted">CONCLUÍDO</span> : null}
       </div>
       <div className="challenge-row__body">
-        <h2>{challenge.title}</h2>
+        <h2>
+          {challenge.title}
+          {isNext ? <span className="challenge-row__next-label">PRÓXIMO</span> : null}
+        </h2>
         <p>{challenge.description}</p>
         <div className="challenge-row__meta">
           <span className="challenge-row__slug">/{challenge.slug}</span>
@@ -1227,10 +1282,6 @@ export function ChallengeList() {
               if (entry.kind === 'group') {
                 const isGroupCollapsed = collapsedTopGroups.has(entry.key)
                 const showNestedHeaders = entry.collections.length > 1
-                const totalInGroup = entry.collections.reduce(
-                  (sum, bucket) => sum + bucket.challenges.length,
-                  0,
-                )
                 return (
                   <div key={entry.key} className="challenge-group">
                     <button
@@ -1245,8 +1296,7 @@ export function ChallengeList() {
                       >
                         ▸
                       </span>
-                      {entry.label}
-                      {isGroupCollapsed ? ` (${totalInGroup})` : null}
+                      <HeaderProgress label={entry.label} progress={groupProgress(entry.collections)} />
                     </button>
                     {/* Always mounted, hidden via CSS — see the same note on
                         .challenge-feed below re: the removeChild crash this
@@ -1254,6 +1304,7 @@ export function ChallengeList() {
                     <div className="challenge-group-body" hidden={isGroupCollapsed}>
                       {entry.collections.map((bucket) => {
                         const isCollapsed = showNestedHeaders && collapsedGroups.has(bucket.key)
+                        const nextId = firstUnsolvedId(bucket.challenges)
                         return (
                           <div
                             key={bucket.key}
@@ -1272,8 +1323,7 @@ export function ChallengeList() {
                                 >
                                   ▸
                                 </span>
-                                {bucket.label}
-                                {isCollapsed ? ` (${bucket.challenges.length})` : null}
+                                <HeaderProgress label={bucket.label} progress={bucketProgress(bucket)} />
                               </button>
                             ) : null}
                             <div className="challenge-feed" hidden={isCollapsed}>
@@ -1282,6 +1332,7 @@ export function ChallengeList() {
                                   key={challenge.id}
                                   challenge={challenge}
                                   isTeacher={isTeacher}
+                                  isNext={challenge.id === nextId}
                                   onEdit={(c) => void openEditor(c)}
                                 />
                               ))}
@@ -1296,6 +1347,7 @@ export function ChallengeList() {
 
               const bucket = entry.bucket
               const isCollapsed = showTopHeaders && collapsedGroups.has(bucket.key)
+              const nextId = firstUnsolvedId(bucket.challenges)
               return (
                 <div key={bucket.key} className="challenge-collection-group">
                   {showTopHeaders ? (
@@ -1311,8 +1363,7 @@ export function ChallengeList() {
                       >
                         ▸
                       </span>
-                      {bucket.label}
-                      {isCollapsed ? ` (${bucket.challenges.length})` : null}
+                      <HeaderProgress label={bucket.label} progress={bucketProgress(bucket)} />
                     </button>
                   ) : null}
                   {/* Always mounted, hidden via CSS rather than conditionally
@@ -1328,6 +1379,7 @@ export function ChallengeList() {
                         key={challenge.id}
                         challenge={challenge}
                         isTeacher={isTeacher}
+                        isNext={challenge.id === nextId}
                         onEdit={(c) => void openEditor(c)}
                       />
                     ))}
