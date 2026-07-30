@@ -20,8 +20,9 @@ func NewChallengeCollectionsHandler(s *store.Store) *ChallengeCollectionsHandler
 }
 
 type challengeCollectionBody struct {
-	Title   string `json:"title"`
-	Ordinal *int   `json:"ordinal"`
+	Title   string  `json:"title"`
+	Ordinal *int    `json:"ordinal"`
+	GroupID *string `json:"group_id"`
 }
 
 // List handles GET /api/v1/challenge-collections (teacher only): the
@@ -61,8 +62,13 @@ func (h *ChallengeCollectionsHandler) Create(w http.ResponseWriter, r *http.Requ
 		TeacherID: claims.UserID,
 		Title:     body.Title,
 		Ordinal:   body.Ordinal,
+		GroupID:   body.GroupID,
 	})
 	if err != nil {
+		if errors.Is(err, store.ErrGroupNotFound) {
+			writeError(w, http.StatusUnprocessableEntity, "group_id does not reference a challenge group you own")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -95,10 +101,15 @@ func (h *ChallengeCollectionsHandler) Update(w http.ResponseWriter, r *http.Requ
 	cc, err := h.store.UpdateChallengeCollection(r.Context(), id, claims.UserID, store.UpdateChallengeCollectionRequest{
 		Title:   body.Title,
 		Ordinal: ordinal,
+		GroupID: body.GroupID,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "challenge collection not found")
+			return
+		}
+		if errors.Is(err, store.ErrGroupNotFound) {
+			writeError(w, http.StatusUnprocessableEntity, "group_id does not reference a challenge group you own")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal server error")

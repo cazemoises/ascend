@@ -9,12 +9,15 @@ import (
 )
 
 // ChallengeCollection groups challenges by a named theme/cycle — order
-// only, no dates (unlike ProblemList's week-based grouping).
+// only, no dates (unlike ProblemList's week-based grouping). GroupID
+// optionally nests it under a ChallengeGroup; nil means it sits at the
+// top level alongside groups (see challenge_groups.go).
 type ChallengeCollection struct {
 	ID        string    `json:"id"`
 	TeacherID string    `json:"teacher_id"`
 	Title     string    `json:"title"`
 	Ordinal   int       `json:"ordinal"`
+	GroupID   *string   `json:"group_id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -24,11 +27,15 @@ type CreateChallengeCollectionRequest struct {
 	Title     string
 	// Ordinal nil means "next available among this teacher's collections".
 	Ordinal *int
+	// GroupID nil means uncategorized (no parent group); non-nil must
+	// reference a group owned by the same teacher.
+	GroupID *string
 }
 
 type UpdateChallengeCollectionRequest struct {
 	Title   string
 	Ordinal int
+	GroupID *string
 }
 
 // ErrCollectionNotFound means a challenge's collection_id doesn't reference
@@ -62,30 +69,34 @@ func validateCollectionID(ctx context.Context, q queryRower, collectionID *strin
 	return nil
 }
 
-const challengeCollectionColumns = `id, teacher_id, title, ordinal, created_at, updated_at`
+const challengeCollectionColumns = `id, teacher_id, title, ordinal, group_id, created_at, updated_at`
 
 func scanChallengeCollection(row interface {
 	Scan(...any) error
 }) (ChallengeCollection, error) {
 	var cc ChallengeCollection
-	err := row.Scan(&cc.ID, &cc.TeacherID, &cc.Title, &cc.Ordinal, &cc.CreatedAt, &cc.UpdatedAt)
+	err := row.Scan(&cc.ID, &cc.TeacherID, &cc.Title, &cc.Ordinal, &cc.GroupID, &cc.CreatedAt, &cc.UpdatedAt)
 	return cc, err
 }
 
 func (s *Store) CreateChallengeCollection(ctx context.Context, req CreateChallengeCollectionRequest) (ChallengeCollection, error) {
+	if err := validateGroupID(ctx, s.db, req.GroupID, req.TeacherID); err != nil {
+		return ChallengeCollection{}, err
+	}
+
 	var row *sql.Row
 	if req.Ordinal != nil {
 		row = s.db.QueryRowContext(ctx,
-			`INSERT INTO challenge_collections (teacher_id, title, ordinal)
-			 VALUES ($1, $2, $3)
+			`INSERT INTO challenge_collections (teacher_id, title, ordinal, group_id)
+			 VALUES ($1, $2, $3, $4)
 			 RETURNING `+challengeCollectionColumns,
-			req.TeacherID, req.Title, *req.Ordinal)
+			req.TeacherID, req.Title, *req.Ordinal, req.GroupID)
 	} else {
 		row = s.db.QueryRowContext(ctx,
-			`INSERT INTO challenge_collections (teacher_id, title, ordinal)
-			 VALUES ($1, $2, (SELECT COALESCE(MAX(ordinal), -1) + 1 FROM challenge_collections WHERE teacher_id = $1))
+			`INSERT INTO challenge_collections (teacher_id, title, ordinal, group_id)
+			 VALUES ($1, $2, (SELECT COALESCE(MAX(ordinal), -1) + 1 FROM challenge_collections WHERE teacher_id = $1), $3)
 			 RETURNING `+challengeCollectionColumns,
-			req.TeacherID, req.Title)
+			req.TeacherID, req.Title, req.GroupID)
 	}
 	cc, err := scanChallengeCollection(row)
 	if err != nil {
@@ -122,11 +133,15 @@ func (s *Store) ListChallengeCollections(ctx context.Context, teacherID string) 
 // $teacherID), same pattern as UpdateProblemList/DeleteProblemList: a
 // non-owner's request matches zero rows and gets ErrNotFound.
 func (s *Store) UpdateChallengeCollection(ctx context.Context, id, teacherID string, req UpdateChallengeCollectionRequest) (ChallengeCollection, error) {
+	if err := validateGroupID(ctx, s.db, req.GroupID, teacherID); err != nil {
+		return ChallengeCollection{}, err
+	}
+
 	row := s.db.QueryRowContext(ctx,
-		`UPDATE challenge_collections SET title = $3, ordinal = $4, updated_at = now()
+		`UPDATE challenge_collections SET title = $3, ordinal = $4, group_id = $5, updated_at = now()
 		 WHERE id = $1 AND teacher_id = $2
 		 RETURNING `+challengeCollectionColumns,
-		id, teacherID, req.Title, req.Ordinal)
+		id, teacherID, req.Title, req.Ordinal, req.GroupID)
 	cc, err := scanChallengeCollection(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ChallengeCollection{}, ErrNotFound

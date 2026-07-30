@@ -67,6 +67,17 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter) chi.Rout
 				r.Delete("/{id}", cch.Delete)
 			})
 		})
+		cgh := handler.NewChallengeGroupsHandler(s)
+		r.Route("/challenge-groups", func(r chi.Router) {
+			r.Group(func(r chi.Router) {
+				r.Use(auth.RequireAuthenticated, teacherOnly)
+				r.Get("/", cgh.List)
+				r.Post("/", cgh.Create)
+				r.Patch("/reorder", cgh.Reorder)
+				r.Patch("/{id}", cgh.Update)
+				r.Delete("/{id}", cgh.Delete)
+			})
+		})
 
 		r.With(auth.RequireAuthenticated).Get("/submissions", ch.ListMySubmissions)
 		r.Get("/submissions/{id}", ch.GetSubmission)

@@ -90,12 +90,17 @@ type ChallengeDetail struct {
 // ChallengeFeedItem is a Challenge annotated with whether the requesting
 // viewer has already solved it — only ListChallengesForViewer populates
 // Solved; every other Challenge-returning query leaves it at its zero value.
-// CollectionTitle is a join-derived display value (not a real column, unlike
-// CollectionID), populated only when CollectionID is set.
+// CollectionTitle/GroupTitle are join-derived display values (not real
+// columns, unlike CollectionID), populated only when the challenge's
+// collection has one set. GroupID/GroupTitle come from the collection's
+// own group_id via a second join — a challenge has no group_id column of
+// its own, it only inherits one through its collection.
 type ChallengeFeedItem struct {
 	Challenge
 	Solved          bool    `json:"solved"`
 	CollectionTitle *string `json:"collection_title"`
+	GroupID         *string `json:"group_id"`
+	GroupTitle      *string `json:"group_title"`
 }
 
 type Submission struct {
@@ -201,19 +206,25 @@ func scanChallengeFeedItem(row interface {
 	var item ChallengeFeedItem
 	err := row.Scan(&item.ID, &item.Slug, &item.Title, &item.Description, &item.Difficulty,
 		&item.TimeLimitMs, &item.MemoryLimitMb, &item.Notes, &item.StarterCode, &item.Language, &item.SQLSchema,
-		&item.CollectionID, &item.CreatedAt, &item.UpdatedAt, &item.Solved, &item.CollectionTitle)
+		&item.CollectionID, &item.CreatedAt, &item.UpdatedAt, &item.Solved, &item.CollectionTitle,
+		&item.GroupID, &item.GroupTitle)
 	return item, err
 }
 
-// ListChallengesForViewer serves every challenge grouped by collection
-// (collection.ordinal ASC, then created_at ASC within a collection),
-// uncategorized challenges last (created_at ASC among themselves), with
-// each item annotated with whether viewerID has already solved it.
+// ListChallengesForViewer serves every challenge grouped by group then
+// collection (group.ordinal ASC, then collection.ordinal ASC within a
+// group, then created_at ASC within a collection), with collections that
+// have no group (and the challenges within them) sorted right after all
+// grouped ones, uncategorized challenges last of all — each item annotated
+// with whether viewerID has already solved it.
 func (s *Store) ListChallengesForViewer(ctx context.Context, viewerID string, limit, offset int) ([]ChallengeFeedItem, error) {
-	query := `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn("c.id", 3) + `, cc.title AS collection_title
+	query := `SELECT ` + challengeColumnsAliased + `, ` + solvedColumn("c.id", 3) + `,
+	        cc.title AS collection_title, cg.id AS group_id, cg.title AS group_title
 	 FROM challenges c
 	 LEFT JOIN challenge_collections cc ON cc.id = c.collection_id
-	 ORDER BY (c.collection_id IS NULL) ASC, cc.ordinal ASC, c.created_at ASC
+	 LEFT JOIN challenge_groups cg ON cg.id = cc.group_id
+	 ORDER BY (cg.id IS NULL) ASC, cg.ordinal ASC,
+	          (c.collection_id IS NULL) ASC, cc.ordinal ASC, c.created_at ASC
 	 LIMIT $1 OFFSET $2`
 	args := []any{limit, offset, viewerID}
 
