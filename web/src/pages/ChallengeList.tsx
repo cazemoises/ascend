@@ -24,6 +24,7 @@ import {
   type ChallengeGroup,
   type ChallengeLanguage,
   type ImportChallengesInput,
+  type SubmissionLanguage,
 } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { TelemetryChip } from '../components/TelemetryChip'
@@ -59,6 +60,9 @@ const EMPTY_TEST_CASE: TestCaseDraft = {
   is_sample: false,
   order_matters: false,
 }
+
+const DIFFICULTY_FILTER_OPTIONS: ChallengeDifficulty[] = ['easy', 'medium', 'hard']
+const LANGUAGE_FILTER_OPTIONS: SubmissionLanguage[] = ['python', 'javascript', 'go', 'sql', 'java']
 
 type JsonImportPreview = {
   collectionTitle: string
@@ -145,6 +149,61 @@ function groupByGroupAndCollection(challenges: Challenge[]): TopLevelEntry[] {
   }
 
   return entries
+}
+
+// A challenge's language column is null for "multi-language" (the student
+// picks a tab on the solve page) or 'sql' for SQL-only — there's no list of
+// "languages this challenge accepts" stored anywhere, so it's derived here
+// from that one column, matching ChallengePage.tsx's own LANGUAGES tab set
+// for the null case exactly (keep the two in sync if that set ever changes).
+function acceptedLanguages(challenge: Challenge): SubmissionLanguage[] {
+  if (challenge.language === 'sql') return ['sql']
+  return ['python', 'go', 'javascript', 'java']
+}
+
+// Search: title, case-insensitive substring. Difficulty/language: OR within
+// each filter (empty set = "no filter" = matches everything), AND across
+// the three categories — e.g. difficulty={easy,medium} AND language={python}
+// shows easy-or-medium challenges that accept python.
+function matchesFilters(
+  challenge: Challenge,
+  query: string,
+  difficulties: Set<ChallengeDifficulty>,
+  languages: Set<SubmissionLanguage>,
+): boolean {
+  if (query.trim() !== '' && !challenge.title.toLowerCase().includes(query.trim().toLowerCase())) {
+    return false
+  }
+  if (difficulties.size > 0 && !difficulties.has(challenge.difficulty)) {
+    return false
+  }
+  if (languages.size > 0 && !acceptedLanguages(challenge).some((l) => languages.has(l))) {
+    return false
+  }
+  return true
+}
+
+type SortMode = 'recent' | 'alpha' | 'difficulty'
+
+const DIFFICULTY_RANK: Record<ChallengeDifficulty, number> = { easy: 0, medium: 1, hard: 2 }
+
+// Reorders challenges *within* a collection bucket only — grouping/bucket
+// membership is decided before this runs, so sorting never moves a
+// challenge into a different collection's section.
+function sortChallenges(challenges: Challenge[], mode: SortMode): Challenge[] {
+  const sorted = [...challenges]
+  switch (mode) {
+    case 'alpha':
+      sorted.sort((a, b) => a.title.localeCompare(b.title))
+      break
+    case 'difficulty':
+      sorted.sort((a, b) => DIFFICULTY_RANK[a.difficulty] - DIFFICULTY_RANK[b.difficulty])
+      break
+    case 'recent':
+      sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      break
+  }
+  return sorted
 }
 
 type Progress = { solved: number; total: number }
@@ -311,6 +370,11 @@ export function ChallengeList() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   // Keys of collapsed challenge_groups (level 1).
   const [collapsedTopGroups, setCollapsedTopGroups] = useState<Set<string>>(new Set())
+
+  const [searchQuery, setSearchQuery] = useState('')
+  const [difficultyFilter, setDifficultyFilter] = useState<Set<ChallengeDifficulty>>(new Set())
+  const [languageFilter, setLanguageFilter] = useState<Set<SubmissionLanguage>>(new Set())
+  const [sortMode, setSortMode] = useState<SortMode>('recent')
 
   const [creating, setCreating] = useState(false)
   const [editingChallengeId, setEditingChallengeId] = useState<string | null>(null)
@@ -587,6 +651,36 @@ export function ChallengeList() {
       }
       return next
     })
+  }
+
+  function toggleDifficultyFilter(value: ChallengeDifficulty) {
+    setDifficultyFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(value)) {
+        next.delete(value)
+      } else {
+        next.add(value)
+      }
+      return next
+    })
+  }
+
+  function toggleLanguageFilter(value: SubmissionLanguage) {
+    setLanguageFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(value)) {
+        next.delete(value)
+      } else {
+        next.add(value)
+      }
+      return next
+    })
+  }
+
+  function clearFilters() {
+    setSearchQuery('')
+    setDifficultyFilter(new Set())
+    setLanguageFilter(new Set())
   }
 
   function updateTestCase(index: number, patch: Partial<TestCaseDraft>) {
@@ -1119,6 +1213,66 @@ export function ChallengeList() {
         <p className="muted">Escolha um desafio, escreva sua solução e submeta para avaliação.</p>
       </section>
 
+      <div className="challenge-filters">
+        <input
+          type="search"
+          className="challenge-filters__search"
+          placeholder="Buscar por título..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          aria-label="Buscar desafios por título"
+        />
+
+        <div className="challenge-filters__group">
+          <span className="challenge-filters__label">Dificuldade</span>
+          {DIFFICULTY_FILTER_OPTIONS.map((d) => (
+            <button
+              key={d}
+              type="button"
+              className={
+                difficultyFilter.has(d) ? 'filter-pill filter-pill--active' : 'filter-pill'
+              }
+              aria-pressed={difficultyFilter.has(d)}
+              onClick={() => toggleDifficultyFilter(d)}
+            >
+              {d}
+            </button>
+          ))}
+        </div>
+
+        <div className="challenge-filters__group">
+          <span className="challenge-filters__label">Linguagem</span>
+          {LANGUAGE_FILTER_OPTIONS.map((l) => (
+            <button
+              key={l}
+              type="button"
+              className={languageFilter.has(l) ? 'filter-pill filter-pill--active' : 'filter-pill'}
+              aria-pressed={languageFilter.has(l)}
+              onClick={() => toggleLanguageFilter(l)}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+
+        <select
+          className="challenge-filters__sort"
+          value={sortMode}
+          onChange={(e) => setSortMode(e.target.value as SortMode)}
+          aria-label="Ordenar desafios"
+        >
+          <option value="recent">Mais recentes</option>
+          <option value="alpha">Alfabética</option>
+          <option value="difficulty">Dificuldade crescente</option>
+        </select>
+
+        {searchQuery !== '' || difficultyFilter.size > 0 || languageFilter.size > 0 ? (
+          <button type="button" className="btn-secondary btn-ghost" onClick={clearFilters}>
+            Limpar filtros
+          </button>
+        ) : null}
+      </div>
+
       {isTeacher ? (
         <div className="action-bar">
           <span className="action-bar__label">Área do professor</span>
@@ -1295,7 +1449,29 @@ export function ChallengeList() {
       {!loading && !error ? (
         challenges.length > 0 ? (
           (() => {
-            const entries = groupByGroupAndCollection(challenges)
+            const filtered = challenges.filter((c) =>
+              matchesFilters(c, searchQuery, difficultyFilter, languageFilter),
+            )
+            if (filtered.length === 0) {
+              return (
+                <p className="status-message">Nenhum desafio encontrado com os filtros atuais.</p>
+              )
+            }
+            // Grouping first (so bucket membership never depends on sort
+            // order), then sort each bucket's own challenges in place —
+            // filtering out challenges before grouping is what makes a
+            // group/collection with zero visible challenges disappear
+            // entirely instead of showing an empty header.
+            const entries = groupByGroupAndCollection(filtered)
+            for (const entry of entries) {
+              if (entry.kind === 'group') {
+                for (const bucket of entry.collections) {
+                  bucket.challenges = sortChallenges(bucket.challenges, sortMode)
+                }
+              } else {
+                entry.bucket.challenges = sortChallenges(entry.bucket.challenges, sortMode)
+              }
+            }
             const showTopHeaders = entries.length > 1
             return entries.map((entry) => {
               if (entry.kind === 'group') {

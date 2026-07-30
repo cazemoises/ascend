@@ -1384,6 +1384,70 @@ pre {
   }
 }
 
+/* ===================== Challenge search/filter/sort bar ===================== */
+
+.challenge-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.challenge-filters__search {
+  flex: 1 1 220px;
+  min-width: 160px;
+}
+
+.challenge-filters__group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.challenge-filters__label {
+  margin-right: 2px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.challenge-filters__sort {
+  margin-left: auto;
+}
+
+/* Toggle pill — same "chip" idiom as .studio__mode-tab, reused here for a
+   multi-select instead of a single-choice tab group. */
+.filter-pill {
+  padding: 5px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--panel-alt);
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease;
+}
+
+.filter-pill:hover {
+  color: var(--text);
+}
+
+.filter-pill--active {
+  border-color: rgba(46, 200, 102, 0.5);
+  color: var(--title);
+  background: rgba(46, 200, 102, 0.08);
+}
+
 /* ===================== Teacher action bar & create form ===================== */
 
 .action-bar {
