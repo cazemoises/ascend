@@ -1,6 +1,8 @@
 import Editor from '@monaco-editor/react'
 import { useEffect, useState, type FormEvent } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import rehypeHighlight from 'rehype-highlight'
 
 import {
   createSubmission,
@@ -55,6 +57,26 @@ process.stdin.on('end', () => {
   console.log();
 });
 `,
+  // Plain and complete, like the go/javascript templates above — not using
+  // the [[ASCEND::RUNNER]] marker split. That convention is scoped to a
+  // challenge's own custom starter_code (Python tab only, see templateFor
+  // below), not these generic per-language fallbacks; go/javascript don't
+  // use it here either, so this stays consistent with them rather than
+  // inventing a new split just for Java's default template. The judge
+  // compiles this as Solution.java and runs `java Solution`, so the
+  // runnable class must keep this exact name.
+  java: `import java.util.Scanner;
+
+public class Solution {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int a = scanner.nextInt();
+        int b = scanner.nextInt();
+        // TODO
+        System.out.println();
+    }
+}
+`,
 }
 
 // Mirrors the judge worker's split-marker convention: in starter_code, the
@@ -78,13 +100,14 @@ function visibleTemplate(starter: string): string {
 
 // SQL is deliberately excluded: it has no tab of its own (see the editor
 // toolbar below), so it never needs a template swap or a tab label.
-const LANGUAGES: SubmissionLanguage[] = ['python', 'go', 'javascript']
+const LANGUAGES: SubmissionLanguage[] = ['python', 'go', 'javascript', 'java']
 
 const FILE_NAMES: Record<SubmissionLanguage, string> = {
   sql: 'query.sql',
   python: 'solution.py',
   go: 'main.go',
   javascript: 'solution.js',
+  java: 'Solution.java',
 }
 
 export function ChallengePage() {
@@ -100,6 +123,11 @@ export function ChallengePage() {
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [submissions, setSubmissions] = useState<SubmissionSummary[]>([])
   const [stats, setStats] = useState<ChallengeStats | null>(null)
+  // Métricas/Submissões live in a collapsible panel below the editor instead
+  // of stacking as full sections beneath the workspace — keeps the page
+  // fittable in the viewport (see .workspace/.page-shell--workspace).
+  const [insightsOpen, setInsightsOpen] = useState<boolean>(false)
+  const [insightsTab, setInsightsTab] = useState<'metrics' | 'submissions'>('metrics')
 
   useEffect(() => {
     let active = true
@@ -253,9 +281,15 @@ export function ChallengePage() {
               <span className="constraint">/{challenge.slug}</span>
             </div>
 
-            <p className="muted">{challenge.description}</p>
+            <div className="muted markdown-content">
+              <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{challenge.description}</ReactMarkdown>
+            </div>
 
-            {challenge.notes ? <p className="notes-callout">{challenge.notes}</p> : null}
+            {challenge.notes ? (
+              <div className="notes-callout markdown-content">
+                <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{challenge.notes}</ReactMarkdown>
+              </div>
+            ) : null}
 
             {challenge.language === 'sql' && challenge.sql_schema ? (
               <>
@@ -341,6 +375,168 @@ export function ChallengePage() {
               />
             </div>
 
+            <div className="workspace__insights">
+              <button
+                type="button"
+                className="workspace__insights-toggle"
+                aria-expanded={insightsOpen}
+                onClick={() => setInsightsOpen((prev) => !prev)}
+              >
+                <span
+                  className={insightsOpen ? 'audit-caret audit-caret--open' : 'audit-caret'}
+                  aria-hidden="true"
+                >
+                  ▸
+                </span>
+                Métricas e submissões recentes
+              </button>
+
+              {insightsOpen ? (
+                <div className="workspace__insights-body">
+                  <div className="studio__mode-tabs" role="tablist" aria-label="Painel de informações">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={insightsTab === 'metrics'}
+                      className={
+                        insightsTab === 'metrics'
+                          ? 'studio__mode-tab studio__mode-tab--active'
+                          : 'studio__mode-tab'
+                      }
+                      onClick={() => setInsightsTab('metrics')}
+                    >
+                      Métricas
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={insightsTab === 'submissions'}
+                      className={
+                        insightsTab === 'submissions'
+                          ? 'studio__mode-tab studio__mode-tab--active'
+                          : 'studio__mode-tab'
+                      }
+                      onClick={() => setInsightsTab('submissions')}
+                    >
+                      Submissões recentes
+                    </button>
+                  </div>
+
+                  <div className="workspace__insights-panel">
+                    {insightsTab === 'metrics' ? (
+                      stats !== null && stats.total_runs > 0 ? (
+                        <div className="panel metrics-panel">
+                          {stats.faster_than_pct !== null ? (
+                            <p className="metrics-highlight">
+                              Seu código foi mais rápido que{' '}
+                              <strong>{stats.faster_than_pct}%</strong> das submissões para este
+                              desafio!
+                            </p>
+                          ) : (
+                            <p className="metrics-highlight metrics-highlight--muted">
+                              Envie uma solução aceita para ver sua posição na distribuição.
+                            </p>
+                          )}
+                          {(() => {
+                            const maxCount = Math.max(...stats.buckets.map((b) => b.count), 1)
+                            const best = stats.user_best_ms
+                            const userBucketIdx =
+                              best !== null
+                                ? stats.buckets.findIndex((b) => best <= b.up_to_ms)
+                                : -1
+                            const lastBucket = stats.buckets[stats.buckets.length - 1]
+                            return (
+                              <>
+                                <div
+                                  className="histogram"
+                                  role="img"
+                                  aria-label={`Distribuição do tempo de execução de ${stats.total_runs} submissões aceitas`}
+                                >
+                                  {stats.buckets.map((b, i) => (
+                                    <div
+                                      className="histogram__slot"
+                                      key={b.up_to_ms}
+                                      title={`≤ ${b.up_to_ms}ms — ${b.count} ${b.count === 1 ? 'submissão' : 'submissões'}`}
+                                    >
+                                      <div
+                                        className={
+                                          i === userBucketIdx
+                                            ? 'histogram__bar histogram__bar--you'
+                                            : 'histogram__bar'
+                                        }
+                                        style={{
+                                          height: `${b.count > 0 ? Math.max((b.count / maxCount) * 100, 6) : 2}%`,
+                                        }}
+                                      />
+                                      {i === userBucketIdx ? (
+                                        <span className="histogram__you">você</span>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="histogram__axis">
+                                  <span>0ms</span>
+                                  <span>{lastBucket ? `${lastBucket.up_to_ms}ms` : ''}</span>
+                                </div>
+                                <p className="histogram__caption">
+                                  Tempo de execução — {stats.total_runs}{' '}
+                                  {stats.total_runs === 1
+                                    ? 'submissão aceita'
+                                    : 'submissões aceitas'}{' '}
+                                  na plataforma
+                                </p>
+                              </>
+                            )
+                          })()}
+                        </div>
+                      ) : (
+                        <p className="status-message">
+                          Ainda não há métricas de execução para este desafio — seja a primeira
+                          solução aceita.
+                        </p>
+                      )
+                    ) : (
+                      <div className="datagrid">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Veredito</th>
+                              <th>Linguagem</th>
+                              <th>Data</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {submissions.length > 0 ? (
+                              submissions.map((sub) => (
+                                <tr key={sub.id}>
+                                  <td>
+                                    <VerdictBadge status={sub.status} />
+                                    {isTeacher && sub.is_test_run ? (
+                                      <span className="verdict test-run-tag">TESTE</span>
+                                    ) : null}
+                                  </td>
+                                  <td>{sub.language}</td>
+                                  <td className="muted">
+                                    {new Date(sub.created_at).toLocaleString('pt-BR')}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={3} className="datagrid__empty">
+                                  Nenhuma submissão ainda — envie sua primeira solução.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
             <div className="editor-actions">
               <p className="editor-actions__hint">
                 {challenge.language === 'sql'
@@ -353,113 +549,6 @@ export function ChallengePage() {
             </div>
           </form>
         </div>
-
-          <section className="history-section">
-            <h2 className="section-title">Métricas</h2>
-            {stats !== null && stats.total_runs > 0 ? (
-              <div className="panel metrics-panel">
-                {stats.faster_than_pct !== null ? (
-                  <p className="metrics-highlight">
-                    Seu código foi mais rápido que <strong>{stats.faster_than_pct}%</strong> das
-                    submissões para este desafio!
-                  </p>
-                ) : (
-                  <p className="metrics-highlight metrics-highlight--muted">
-                    Envie uma solução aceita para ver sua posição na distribuição.
-                  </p>
-                )}
-                {(() => {
-                  const maxCount = Math.max(...stats.buckets.map((b) => b.count), 1)
-                  const best = stats.user_best_ms
-                  const userBucketIdx =
-                    best !== null ? stats.buckets.findIndex((b) => best <= b.up_to_ms) : -1
-                  const lastBucket = stats.buckets[stats.buckets.length - 1]
-                  return (
-                    <>
-                      <div
-                        className="histogram"
-                        role="img"
-                        aria-label={`Distribuição do tempo de execução de ${stats.total_runs} submissões aceitas`}
-                      >
-                        {stats.buckets.map((b, i) => (
-                          <div
-                            className="histogram__slot"
-                            key={b.up_to_ms}
-                            title={`≤ ${b.up_to_ms}ms — ${b.count} ${b.count === 1 ? 'submissão' : 'submissões'}`}
-                          >
-                            <div
-                              className={
-                                i === userBucketIdx
-                                  ? 'histogram__bar histogram__bar--you'
-                                  : 'histogram__bar'
-                              }
-                              style={{
-                                height: `${b.count > 0 ? Math.max((b.count / maxCount) * 100, 6) : 2}%`,
-                              }}
-                            />
-                            {i === userBucketIdx ? (
-                              <span className="histogram__you">você</span>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="histogram__axis">
-                        <span>0ms</span>
-                        <span>{lastBucket ? `${lastBucket.up_to_ms}ms` : ''}</span>
-                      </div>
-                      <p className="histogram__caption">
-                        Tempo de execução — {stats.total_runs}{' '}
-                        {stats.total_runs === 1 ? 'submissão aceita' : 'submissões aceitas'} na
-                        plataforma
-                      </p>
-                    </>
-                  )
-                })()}
-              </div>
-            ) : (
-              <p className="status-message">
-                Ainda não há métricas de execução para este desafio — seja a primeira solução
-                aceita.
-              </p>
-            )}
-          </section>
-
-          <section className="history-section">
-            <h2 className="section-title">Submissões recentes</h2>
-            <div className="datagrid">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Veredito</th>
-                    <th>Linguagem</th>
-                    <th>Data</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {submissions.length > 0 ? (
-                    submissions.map((sub) => (
-                      <tr key={sub.id}>
-                        <td>
-                          <VerdictBadge status={sub.status} />
-                          {isTeacher && sub.is_test_run ? (
-                            <span className="verdict test-run-tag">TESTE</span>
-                          ) : null}
-                        </td>
-                        <td>{sub.language}</td>
-                        <td className="muted">{new Date(sub.created_at).toLocaleString('pt-BR')}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={3} className="datagrid__empty">
-                        Nenhuma submissão ainda — envie sua primeira solução.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
         </>
       ) : null}
     </main>

@@ -120,17 +120,30 @@ func TestEvaluate_WrongAnswerCapturesActualAndExpectedOutput(t *testing.T) {
 	}
 }
 
-// An accepted run has no failing case, so stdout/expectedOutput must stay
-// empty — nothing for the result page to show on a clean pass.
-func TestEvaluate_AcceptedLeavesOutputEmpty(t *testing.T) {
+// An accepted run has no failing case, so expectedOutput must stay empty —
+// the result page shows no "esperada" block on a clean pass. stdout,
+// however, must carry the last-executed case's real output, so the result
+// page can show what the accepted solution actually printed.
+func TestEvaluate_AcceptedCapturesLastStdoutButNoExpectedOutput(t *testing.T) {
 	exec := &scriptedExecutor{
-		results: []RunResult{{Stdout: "ok"}},
-		errs:    []error{nil},
+		results: []RunResult{{Stdout: "ok"}, {Stdout: "ok"}, {Stdout: "final output"}},
+		errs:    []error{nil, nil, nil},
 	}
-	res := evaluate(context.Background(), exec, "python", "code", "", okCases(1), 1000, 128)
+	cases := []testCaseRecord{
+		{Input: "a", ExpectedOutput: "ok"},
+		{Input: "b", ExpectedOutput: "ok"},
+		{Input: "c", ExpectedOutput: "final output"},
+	}
+	res := evaluate(context.Background(), exec, "python", "code", "", cases, 1000, 128)
 
-	if res.stdout != "" || res.expectedOutput != "" {
-		t.Errorf("stdout=%q expectedOutput=%q, want both empty on accepted", res.stdout, res.expectedOutput)
+	if res.status != "accepted" {
+		t.Fatalf("status = %q, want accepted", res.status)
+	}
+	if res.stdout != "final output" {
+		t.Errorf("stdout = %q, want the last case's output %q", res.stdout, "final output")
+	}
+	if res.expectedOutput != "" {
+		t.Errorf("expectedOutput = %q, want empty on accepted", res.expectedOutput)
 	}
 }
 

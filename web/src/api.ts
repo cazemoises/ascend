@@ -24,7 +24,7 @@ export class ApiError extends Error {
 }
 
 export type ChallengeDifficulty = 'easy' | 'medium' | 'hard'
-export type SubmissionLanguage = 'python' | 'go' | 'javascript' | 'sql'
+export type SubmissionLanguage = 'python' | 'go' | 'javascript' | 'sql' | 'java'
 // A challenge's language: null keeps today's multi-language behavior (the
 // student picks python/go/javascript per submission); 'sql' marks a
 // SQL-only challenge, which uses sql_schema instead of starter_code.
@@ -59,6 +59,11 @@ export interface Challenge {
   // Join-derived display value, only present on GET /challenges (absent
   // elsewhere, and null on that endpoint too when collection_id is null).
   collection_title?: string | null
+  // Join-derived (through the challenge's collection) — a challenge has no
+  // group_id column of its own. Same presence/null rules as
+  // collection_title: only on GET /challenges, null when there's no group.
+  group_id?: string | null
+  group_title?: string | null
 }
 
 export interface ChallengeCollection {
@@ -66,8 +71,19 @@ export interface ChallengeCollection {
   teacher_id: string
   title: string
   ordinal: number
+  group_id: string | null
   created_at: string
   updated_at: string
+}
+
+// No updated_at — unlike ChallengeCollection, nothing about a group after
+// creation is ever surfaced with a last-modified timestamp.
+export interface ChallengeGroup {
+  id: string
+  teacher_id: string
+  title: string
+  ordinal: number
+  created_at: string
 }
 
 export interface SubmissionSummary {
@@ -256,6 +272,10 @@ export interface ChallengeCollectionInput {
   // the collection's position) — always pass the collection's current
   // ordinal when only renaming it.
   ordinal?: number
+  // null means "no group". Same rule as ordinal: on update, always pass
+  // the collection's current group_id when not deliberately changing it,
+  // or omitting it would silently clear the group.
+  group_id?: string | null
 }
 
 export function createChallengeCollection(body: ChallengeCollectionInput) {
@@ -269,6 +289,38 @@ export function updateChallengeCollection(id: string, body: Required<ChallengeCo
   return requestJSON<ChallengeCollection>(`/api/v1/challenge-collections/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
+  })
+}
+
+export function listChallengeGroups() {
+  return requestJSON<ChallengeGroup[]>('/api/v1/challenge-groups')
+}
+
+export interface ChallengeGroupInput {
+  title: string
+  // Same "omitted on create = next available, required on update" rule as
+  // ChallengeCollectionInput.ordinal.
+  ordinal?: number
+}
+
+export function createChallengeGroup(body: ChallengeGroupInput) {
+  return requestJSON<ChallengeGroup>('/api/v1/challenge-groups', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateChallengeGroup(id: string, body: Required<ChallengeGroupInput>) {
+  return requestJSON<ChallengeGroup>(`/api/v1/challenge-groups/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function reorderChallengeGroups(items: { id: string; ordinal: number }[]) {
+  return requestJSON<void>('/api/v1/challenge-groups/reorder', {
+    method: 'PATCH',
+    body: JSON.stringify({ items }),
   })
 }
 

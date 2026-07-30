@@ -22,6 +22,7 @@ const (
 	LanguageJavaScript Language = "javascript"
 	LanguageGo         Language = "go"
 	LanguageSQL        Language = "sql"
+	LanguageJava       Language = "java"
 )
 
 type RunRequest struct {
@@ -136,6 +137,25 @@ func containerConfig(language Language) (image string, command []string, fileNam
 		return "ascend-sqlite:latest",
 			[]string{"sh", "-c", "tar -xf - -C /tmp && sqlite3 -list -separator '|' :memory: < /tmp/solution.sql"},
 			"solution.sql", nil
+	case LanguageJava:
+		// eclipse-temurin:21-jdk-alpine (~550MB) is far larger than the other
+		// language images (python:3.11-alpine is ~85MB) — a node that has
+		// never run a Java submission will spend ~25s+ on the first `docker
+		// run` just pulling it, which the per-test-case context.WithTimeout
+		// in evaluate() (wrapping this entire command, pull included) will
+		// read as a false time_limit_exceeded until the image is cached
+		// locally. Known, accepted risk, same class as any uncached image,
+		// just a bigger one here — not fixed by this change (that would be
+		// separating pull time from the execution clock, a judge-wide
+		// change, not a language-specific one). javac+JVM startup overhead
+		// per invocation (recompiled from scratch every run, like Go's `go
+		// run`) is also higher than the interpreted languages even once
+		// warm, worth accounting for in time_limit_ms on Java challenges.
+		// The public class must be named Solution to match the filename —
+		// javac enforces this.
+		return "eclipse-temurin:21-jdk-alpine",
+			[]string{"sh", "-c", "tar -xf - -C /tmp && cd /tmp && javac Solution.java && java Solution < input.txt"},
+			"Solution.java", nil
 	default:
 		return "", nil, "", fmt.Errorf("unsupported language: %s", language)
 	}
