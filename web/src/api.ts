@@ -59,6 +59,11 @@ export interface Challenge {
   // Join-derived display value, only present on GET /challenges (absent
   // elsewhere, and null on that endpoint too when collection_id is null).
   collection_title?: string | null
+  // Join-derived (through the challenge's collection) — a challenge has no
+  // group_id column of its own. Same presence/null rules as
+  // collection_title: only on GET /challenges, null when there's no group.
+  group_id?: string | null
+  group_title?: string | null
 }
 
 export interface ChallengeCollection {
@@ -66,8 +71,19 @@ export interface ChallengeCollection {
   teacher_id: string
   title: string
   ordinal: number
+  group_id: string | null
   created_at: string
   updated_at: string
+}
+
+// No updated_at — unlike ChallengeCollection, nothing about a group after
+// creation is ever surfaced with a last-modified timestamp.
+export interface ChallengeGroup {
+  id: string
+  teacher_id: string
+  title: string
+  ordinal: number
+  created_at: string
 }
 
 export interface SubmissionSummary {
@@ -256,6 +272,10 @@ export interface ChallengeCollectionInput {
   // the collection's position) — always pass the collection's current
   // ordinal when only renaming it.
   ordinal?: number
+  // null means "no group". Same rule as ordinal: on update, always pass
+  // the collection's current group_id when not deliberately changing it,
+  // or omitting it would silently clear the group.
+  group_id?: string | null
 }
 
 export function createChallengeCollection(body: ChallengeCollectionInput) {

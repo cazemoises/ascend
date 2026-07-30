@@ -78,34 +78,128 @@ function toImportPreview(raw: unknown): JsonImportPreview {
   }
 }
 
-type CollectionGroup = {
+type CollectionBucket = {
   key: string
   label: string
   challenges: Challenge[]
 }
 
-// Groups consecutive-by-key challenges into collection buckets, in the
-// order they arrive — the backend already sorts by collection.ordinal then
-// created_at, so this only detects group boundaries, it doesn't re-sort.
-// Uncategorized challenges land in one trailing "SEM COLEÇÃO" bucket.
-function groupByCollection(challenges: Challenge[]): CollectionGroup[] {
-  const groups: CollectionGroup[] = []
-  const byKey = new Map<string, CollectionGroup>()
+// A challenge_group (level 1) containing its collections (level 2), or a
+// bare collection sitting directly at level 1 because it has no group —
+// no synthetic "no group" wrapper, per spec.
+type TopLevelEntry =
+  | { kind: 'group'; key: string; label: string; collections: CollectionBucket[] }
+  | { kind: 'collection'; bucket: CollectionBucket }
+
+// Groups consecutive-by-key challenges into a two-level group/collection
+// structure, in the order they arrive — the backend already sorts by
+// group.ordinal, then collection.ordinal within the group, then
+// created_at, so this only detects boundaries, it doesn't re-sort (same
+// rule the single-level version this replaced followed). Uncategorized
+// challenges land in one trailing "SEM COLEÇÃO" bucket at the top level
+// (a challenge with no collection can never have a group — group_id is
+// only ever inherited through a collection).
+function groupByGroupAndCollection(challenges: Challenge[]): TopLevelEntry[] {
+  const entries: TopLevelEntry[] = []
+  const groupsByKey = new Map<string, Extract<TopLevelEntry, { kind: 'group' }>>()
+  const topCollectionsByKey = new Map<string, CollectionBucket>()
 
   for (const challenge of challenges) {
-    const key = challenge.collection_id ?? 'uncategorized'
-    const label = challenge.collection_id ? (challenge.collection_title ?? '') : 'SEM COLEÇÃO'
+    const collectionKey = challenge.collection_id ?? 'uncategorized'
+    const collectionLabel = challenge.collection_id ? (challenge.collection_title ?? '') : 'SEM COLEÇÃO'
 
-    let group = byKey.get(key)
-    if (!group) {
-      group = { key, label, challenges: [] }
-      byKey.set(key, group)
-      groups.push(group)
+    if (challenge.group_id) {
+      let groupEntry = groupsByKey.get(challenge.group_id)
+      if (!groupEntry) {
+        groupEntry = {
+          kind: 'group',
+          key: challenge.group_id,
+          label: challenge.group_title ?? '',
+          collections: [],
+        }
+        groupsByKey.set(challenge.group_id, groupEntry)
+        entries.push(groupEntry)
+      }
+      let bucket = groupEntry.collections.find((b) => b.key === collectionKey)
+      if (!bucket) {
+        bucket = { key: collectionKey, label: collectionLabel, challenges: [] }
+        groupEntry.collections.push(bucket)
+      }
+      bucket.challenges.push(challenge)
+    } else {
+      let bucket = topCollectionsByKey.get(collectionKey)
+      if (!bucket) {
+        bucket = { key: collectionKey, label: collectionLabel, challenges: [] }
+        topCollectionsByKey.set(collectionKey, bucket)
+        entries.push({ kind: 'collection', bucket })
+      }
+      bucket.challenges.push(challenge)
     }
-    group.challenges.push(challenge)
   }
 
-  return groups
+  return entries
+}
+
+// Module-level (not defined inside ChallengeList) so it isn't recreated,
+// and remounted, on every render.
+function ChallengeCard({
+  challenge,
+  isTeacher,
+  onEdit,
+}: {
+  challenge: Challenge
+  isTeacher: boolean
+  onEdit: (challenge: Challenge) => void
+}) {
+  return (
+    <article className="challenge-row">
+      <div className="challenge-row__badges">
+        <span className={`difficulty difficulty--${challenge.difficulty}`}>
+          {challenge.difficulty}
+        </span>
+        {challenge.solved ? <span className="verdict verdict--accepted">CONCLUÍDO</span> : null}
+      </div>
+      <div className="challenge-row__body">
+        <h2>{challenge.title}</h2>
+        <p>{challenge.description}</p>
+        <div className="challenge-row__meta">
+          <span className="challenge-row__slug">/{challenge.slug}</span>
+          <TelemetryChip
+            timeLimitMs={challenge.time_limit_ms}
+            memoryLimitMb={challenge.memory_limit_mb}
+          />
+        </div>
+      </div>
+      <div className="challenge-row__actions">
+        {isTeacher ? (
+          <button
+            type="button"
+            className="challenge-row__edit"
+            title="Editar desafio"
+            aria-label={`Editar ${challenge.title}`}
+            onClick={() => onEdit(challenge)}
+          >
+            <svg
+              width="17"
+              height="17"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+            </svg>
+          </button>
+        ) : null}
+        <Link className="challenge-submit" to={`/challenges/${challenge.id}`}>
+          Resolver desafio
+        </Link>
+      </div>
+    </article>
+  )
 }
 
 const STARTER_PLACEHOLDER = `def somar_numeros(a, b):
@@ -129,10 +223,15 @@ export function ChallengeList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [collections, setCollections] = useState<ChallengeCollection[]>([])
-  // Keys of collapsed collection groups; a key's absence means expanded.
+  // Keys of collapsed collection buckets (level 2, or a bare top-level
+  // collection); a key's absence means expanded. Independent from
+  // collapsedTopGroups below — collapsing a challenge_group (level 1)
+  // doesn't affect the collapse state of the collections nested inside it.
   // Starting empty means every group is expanded by default. Resets on
   // reload — not persisted, per explicit scope.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  // Keys of collapsed challenge_groups (level 1).
+  const [collapsedTopGroups, setCollapsedTopGroups] = useState<Set<string>>(new Set())
 
   const [creating, setCreating] = useState(false)
   const [editingChallengeId, setEditingChallengeId] = useState<string | null>(null)
@@ -255,7 +354,11 @@ export function ChallengeList() {
     setCollectionSaving(true)
     setCollectionActionError(null)
     try {
-      const updated = await updateChallengeCollection(cc.id, { title, ordinal: cc.ordinal })
+      const updated = await updateChallengeCollection(cc.id, {
+        title,
+        ordinal: cc.ordinal,
+        group_id: cc.group_id,
+      })
       setCollections((prev) => prev.map((c) => (c.id === cc.id ? updated : c)))
       await refreshChallenges()
     } catch (err) {
@@ -290,6 +393,18 @@ export function ChallengeList() {
 
   function toggleGroupCollapsed(key: string) {
     setCollapsedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+
+  function toggleTopGroupCollapsed(key: string) {
+    setCollapsedTopGroups((prev) => {
       const next = new Set(prev)
       if (next.has(key)) {
         next.delete(key)
@@ -925,90 +1040,118 @@ export function ChallengeList() {
       {!loading && !error ? (
         challenges.length > 0 ? (
           (() => {
-            const groups = groupByCollection(challenges)
-            const showGroupHeaders = groups.length > 1
-            return groups.map((group) => {
-              const isCollapsed = showGroupHeaders && collapsedGroups.has(group.key)
-              return (
-              <div key={group.key} className="challenge-collection-group">
-                {showGroupHeaders ? (
-                  <button
-                    type="button"
-                    className="challenge-collection-header"
-                    aria-expanded={!isCollapsed}
-                    onClick={() => toggleGroupCollapsed(group.key)}
-                  >
-                    <span
-                      className={isCollapsed ? 'audit-caret' : 'audit-caret audit-caret--open'}
-                      aria-hidden="true"
+            const entries = groupByGroupAndCollection(challenges)
+            const showTopHeaders = entries.length > 1
+            return entries.map((entry) => {
+              if (entry.kind === 'group') {
+                const isGroupCollapsed = collapsedTopGroups.has(entry.key)
+                const showNestedHeaders = entry.collections.length > 1
+                const totalInGroup = entry.collections.reduce(
+                  (sum, bucket) => sum + bucket.challenges.length,
+                  0,
+                )
+                return (
+                  <div key={entry.key} className="challenge-group">
+                    <button
+                      type="button"
+                      className="challenge-group-header"
+                      aria-expanded={!isGroupCollapsed}
+                      onClick={() => toggleTopGroupCollapsed(entry.key)}
                     >
-                      ▸
-                    </span>
-                    {group.label}
-                    {isCollapsed ? ` (${group.challenges.length})` : null}
-                  </button>
-                ) : null}
-                {/* Always mounted, hidden via CSS rather than conditionally
-                    unmounted — React unmounting/remounting this subtree on
-                    every collapse toggle is what let a "removeChild: node is
-                    not a child of this node" crash surface (a DOM-mutating
-                    browser extension, e.g. page translation, can move/replace
-                    text nodes in here between renders; if React never has to
-                    tear the subtree down, it never fights that mutation). */}
-                <div className="challenge-feed" hidden={isCollapsed}>
-                  {group.challenges.map((challenge) => (
-                    <article key={challenge.id} className="challenge-row">
-                      <div className="challenge-row__badges">
-                        <span className={`difficulty difficulty--${challenge.difficulty}`}>
-                          {challenge.difficulty}
-                        </span>
-                        {challenge.solved ? (
-                          <span className="verdict verdict--accepted">CONCLUÍDO</span>
-                        ) : null}
-                      </div>
-                      <div className="challenge-row__body">
-                        <h2>{challenge.title}</h2>
-                        <p>{challenge.description}</p>
-                        <div className="challenge-row__meta">
-                          <span className="challenge-row__slug">/{challenge.slug}</span>
-                          <TelemetryChip
-                            timeLimitMs={challenge.time_limit_ms}
-                            memoryLimitMb={challenge.memory_limit_mb}
-                          />
-                        </div>
-                      </div>
-                      <div className="challenge-row__actions">
-                        {isTeacher ? (
-                          <button
-                            type="button"
-                            className="challenge-row__edit"
-                            title="Editar desafio"
-                            aria-label={`Editar ${challenge.title}`}
-                            onClick={() => void openEditor(challenge)}
+                      <span
+                        className={isGroupCollapsed ? 'audit-caret' : 'audit-caret audit-caret--open'}
+                        aria-hidden="true"
+                      >
+                        ▸
+                      </span>
+                      {entry.label}
+                      {isGroupCollapsed ? ` (${totalInGroup})` : null}
+                    </button>
+                    {/* Always mounted, hidden via CSS — see the same note on
+                        .challenge-feed below re: the removeChild crash this
+                        avoids. */}
+                    <div className="challenge-group-body" hidden={isGroupCollapsed}>
+                      {entry.collections.map((bucket) => {
+                        const isCollapsed = showNestedHeaders && collapsedGroups.has(bucket.key)
+                        return (
+                          <div
+                            key={bucket.key}
+                            className="challenge-collection-group challenge-collection-group--nested"
                           >
-                            <svg
-                              width="17"
-                              height="17"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                            </svg>
-                          </button>
-                        ) : null}
-                        <Link className="challenge-submit" to={`/challenges/${challenge.id}`}>
-                          Resolver desafio
-                        </Link>
-                      </div>
-                    </article>
-                  ))}
+                            {showNestedHeaders ? (
+                              <button
+                                type="button"
+                                className="challenge-collection-header challenge-collection-header--nested"
+                                aria-expanded={!isCollapsed}
+                                onClick={() => toggleGroupCollapsed(bucket.key)}
+                              >
+                                <span
+                                  className={isCollapsed ? 'audit-caret' : 'audit-caret audit-caret--open'}
+                                  aria-hidden="true"
+                                >
+                                  ▸
+                                </span>
+                                {bucket.label}
+                                {isCollapsed ? ` (${bucket.challenges.length})` : null}
+                              </button>
+                            ) : null}
+                            <div className="challenge-feed" hidden={isCollapsed}>
+                              {bucket.challenges.map((challenge) => (
+                                <ChallengeCard
+                                  key={challenge.id}
+                                  challenge={challenge}
+                                  isTeacher={isTeacher}
+                                  onEdit={(c) => void openEditor(c)}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              }
+
+              const bucket = entry.bucket
+              const isCollapsed = showTopHeaders && collapsedGroups.has(bucket.key)
+              return (
+                <div key={bucket.key} className="challenge-collection-group">
+                  {showTopHeaders ? (
+                    <button
+                      type="button"
+                      className="challenge-collection-header"
+                      aria-expanded={!isCollapsed}
+                      onClick={() => toggleGroupCollapsed(bucket.key)}
+                    >
+                      <span
+                        className={isCollapsed ? 'audit-caret' : 'audit-caret audit-caret--open'}
+                        aria-hidden="true"
+                      >
+                        ▸
+                      </span>
+                      {bucket.label}
+                      {isCollapsed ? ` (${bucket.challenges.length})` : null}
+                    </button>
+                  ) : null}
+                  {/* Always mounted, hidden via CSS rather than conditionally
+                      unmounted — React unmounting/remounting this subtree on
+                      every collapse toggle is what let a "removeChild: node is
+                      not a child of this node" crash surface (a DOM-mutating
+                      browser extension, e.g. page translation, can move/replace
+                      text nodes in here between renders; if React never has to
+                      tear the subtree down, it never fights that mutation). */}
+                  <div className="challenge-feed" hidden={isCollapsed}>
+                    {bucket.challenges.map((challenge) => (
+                      <ChallengeCard
+                        key={challenge.id}
+                        challenge={challenge}
+                        isTeacher={isTeacher}
+                        onEdit={(c) => void openEditor(c)}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
               )
             })
           })()

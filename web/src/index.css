@@ -730,6 +730,71 @@ pre {
   margin-bottom: 0;
 }
 
+/* Nested inside a .challenge-group-body: smaller and indented relative to
+   .challenge-collection-header, so a group's collections read as level 2
+   under its level-1 header. Less vertical margin than the top-level
+   version too — the group header above already establishes the section
+   break, a second big gap here would be redundant. */
+.challenge-collection-group--nested {
+  margin-bottom: 20px;
+}
+
+.challenge-collection-group--nested:last-child {
+  margin-bottom: 0;
+}
+
+.challenge-collection-header--nested {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  font-size: 0.72rem;
+  border-bottom-width: 1px;
+}
+
+/* Level 1: one step heavier than .challenge-collection-header (bigger
+   size, background tint, thicker rule) so a group unambiguously outranks
+   the collections nested inside it. */
+.challenge-group {
+  margin-bottom: 32px;
+}
+
+.challenge-group:last-child {
+  margin-bottom: 0;
+}
+
+.challenge-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 20px;
+  padding: 10px 14px;
+  border: none;
+  border-left: 3px solid var(--accent-green);
+  border-bottom: 2px solid var(--border-strong);
+  border-radius: 0 var(--radius-s) 0 0;
+  background: var(--bg-surface-alt);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+}
+
+.challenge-group-header .audit-caret {
+  color: var(--accent-green);
+}
+
+.challenge-group-body {
+  padding-left: 4px;
+}
+
+.challenge-group-body[hidden] {
+  display: none;
+}
+
 .challenge-row {
   position: relative;
   overflow: hidden;
