@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { Link } from 'react-router-dom'
+import rehypeHighlight from 'rehype-highlight'
 
 import {
   createChallenge,
@@ -191,6 +193,19 @@ function HeaderProgress({ label, progress }: { label: string; progress: Progress
   )
 }
 
+// Cuts plain text at a word boundary before it ever reaches ReactMarkdown
+// — truncating already-rendered/parsed markdown mid-token risks stray
+// unbalanced syntax (an unclosed ``` or **), so the raw string is
+// shortened first and the renderer just renders whatever's left of it.
+// Card-only: the full description still renders untruncated on the
+// challenge detail page.
+function truncateForPreview(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text
+  const cut = text.slice(0, maxLength)
+  const lastSpace = cut.lastIndexOf(' ')
+  return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd() + '…'
+}
+
 // Module-level (not defined inside ChallengeList) so it isn't recreated,
 // and remounted, on every render.
 function ChallengeCard({
@@ -221,7 +236,11 @@ function ChallengeCard({
           {challenge.title}
           {isNext ? <span className="challenge-row__next-label">PRÓXIMO</span> : null}
         </h2>
-        <p>{challenge.description}</p>
+        <div className="challenge-row__description markdown-content">
+          <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
+            {truncateForPreview(challenge.description, 220)}
+          </ReactMarkdown>
+        </div>
         <div className="challenge-row__meta">
           <span className="challenge-row__slug">/{challenge.slug}</span>
           <TelemetryChip

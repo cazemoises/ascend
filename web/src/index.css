@@ -940,14 +940,23 @@ pre {
   letter-spacing: -0.01em;
 }
 
-.challenge-row__body p {
+/* Rendered markdown (see ChallengeCard) rather than a single plain <p>, so
+   it can't rely on -webkit-line-clamp (which only clamps one inline flow —
+   real markdown can produce several block children, e.g. two paragraphs
+   or a code fence). max-height + overflow:hidden clips whatever renders,
+   regardless of its block structure — a coarser but structure-agnostic
+   substitute for the old 2-line clamp. */
+.challenge-row__description {
   margin: 0;
+  max-height: 2.6em;
+  overflow: hidden;
   color: var(--muted);
   font-size: 0.87rem;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  line-height: 1.3;
+}
+
+.challenge-row__description :first-child {
+  margin-top: 0;
 }
 
 .challenge-row__meta {
