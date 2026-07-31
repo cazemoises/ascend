@@ -1472,7 +1472,7 @@ pre {
 
 /* Always dark regardless of app theme, same principle as --code-*
    elsewhere — the editor pane and its chrome (toolbar, tabs, actions bar)
-   use --code-* tokens throughout, not the theme-following --panel*/--text
+   use --code-* tokens throughout, not the theme-following --panel/--text
    ones, so toggling light mode doesn't wash out the code surface. */
 .workspace__editor {
   display: flex;
