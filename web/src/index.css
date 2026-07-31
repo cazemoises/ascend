@@ -1,68 +1,106 @@
 /* =====================================================================
-   Ascend — Tactical Telemetry design system
-   Flat solid surfaces, hairline borders, phosphor text. No gradients,
-   no glow, no glassmorphism — reads as instrument panel, not SaaS chrome.
+   Ascend — "Trilha de Execução" design system
+   Warm editorial identity anchored in how code is executed and measured,
+   not a generic dark-terminal look. Three brand hues doing three distinct
+   jobs — terracota (primary/CTA), teal (secondary/navigation), a separate
+   verdict green — plus a dedicated purple for runtime/system errors.
+   Flat, border-defined surfaces; near-no drop shadow.
    ===================================================================== */
 
 :root {
   color-scheme: dark;
 
-  /* Primitive tokens */
-  --bg-base: #0a0a0c;
-  --bg-surface: #121316;
-  --bg-surface-alt: #17181c;
-  --border-hairline: rgba(255, 255, 255, 0.08);
-  --text-primary: #e8e8e6;
-  --text-secondary: #8a8d93;
+  /* Primitive tokens — neutrals (deep blue-violet, never pure black) */
+  --bg-base: oklch(19% 0.018 280);
+  --bg-surface: oklch(24% 0.02 280);
+  --bg-surface-alt: oklch(28% 0.024 280);
+  --border-hairline: oklch(34% 0.02 280);
+  --text-primary: oklch(93% 0.01 80);
+  --text-secondary: oklch(68% 0.015 80);
 
-  --accent-green: #3ddc64;
-  --accent-amber: #f5a623;
-  --accent-red: #ff4d4d;
-  --accent-green-dim: rgba(61, 220, 100, 0.12);
-  --accent-amber-dim: rgba(245, 166, 35, 0.12);
-  --accent-red-dim: rgba(255, 77, 77, 0.12);
+  /* Primitive tokens — brand (terracota/teal) and verdict hues */
+  --accent-terracota: oklch(70% 0.16 35);
+  --accent-teal: oklch(72% 0.09 200);
+  --accent-green: oklch(70% 0.12 165);
+  --accent-amber: oklch(78% 0.13 85);
+  --accent-red: oklch(70% 0.16 25);
+  --accent-purple: oklch(72% 0.13 305);
+  --accent-green-dim: oklch(30% 0.06 165);
+  --accent-amber-dim: oklch(38% 0.07 85);
+  --accent-red-dim: oklch(40% 0.1 25);
+  --accent-purple-dim: oklch(34% 0.09 305);
 
-  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
-  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-sans: 'Public Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* Code surfaces (Monaco pane, submitted-code panels) are always dark,
+     regardless of app theme — same "code renders on a dark well" idea the
+     Monaco editor already followed, now extended to the static code
+     panels too. Theme-invariant: declared once here, never overridden in
+     the light block. */
+  --code-bg: oklch(24% 0.02 280);
+  --code-surface-alt: oklch(28% 0.024 280);
+  --code-border: oklch(34% 0.02 280);
+  --code-ink: oklch(93% 0.01 80);
+  --code-muted: oklch(45% 0.02 280);
+
+  /* Sidebar chrome is always dark, same idea as the code surfaces above —
+     theme-invariant so its own text doesn't invert to near-black when the
+     app theme flips to light while the sidebar itself stays dark. */
+  --sidebar-bg: oklch(19% 0.018 280);
+  --sidebar-surface-alt: oklch(28% 0.024 280);
+  --sidebar-border: oklch(34% 0.02 280);
+  --sidebar-ink: oklch(93% 0.01 80);
+  --sidebar-muted: oklch(68% 0.015 80);
 
   /* Elevation ladder: base → surface → alt surface (all solid, no alpha) */
   --canvas: var(--bg-base);
   --panel: var(--bg-surface);
   --panel-solid: var(--bg-surface);
   --panel-alt: var(--bg-surface-alt);
-  --inset: #070b12;
+  --inset: var(--bg-surface-alt);
   --border: var(--border-hairline);
-  --border-strong: rgba(255, 255, 255, 0.12);
-  --shadow-card: 0 4px 24px -4px rgba(0, 0, 0, 0.55);
+  --border-strong: var(--border-hairline);
+  --shadow-card: 0 1px 3px -1px rgba(0, 0, 0, 0.3);
 
   --title: var(--text-primary);
   --text: var(--text-primary);
   --muted: var(--text-secondary);
 
+  /* "green" keeps its name for backward compat but is no longer the brand
+     color — it's the accepted-verdict hue only. Anything that wants the
+     primary brand/CTA color reaches for --accent-terracota directly, or
+     the --grad-cta/--grad-accent aliases below. */
   --green: var(--accent-green);
-  --green-hover: #4de876;
+  --green-hover: oklch(66% 0.16 35);
   --green-soft: var(--accent-green-dim);
-  --on-green: #06130b;
+  --on-green: var(--bg-base);
 
-  --blue: #4da3ff;
-  --blue-soft: rgba(77, 163, 255, 0.12);
+  --blue: oklch(70% 0.04 250);
+  --blue-soft: oklch(30% 0.04 250);
   --amber: var(--accent-amber);
   --amber-soft: var(--accent-amber-dim);
   --red: var(--accent-red);
   --red-soft: var(--accent-red-dim);
+  --purple: var(--accent-purple);
+  --purple-soft: var(--accent-purple-dim);
 
   /* No color gradients anywhere: both resolve to a solid accent fill. */
-  --grad-cta: var(--accent-green);
-  --grad-accent: var(--accent-green);
+  --grad-cta: var(--accent-terracota);
+  --grad-accent: var(--accent-terracota);
 
-  --radius: 10px;
-  --radius-s: 6px;
-  --sidebar-w: 224px;
+  --radius: 16px;
+  --radius-s: 8px;
+  --radius-l: 20px;
+  --radius-pill: 999px;
+  --sidebar-w: 220px;
 
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 
   --sans: var(--font-sans);
   --mono: var(--font-mono);
+  --display: var(--font-display);
 
   font-family: var(--sans);
   font-size: 15px;
@@ -75,41 +113,42 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Light mode — same design identity (mono type, bracket badges, telemetry
-   chips, flat surfaces), luminosity inverted. Only the color primitives are
-   redeclared here; every derived token above (--canvas, --panel, --title,
-   --green, --grad-cta, ...) is a var() reference to one of these and
-   re-resolves automatically, so the rest of the stylesheet needs no
-   changes. Surfaces read slightly *darker* than the page background
-   (mirroring dark mode's "elevated = lighter" ladder, just flipped), and
-   the accent hues are deepened from their neon dark-mode values so they
-   still clear 4.5:1 against a light background. */
+/* Light mode is the primary, most-elaborated palette in the source design
+   (a warm cream canvas, not the inverse of dark) — only the color
+   primitives are redeclared here; every derived token above (--canvas,
+   --panel, --title, --grad-cta, ...) is a var() reference to one of these
+   and re-resolves automatically, so the rest of the stylesheet needs no
+   changes. Dark stays the app's default; this is the alternate. */
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --bg-base: #f5f5f3;
-  --bg-surface: #ececea;
-  --bg-surface-alt: #e3e3e0;
-  --border-hairline: rgba(0, 0, 0, 0.08);
-  --text-primary: #1a1b1e;
-  --text-secondary: #5a5d63;
+  --bg-base: oklch(97% 0.015 75);
+  --bg-surface: oklch(99% 0.006 75);
+  --bg-surface-alt: oklch(93% 0.02 75);
+  --border-hairline: oklch(87% 0.015 70);
+  --text-primary: oklch(23% 0.02 50);
+  --text-secondary: oklch(48% 0.02 50);
 
-  --accent-green: #1f9d4a;
-  --accent-amber: #a15c00;
-  --accent-red: #c62828;
-  --accent-green-dim: rgba(31, 157, 74, 0.12);
-  --accent-amber-dim: rgba(161, 92, 0, 0.12);
-  --accent-red-dim: rgba(198, 40, 40, 0.12);
+  --accent-terracota: oklch(62% 0.16 35);
+  --accent-teal: oklch(52% 0.09 200);
+  --accent-green: oklch(58% 0.12 165);
+  --accent-amber: oklch(68% 0.13 85);
+  --accent-red: oklch(58% 0.17 25);
+  --accent-purple: oklch(54% 0.13 305);
+  --accent-green-dim: oklch(92% 0.04 165);
+  --accent-amber-dim: oklch(93% 0.045 85);
+  --accent-red-dim: oklch(93% 0.05 25);
+  --accent-purple-dim: oklch(92% 0.035 305);
 
-  --inset: #ffffff;
-  --border-strong: rgba(0, 0, 0, 0.16);
-  --shadow-card: 0 4px 20px -6px rgba(0, 0, 0, 0.14);
+  --inset: var(--bg-surface-alt);
+  --border-strong: var(--border-hairline);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
 
-  --green-hover: #178a3f;
-  --on-green: #ffffff;
+  --green-hover: oklch(58% 0.16 35);
+  --on-green: var(--bg-base);
 
-  --blue: #1f6fd1;
-  --blue-soft: rgba(31, 111, 209, 0.12);
+  --blue: oklch(54% 0.05 250);
+  --blue-soft: oklch(92% 0.02 250);
 }
 
 * {
@@ -157,12 +196,17 @@ body {
 }
 
 a {
-  color: inherit;
+  color: var(--accent-teal);
   text-decoration: none;
 }
 
 a:hover {
-  color: var(--title);
+  color: var(--accent-terracota);
+}
+
+::selection {
+  background: var(--accent-teal);
+  color: var(--bg-base);
 }
 
 h1,
@@ -173,14 +217,17 @@ p {
 
 h1 {
   color: var(--title);
+  font-family: var(--display);
   font-size: 1.6rem;
   font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.25;
   margin-bottom: 8px;
 }
 
 h2 {
   color: var(--title);
+  font-family: var(--display);
   font-size: 1.05rem;
   font-weight: 600;
   margin-bottom: 8px;
@@ -192,7 +239,7 @@ pre {
 }
 
 :is(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--green);
+  outline: 2px solid var(--accent-terracota);
   outline-offset: 2px;
   border-radius: var(--radius-s);
 }
@@ -417,7 +464,7 @@ pre {
   flex-direction: column;
   padding: 18px 12px;
   border-right: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(8, 11, 18, 0.72);
+  background: color-mix(in oklch, var(--sidebar-bg) 72%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
@@ -427,14 +474,20 @@ pre {
   align-items: center;
   gap: 10px;
   padding: 6px 12px 20px;
-  color: var(--title);
+  color: var(--sidebar-ink);
+  font-family: var(--display);
   font-weight: 700;
   letter-spacing: 0.04em;
 }
 
+/* Interim: still the old triangle glyph and a solid glow, pending the
+   sidebar/brand-mark rebuild (rotated bicolor terracota/teal diamond) in
+   the dedicated Tela 6 pass — this only keeps its color in step with
+   "green is verdict-only now" so it doesn't clash with the new palette
+   in the meantime. */
 .sidebar__brand-mark {
-  color: var(--green);
-  text-shadow: 0 0 14px rgba(46, 200, 102, 0.55);
+  color: var(--accent-terracota);
+  text-shadow: 0 0 14px oklch(70% 0.16 35 / 0.55);
 }
 
 .sidebar__nav {
@@ -450,7 +503,7 @@ pre {
   padding: 10px 12px 10px 10px;
   border-left: 2px solid transparent;
   border-radius: var(--radius-s);
-  color: var(--text);
+  color: var(--sidebar-ink);
   opacity: 0.6;
   font-family: var(--font-mono);
   font-size: 0.78rem;
@@ -470,10 +523,10 @@ pre {
 }
 
 .sidebar__link--active {
-  color: var(--accent-green);
+  color: var(--accent-terracota);
   opacity: 1;
-  background: var(--bg-surface-alt);
-  border-left-color: var(--accent-green);
+  background: var(--sidebar-surface-alt);
+  border-left-color: var(--accent-terracota);
 }
 
 .sidebar__footer {
@@ -482,7 +535,7 @@ pre {
   flex-direction: column;
   gap: 8px;
   padding-top: 14px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--sidebar-border);
 }
 
 .sidebar__user {
@@ -495,7 +548,7 @@ pre {
 
 .sidebar__user-email {
   font-size: 0.76rem;
-  color: var(--text-secondary);
+  color: var(--sidebar-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -507,7 +560,7 @@ pre {
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--sidebar-muted);
 }
 
 .sidebar__role--teacher {
@@ -520,10 +573,10 @@ pre {
   gap: 12px;
   margin: 0 12px;
   padding: 6px 10px;
-  border: 1px solid var(--border-hairline);
+  border: 1px solid var(--sidebar-border);
   border-radius: var(--radius-s);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--sidebar-muted);
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 600;
@@ -535,8 +588,8 @@ pre {
 }
 
 .sidebar__view-as-toggle:hover {
-  color: var(--accent-green);
-  border-color: var(--accent-green);
+  color: var(--accent-terracota);
+  border-color: var(--accent-terracota);
 }
 
 /* Small square icon buttons for footer utilities (theme, sound) — grouped
@@ -548,23 +601,28 @@ pre {
   margin: 0 12px;
 }
 
+/* Same icon-button convention already established by .list-item__icon-btn
+   (reorder ↑/↓ in the list editor) and .challenge-row__edit — border,
+   size and hover physics all reused verbatim rather than inventing a new
+   button style. */
 .sidebar__icon-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--border-hairline);
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1px solid var(--sidebar-border);
   border-radius: var(--radius-s);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--sidebar-muted);
   cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease;
+  transition: border-color 150ms ease, color 150ms ease;
 }
 
 .sidebar__icon-toggle:hover {
-  color: var(--accent-green);
-  border-color: var(--accent-green);
+  border-color: var(--accent-terracota);
+  color: var(--accent-terracota);
 }
 
 .sidebar__logout {
@@ -576,7 +634,7 @@ pre {
   border-left: 2px solid transparent;
   border-radius: var(--radius-s);
   background: transparent;
-  color: var(--text);
+  color: var(--sidebar-ink);
   opacity: 0.6;
   font-family: var(--font-mono);
   font-size: 0.78rem;
@@ -2928,18 +2986,27 @@ pre {
   }
 }
 
+/* Meta chips (language, test count, etc.) — same icon+mono-text idiom as
+   .telemetry-chip__item, not loose gray text, so they read as the same
+   "chip" vocabulary as the rest of the app. */
 .submission-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin: 16px 0 0;
   align-items: center;
+  gap: 8px 20px;
 }
 
 .submission-meta__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-family: var(--mono);
+}
+
+.submission-meta__item svg {
+  flex-shrink: 0;
 }
 
 /* Sections of the result page (Veredito → Saída/Erro → Código enviado →
@@ -2966,8 +3033,16 @@ pre {
 
 /* Verdict hero — the first thing that should catch the eye. Solid tint +
    thick border in the outcome color, distinct from every other panel on
-   the page which stays neutral. */
+   the page. Badge+icon anchor the left edge; the meta chips fill the
+   right side of the SAME row (via .submission-meta below) instead of
+   leaving it empty, wrapping to a second row only once the row genuinely
+   runs out of space. */
 .submission-verdict-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px 32px;
   padding: 20px 24px;
   border: 2px solid var(--border-strong);
   border-radius: var(--radius);
@@ -2988,6 +3063,7 @@ pre {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .submission-verdict-hero__icon {
@@ -3011,6 +3087,62 @@ pre {
   letter-spacing: 0.06em;
 }
 
+.submission-verdict-hero .submission-meta {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+/* Result panels (test output, error log, submitted code) — a real header
+   bar (own background, spans the panel's full width) fused to a body
+   below, same card idiom as .terminal-log: one panel with two zones, not
+   a label floating above an unrelated box. */
+.result-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  background: var(--inset);
+}
+
+.result-panel__header {
+  padding: 8px 14px;
+  background: var(--bg-surface-alt);
+  border-bottom: 1px solid var(--border-hairline);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.result-panel__body {
+  margin: 0;
+  padding: 12px 16px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 240px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.result-panel__body code {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+/* Submitted code tends to run longer than a single test's output — give
+   its panel more vertical room before it scrolls. */
+.result-panel--code .result-panel__body {
+  max-height: 340px;
+}
+
+/* Bare code well used by the submission-history audit row (a different
+   page/pattern — a compact expando next to .terminal-log, not the result
+   page's dedicated panels above). */
 .submission-code {
   margin: 0;
   padding: 16px;
@@ -3038,43 +3170,18 @@ pre {
 }
 
 /* Wrong-answer diff (obtida/esperada) and runtime-error/timeout "Erro"
-   block on the submission result page — side by side, wrapping to stacked
-   on narrow viewports since each block has a min-width via flex-basis. */
+   panel on the submission result page — side by side, wrapping to
+   stacked on narrow viewports since each panel has a min-width via
+   flex-basis. */
 .submission-output {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
 }
 
-.submission-output__block {
+.submission-output .result-panel {
   flex: 1 1 260px;
   min-width: 0;
-}
-
-.submission-output__label {
-  margin: 0 0 6px;
-  font-family: var(--font-mono);
-  color: var(--muted);
-  font-size: 0.74rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.submission-output__pre {
-  margin: 0;
-  padding: 12px 16px;
-  background: var(--bg-surface-alt);
-  border: 1px solid var(--border-hairline);
-  border-radius: 4px;
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  overflow-x: auto;
-  overflow-y: auto;
-  max-height: 220px;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 /* ===================== Sidebar responsive ===================== */
