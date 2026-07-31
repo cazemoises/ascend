@@ -842,9 +842,14 @@ pre {
   gap: 10px;
 }
 
+/* 260px min was packing 3+ narrow columns on ordinary desktop widths -
+   too tight for this project's description lengths (often a full
+   sentence), forcing awkward mid-word wraps even with the line-clamp
+   below. 320px still gets multiple columns on wide screens, just fewer
+   of them, each with real room to breathe. */
 .challenge-feed {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
 }
 
@@ -906,12 +911,17 @@ pre {
   margin-bottom: 0;
 }
 
-/* Nested inside a .challenge-group-body: no card chrome of its own (its
-   parent .challenge-group already provides that) — just a lighter,
-   indented header so a group's collections read as level 2 under its
-   level-1 header. */
+/* Nested inside a .challenge-group-body. A same-size, same-weight label
+   plus a 20px text-indent read as barely different from the level-1
+   group header above it — a real sub-container now: its own tinted
+   background (reads as "collection lives inside group", not just
+   "slightly indented text") plus a smaller, lighter-weight label. The
+   background's own padding replaces the old text-only indent. */
 .challenge-collection-group--nested {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  padding: 14px 16px 16px;
+  background: var(--bg-surface-alt);
+  border-radius: var(--radius-s);
 }
 
 .challenge-collection-group--nested:last-child {
@@ -919,13 +929,14 @@ pre {
 }
 
 .challenge-collection-header--nested {
-  padding: 0 0 12px 20px;
-  margin-bottom: 12px;
+  padding: 0 0 10px;
+  margin-bottom: 10px;
   border-bottom: 1px solid var(--border-hairline);
 }
 
 .challenge-collection-header--nested .challenge-progress-header__label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .challenge-collection-header--nested .challenge-progress-header__bar {
@@ -986,8 +997,8 @@ pre {
   white-space: nowrap;
   min-width: 0;
   font-family: var(--display);
-  font-size: 1.0625rem;
-  font-weight: 600;
+  font-size: 1.2rem;
+  font-weight: 700;
 }
 
 .challenge-progress-header__count {
@@ -1041,8 +1052,15 @@ pre {
   border-color: var(--accent-terracota);
 }
 
+/* Terracota and red (--accent-red) sit only 10deg apart in hue (35 vs
+   25) at the same lightness/chroma - close enough that this correctly-
+   terracota "suggested next" accent still reads as a false error signal
+   next to a real red verdict badge. Red is reserved for error verdicts
+   everywhere else in the app; teal (navigation/progress, already used
+   for the group/collection progress bars on this same screen) is the
+   right semantic fit for a wayfinding cue that isn't a verdict at all. */
 .challenge-card--next {
-  border-left: 3px solid var(--accent-terracota);
+  border-left: 3px solid var(--accent-teal);
 }
 
 .challenge-card__top {
@@ -1064,7 +1082,7 @@ pre {
   margin-left: 8px;
   padding: 2px 8px;
   border-radius: var(--radius-pill);
-  background: var(--accent-terracota);
+  background: var(--accent-teal);
   color: var(--on-green);
   font-family: var(--font-mono);
   font-size: 0.6rem;
@@ -1074,16 +1092,19 @@ pre {
   vertical-align: middle;
 }
 
-/* Rendered markdown (see ChallengeCard) rather than a single plain <p>, so
-   it can't rely on -webkit-line-clamp (which only clamps one inline flow —
-   real markdown can produce several block children, e.g. two paragraphs
-   or a code fence). max-height + overflow:hidden clips whatever renders,
-   regardless of its block structure — a coarser but structure-agnostic
-   substitute for the old 2-line clamp. */
+/* max-height clipped with no visible cutoff indicator - text broke mid-
+   sentence with no ellipsis. Switched to a real line-clamp: the source
+   string is already cut to 140 chars by truncateForPreview() before it
+   ever reaches ReactMarkdown, so in practice this is rendering a single
+   short paragraph, not the multi-block markdown structure that would
+   make -webkit-line-clamp behave oddly - safe here even though it
+   wouldn't necessarily be for arbitrary full-length markdown. */
 .challenge-card__description {
   margin: 0;
   flex: 1;
-  max-height: 2.6em;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
   overflow: hidden;
   color: var(--muted);
   font-size: 0.85rem;
@@ -1106,7 +1127,7 @@ pre {
 
 .challenge-card__actions {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
   margin-top: 4px;
 }
@@ -1117,6 +1138,13 @@ pre {
   padding: 9px 16px;
   font-size: 0.82rem;
 }
+
+/* .challenge-row__edit's own padding (10px 11px) and .challenge-submit's
+   (9px 16px + a bigger font-size) don't land on quite the same height,
+   so the icon button read as floating a couple pixels off from the
+   button beside it - fixed by align-items: stretch above, which makes
+   every child in the row match its height exactly instead of each
+   sizing to its own content and center-aligning at a mismatch. */
 
 .challenge-row {
   position: relative;
@@ -1413,6 +1441,31 @@ pre {
   background: var(--inset);
   font-size: 0.85rem;
   color: var(--text);
+}
+
+/* Was reusing .sample__io on the bare <pre> itself - .sample__io's own
+   wrap rule (white-space/word-break) is scoped to ".sample__io pre" (a
+   descendant), which never matched an element that IS .sample__io, so
+   this rendered unwrapped. One long CREATE TABLE line then forced
+   .workspace__brief's own intrinsic width past its grid track, which an
+   ancestor's overflow-x:hidden silently clipped - dragging the *later*,
+   correctly-built two-column example grid along with it and cutting off
+   its second column. Own class, own wrap rule, fixes both. */
+.schema-sql {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--inset);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 220px;
 }
 
 .sample {
@@ -3088,9 +3141,17 @@ pre {
 
 /* ===================== Submission result page ===================== */
 
+/* No padding of its own — the verdict hero is a flush full-bleed band at
+   the top (own padding, top corners only), everything else sits in
+   .submission-panel__body's padded box below it. */
 .submission-panel {
-  padding: 24px;
+  border-radius: var(--radius-l);
+  overflow: hidden;
   animation: fadeInUp 0.4s var(--ease-spring) both;
+}
+
+.submission-panel__body {
+  padding: 24px;
 }
 
 /* Reserved-space "evaluating" panel shown in place of the result panel
@@ -3172,16 +3233,18 @@ pre {
   flex-shrink: 0;
 }
 
-/* Sections of the result page (Veredito → Saída/Erro → Código enviado →
+/* Sections in .submission-panel__body (Saída/Erro → Código enviado →
    Ações), each preceded by a .submission-section-label. Generous spacing
    between them is what gives the page a clear top-to-bottom hierarchy
-   instead of everything competing for attention at once. */
+   instead of everything competing for attention at once. The body's own
+   padding already provides the gap under the verdict hero, so the first
+   section needs no extra margin. */
 .submission-section {
   margin-top: 32px;
 }
 
 .submission-section:first-of-type {
-  margin-top: 20px;
+  margin-top: 0;
 }
 
 .submission-section-label {
@@ -3194,52 +3257,48 @@ pre {
   color: var(--text-secondary);
 }
 
-/* Verdict hero — the first thing that should catch the eye. Solid tint +
-   thick border in the outcome color, distinct from every other panel on
-   the page. Badge+icon anchor the left edge; the meta chips fill the
-   right side of the SAME row (via .submission-meta below) instead of
-   leaving it empty, wrapping to a second row only once the row genuinely
-   runs out of space. */
+/* Verdict hero — the first thing that should catch the eye. A flush,
+   full-bleed tinted band across the top of the card (not a bordered box
+   floating inside its padding), colored per the same 5-way verdict hue
+   the badge pills already use (Phase 2) — a runtime_error hero used to
+   share wrong_answer's red even though its badge was already purple.
+   Trail+badge anchor the left edge; the meta chips fill the right side
+   of the SAME row (via .submission-meta below) instead of leaving it
+   empty, wrapping to a second row only once the row genuinely runs out
+   of space. */
 .submission-verdict-hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 14px 32px;
-  padding: 20px 24px;
-  border: 2px solid var(--border-strong);
-  border-radius: var(--radius);
+  padding: 24px 28px;
+  border-radius: var(--radius-l) var(--radius-l) 0 0;
   background: var(--panel-alt);
 }
 
 .submission-verdict-hero--accepted {
-  border-color: var(--accent-green);
   background: var(--accent-green-dim);
 }
 
-.submission-verdict-hero--rejected {
-  border-color: var(--accent-red);
+.submission-verdict-hero--wrong_answer {
   background: var(--accent-red-dim);
+}
+
+.submission-verdict-hero--runtime_error,
+.submission-verdict-hero--error {
+  background: var(--accent-purple-dim);
+}
+
+.submission-verdict-hero--time_limit_exceeded {
+  background: var(--accent-amber-dim);
 }
 
 .submission-verdict-hero__row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   flex-shrink: 0;
-}
-
-.submission-verdict-hero__icon {
-  display: inline-flex;
-  flex-shrink: 0;
-}
-
-.submission-verdict-hero--accepted .submission-verdict-hero__icon {
-  color: var(--accent-green);
-}
-
-.submission-verdict-hero--rejected .submission-verdict-hero__icon {
-  color: var(--accent-red);
 }
 
 /* Bigger, heavier badge than everywhere else .verdict is used (challenge

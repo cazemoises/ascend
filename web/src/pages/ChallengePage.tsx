@@ -294,7 +294,7 @@ export function ChallengePage() {
             {challenge.language === 'sql' && challenge.sql_schema ? (
               <>
                 <h2 className="section-title">Schema SQL</h2>
-                <pre className="sample__io">{challenge.sql_schema}</pre>
+                <pre className="schema-sql">{challenge.sql_schema}</pre>
               </>
             ) : null}
 

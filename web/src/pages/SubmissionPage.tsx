@@ -2,29 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 
 import { getSubmission, listChallenges, type Submission } from '../api'
+import { ExecutionTrail } from '../components/ExecutionTrail'
 import { TelemetryChip } from '../components/TelemetryChip'
 import { VerdictBadge } from '../components/VerdictBadge'
 import { playAcceptedChime } from '../lib/sound'
 
 const POLLING_DELAY_MS = 2000
-
-function IconCheck() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  )
-}
-
-function IconAlert() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="8" x2="12" y2="12" />
-      <line x1="12" y1="16" x2="12.01" y2="16" />
-    </svg>
-  )
-}
 
 // Same 12px icon convention as TelemetryChip's own IconClock/IconMemory —
 // these two extend that chip row to cover language and test count too.
@@ -175,23 +158,18 @@ export function SubmissionPage() {
       ) : null}
 
       {submission && submission.status !== 'pending' ? (
-        <section className="panel submission-panel">
+        <>
           <p className="eyebrow">Submissão</p>
           <h1>Resultado</h1>
 
-          <section className="submission-section">
-            <p className="submission-section-label">Veredito</p>
-            <div
-              className={
-                submission.status === 'accepted'
-                  ? 'submission-verdict-hero submission-verdict-hero--accepted'
-                  : 'submission-verdict-hero submission-verdict-hero--rejected'
-              }
-            >
+          <section className="panel submission-panel">
+            <div className={`submission-verdict-hero submission-verdict-hero--${submission.status}`}>
               <div className="submission-verdict-hero__row">
-                <span className="submission-verdict-hero__icon">
-                  {submission.status === 'accepted' ? <IconCheck /> : <IconAlert />}
-                </span>
+                <ExecutionTrail
+                  passedCount={submission.passed_count}
+                  totalTestCases={submission.total_test_cases}
+                  size="lg"
+                />
                 <span className="submission-verdict-reveal">
                   <VerdictBadge status={submission.status} />
                 </span>
@@ -214,72 +192,74 @@ export function SubmissionPage() {
                 ) : null}
               </div>
             </div>
-          </section>
 
-          {submission.status === 'accepted' && submission.stdout !== null ? (
-            <section className="submission-section">
-              <div className="submission-output">
-                <div className="result-panel">
-                  <p className="result-panel__header">Saída obtida</p>
-                  <pre className="result-panel__body">{submission.stdout}</pre>
-                </div>
-              </div>
-            </section>
-          ) : null}
+            <div className="submission-panel__body">
+              {submission.status === 'accepted' && submission.stdout !== null ? (
+                <section className="submission-section">
+                  <div className="submission-output">
+                    <div className="result-panel">
+                      <p className="result-panel__header">Saída obtida</p>
+                      <pre className="result-panel__body">{submission.stdout}</pre>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
 
-          {submission.status === 'wrong_answer' && submission.stdout !== null ? (
-            <section className="submission-section">
-              <div className="submission-output">
-                <div className="result-panel">
-                  <p className="result-panel__header">Saída obtida</p>
-                  <pre className="result-panel__body">{submission.stdout}</pre>
-                </div>
-                <div className="result-panel">
-                  <p className="result-panel__header">Saída esperada</p>
-                  <pre className="result-panel__body">{submission.expected_output}</pre>
-                </div>
-              </div>
-            </section>
-          ) : null}
+              {submission.status === 'wrong_answer' && submission.stdout !== null ? (
+                <section className="submission-section">
+                  <div className="submission-output">
+                    <div className="result-panel">
+                      <p className="result-panel__header">Saída obtida</p>
+                      <pre className="result-panel__body">{submission.stdout}</pre>
+                    </div>
+                    <div className="result-panel">
+                      <p className="result-panel__header">Saída esperada</p>
+                      <pre className="result-panel__body">{submission.expected_output}</pre>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
 
-          {(submission.status === 'runtime_error' || submission.status === 'time_limit_exceeded') &&
-          submission.stderr !== null ? (
-            <section className="submission-section">
-              <div className="submission-output">
-                <div className="result-panel">
-                  <p className="result-panel__header">Erro</p>
-                  <pre className="result-panel__body">{submission.stderr}</pre>
-                </div>
-              </div>
-            </section>
-          ) : null}
+              {(submission.status === 'runtime_error' || submission.status === 'time_limit_exceeded') &&
+              submission.stderr !== null ? (
+                <section className="submission-section">
+                  <div className="submission-output">
+                    <div className="result-panel">
+                      <p className="result-panel__header">Erro</p>
+                      <pre className="result-panel__body">{submission.stderr}</pre>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
 
-          <section className="submission-section">
-            <div className="result-panel result-panel--code">
-              <p className="result-panel__header">Código enviado</p>
-              <pre className="result-panel__body">
-                <code>{submission.source_code}</code>
-              </pre>
+              <section className="submission-section">
+                <div className="result-panel result-panel--code">
+                  <p className="result-panel__header">Código enviado</p>
+                  <pre className="result-panel__body">
+                    <code>{submission.source_code}</code>
+                  </pre>
+                </div>
+              </section>
+
+              {submission.status === 'accepted' ? (
+                <section className="submission-section">
+                  <p className="submission-section-label">Ações</p>
+                  <div className="submission-next-action">
+                    {nextChallengeId ? (
+                      <Link className="challenge-submit" to={`/challenges/${nextChallengeId}`}>
+                        Próximo desafio →
+                      </Link>
+                    ) : nextChallengeId === null ? (
+                      <button type="button" className="challenge-submit" disabled title="Não há mais desafios">
+                        Não há mais desafios
+                      </button>
+                    ) : null}
+                  </div>
+                </section>
+              ) : null}
             </div>
           </section>
-
-          {submission.status === 'accepted' ? (
-            <section className="submission-section">
-              <p className="submission-section-label">Ações</p>
-              <div className="submission-next-action">
-                {nextChallengeId ? (
-                  <Link className="challenge-submit" to={`/challenges/${nextChallengeId}`}>
-                    Próximo desafio →
-                  </Link>
-                ) : nextChallengeId === null ? (
-                  <button type="button" className="challenge-submit" disabled title="Não há mais desafios">
-                    Não há mais desafios
-                  </button>
-                ) : null}
-              </div>
-            </section>
-          ) : null}
-        </section>
+        </>
       ) : null}
     </main>
   )
