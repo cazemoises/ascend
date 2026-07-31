@@ -1415,6 +1415,31 @@ pre {
   color: var(--text);
 }
 
+/* Was reusing .sample__io on the bare <pre> itself - .sample__io's own
+   wrap rule (white-space/word-break) is scoped to ".sample__io pre" (a
+   descendant), which never matched an element that IS .sample__io, so
+   this rendered unwrapped. One long CREATE TABLE line then forced
+   .workspace__brief's own intrinsic width past its grid track, which an
+   ancestor's overflow-x:hidden silently clipped - dragging the *later*,
+   correctly-built two-column example grid along with it and cutting off
+   its second column. Own class, own wrap rule, fixes both. */
+.schema-sql {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--inset);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 220px;
+}
+
 .sample {
   margin-bottom: 14px;
   border: 1px solid var(--border);
