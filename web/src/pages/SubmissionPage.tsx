@@ -4,6 +4,7 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { getSubmission, listChallenges, type Submission } from '../api'
 import { TelemetryChip } from '../components/TelemetryChip'
 import { VerdictBadge } from '../components/VerdictBadge'
+import { playAcceptedChime } from '../lib/sound'
 
 const POLLING_DELAY_MS = 2000
 
@@ -37,6 +38,17 @@ export function SubmissionPage() {
   // GET /challenges already returns challenges grouped by collection
   // ordinal then created_at, so "next" is simply the following array entry.
   const [nextChallengeId, setNextChallengeId] = useState<string | null | undefined>(undefined)
+  // Tracks which submission id we've already chimed for, so the sound
+  // plays once per accepted result — not on every re-render — even under
+  // React StrictMode's double-invoked effects in dev.
+  const chimedForRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (submission?.status === 'accepted' && chimedForRef.current !== submission.id) {
+      chimedForRef.current = submission.id
+      playAcceptedChime()
+    }
+  }, [submission])
 
   useEffect(() => {
     let active = true

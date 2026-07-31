@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth'
+import { SoundToggle } from './SoundToggle'
 import { ThemeToggle } from './ThemeToggle'
 
 const isOnlyLists = import.meta.env.VITE_ONLY_LISTS_MODE === 'true'
@@ -172,6 +173,7 @@ export function Sidebar() {
 
           <div className="sidebar__utility-row">
             <ThemeToggle />
+            <SoundToggle />
           </div>
         </div>
       </aside>
