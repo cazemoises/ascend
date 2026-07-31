@@ -3088,9 +3088,17 @@ pre {
 
 /* ===================== Submission result page ===================== */
 
+/* No padding of its own — the verdict hero is a flush full-bleed band at
+   the top (own padding, top corners only), everything else sits in
+   .submission-panel__body's padded box below it. */
 .submission-panel {
-  padding: 24px;
+  border-radius: var(--radius-l);
+  overflow: hidden;
   animation: fadeInUp 0.4s var(--ease-spring) both;
+}
+
+.submission-panel__body {
+  padding: 24px;
 }
 
 /* Reserved-space "evaluating" panel shown in place of the result panel
@@ -3172,16 +3180,18 @@ pre {
   flex-shrink: 0;
 }
 
-/* Sections of the result page (Veredito → Saída/Erro → Código enviado →
+/* Sections in .submission-panel__body (Saída/Erro → Código enviado →
    Ações), each preceded by a .submission-section-label. Generous spacing
    between them is what gives the page a clear top-to-bottom hierarchy
-   instead of everything competing for attention at once. */
+   instead of everything competing for attention at once. The body's own
+   padding already provides the gap under the verdict hero, so the first
+   section needs no extra margin. */
 .submission-section {
   margin-top: 32px;
 }
 
 .submission-section:first-of-type {
-  margin-top: 20px;
+  margin-top: 0;
 }
 
 .submission-section-label {
@@ -3194,52 +3204,48 @@ pre {
   color: var(--text-secondary);
 }
 
-/* Verdict hero — the first thing that should catch the eye. Solid tint +
-   thick border in the outcome color, distinct from every other panel on
-   the page. Badge+icon anchor the left edge; the meta chips fill the
-   right side of the SAME row (via .submission-meta below) instead of
-   leaving it empty, wrapping to a second row only once the row genuinely
-   runs out of space. */
+/* Verdict hero — the first thing that should catch the eye. A flush,
+   full-bleed tinted band across the top of the card (not a bordered box
+   floating inside its padding), colored per the same 5-way verdict hue
+   the badge pills already use (Phase 2) — a runtime_error hero used to
+   share wrong_answer's red even though its badge was already purple.
+   Trail+badge anchor the left edge; the meta chips fill the right side
+   of the SAME row (via .submission-meta below) instead of leaving it
+   empty, wrapping to a second row only once the row genuinely runs out
+   of space. */
 .submission-verdict-hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 14px 32px;
-  padding: 20px 24px;
-  border: 2px solid var(--border-strong);
-  border-radius: var(--radius);
+  padding: 24px 28px;
+  border-radius: var(--radius-l) var(--radius-l) 0 0;
   background: var(--panel-alt);
 }
 
 .submission-verdict-hero--accepted {
-  border-color: var(--accent-green);
   background: var(--accent-green-dim);
 }
 
-.submission-verdict-hero--rejected {
-  border-color: var(--accent-red);
+.submission-verdict-hero--wrong_answer {
   background: var(--accent-red-dim);
+}
+
+.submission-verdict-hero--runtime_error,
+.submission-verdict-hero--error {
+  background: var(--accent-purple-dim);
+}
+
+.submission-verdict-hero--time_limit_exceeded {
+  background: var(--accent-amber-dim);
 }
 
 .submission-verdict-hero__row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   flex-shrink: 0;
-}
-
-.submission-verdict-hero__icon {
-  display: inline-flex;
-  flex-shrink: 0;
-}
-
-.submission-verdict-hero--accepted .submission-verdict-hero__icon {
-  color: var(--accent-green);
-}
-
-.submission-verdict-hero--rejected .submission-verdict-hero__icon {
-  color: var(--accent-red);
 }
 
 /* Bigger, heavier badge than everywhere else .verdict is used (challenge
