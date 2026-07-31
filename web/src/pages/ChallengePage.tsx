@@ -18,6 +18,7 @@ import {
 } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { VerdictBadge } from '../components/VerdictBadge'
+import { defineAscendMonacoTheme } from '../lib/monacoTheme'
 
 // SQL challenges have no starter template or tab — the student writes the
 // whole query from scratch, so its entries here are unused placeholders that
@@ -360,7 +361,8 @@ export function ChallengePage() {
             <div className="editor-host">
               <Editor
                 height="100%"
-                theme="vs-dark"
+                theme="ascend"
+                beforeMount={defineAscendMonacoTheme}
                 language={language}
                 value={sourceCode}
                 onChange={(v) => setSourceCode(v ?? '')}
