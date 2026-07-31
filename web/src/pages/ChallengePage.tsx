@@ -6,6 +6,7 @@ import rehypeHighlight from 'rehype-highlight'
 
 import {
   createSubmission,
+  DIFFICULTY_LABELS,
   getChallenge,
   getChallengeStats,
   getLastSubmission,
@@ -17,6 +18,7 @@ import {
   type SubmissionSummary,
 } from '../api'
 import { useAuth } from '../auth/useAuth'
+import { TelemetryChip } from '../components/TelemetryChip'
 import { VerdictBadge } from '../components/VerdictBadge'
 import { defineAscendMonacoTheme } from '../lib/monacoTheme'
 
@@ -268,18 +270,15 @@ export function ChallengePage() {
 
             <div className="constraints">
               <span className={`difficulty difficulty--${challenge.difficulty}`}>
-                {challenge.difficulty}
+                {DIFFICULTY_LABELS[challenge.difficulty]}
               </span>
               {challenge.solved ? (
-                <span className="verdict verdict--accepted">CONCLUÍDO</span>
+                <span className="verdict verdict--accepted">✓ Concluído</span>
               ) : null}
-              <span className="constraint">
-                Tempo <strong>{challenge.time_limit_ms}ms</strong>
-              </span>
-              <span className="constraint">
-                Memória <strong>{challenge.memory_limit_mb}MB</strong>
-              </span>
-              <span className="constraint">/{challenge.slug}</span>
+              <TelemetryChip
+                timeLimitMs={challenge.time_limit_ms}
+                memoryLimitMb={challenge.memory_limit_mb}
+              />
             </div>
 
             <div className="muted markdown-content">
