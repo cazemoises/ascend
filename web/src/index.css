@@ -842,9 +842,14 @@ pre {
   gap: 10px;
 }
 
+/* 260px min was packing 3+ narrow columns on ordinary desktop widths -
+   too tight for this project's description lengths (often a full
+   sentence), forcing awkward mid-word wraps even with the line-clamp
+   below. 320px still gets multiple columns on wide screens, just fewer
+   of them, each with real room to breathe. */
 .challenge-feed {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
 }
 
@@ -906,12 +911,17 @@ pre {
   margin-bottom: 0;
 }
 
-/* Nested inside a .challenge-group-body: no card chrome of its own (its
-   parent .challenge-group already provides that) — just a lighter,
-   indented header so a group's collections read as level 2 under its
-   level-1 header. */
+/* Nested inside a .challenge-group-body. A same-size, same-weight label
+   plus a 20px text-indent read as barely different from the level-1
+   group header above it — a real sub-container now: its own tinted
+   background (reads as "collection lives inside group", not just
+   "slightly indented text") plus a smaller, lighter-weight label. The
+   background's own padding replaces the old text-only indent. */
 .challenge-collection-group--nested {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  padding: 14px 16px 16px;
+  background: var(--bg-surface-alt);
+  border-radius: var(--radius-s);
 }
 
 .challenge-collection-group--nested:last-child {
@@ -919,13 +929,14 @@ pre {
 }
 
 .challenge-collection-header--nested {
-  padding: 0 0 12px 20px;
-  margin-bottom: 12px;
+  padding: 0 0 10px;
+  margin-bottom: 10px;
   border-bottom: 1px solid var(--border-hairline);
 }
 
 .challenge-collection-header--nested .challenge-progress-header__label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .challenge-collection-header--nested .challenge-progress-header__bar {
@@ -986,8 +997,8 @@ pre {
   white-space: nowrap;
   min-width: 0;
   font-family: var(--display);
-  font-size: 1.0625rem;
-  font-weight: 600;
+  font-size: 1.2rem;
+  font-weight: 700;
 }
 
 .challenge-progress-header__count {
@@ -1041,8 +1052,15 @@ pre {
   border-color: var(--accent-terracota);
 }
 
+/* Terracota and red (--accent-red) sit only 10deg apart in hue (35 vs
+   25) at the same lightness/chroma - close enough that this correctly-
+   terracota "suggested next" accent still reads as a false error signal
+   next to a real red verdict badge. Red is reserved for error verdicts
+   everywhere else in the app; teal (navigation/progress, already used
+   for the group/collection progress bars on this same screen) is the
+   right semantic fit for a wayfinding cue that isn't a verdict at all. */
 .challenge-card--next {
-  border-left: 3px solid var(--accent-terracota);
+  border-left: 3px solid var(--accent-teal);
 }
 
 .challenge-card__top {
@@ -1064,7 +1082,7 @@ pre {
   margin-left: 8px;
   padding: 2px 8px;
   border-radius: var(--radius-pill);
-  background: var(--accent-terracota);
+  background: var(--accent-teal);
   color: var(--on-green);
   font-family: var(--font-mono);
   font-size: 0.6rem;
@@ -1074,16 +1092,19 @@ pre {
   vertical-align: middle;
 }
 
-/* Rendered markdown (see ChallengeCard) rather than a single plain <p>, so
-   it can't rely on -webkit-line-clamp (which only clamps one inline flow —
-   real markdown can produce several block children, e.g. two paragraphs
-   or a code fence). max-height + overflow:hidden clips whatever renders,
-   regardless of its block structure — a coarser but structure-agnostic
-   substitute for the old 2-line clamp. */
+/* max-height clipped with no visible cutoff indicator - text broke mid-
+   sentence with no ellipsis. Switched to a real line-clamp: the source
+   string is already cut to 140 chars by truncateForPreview() before it
+   ever reaches ReactMarkdown, so in practice this is rendering a single
+   short paragraph, not the multi-block markdown structure that would
+   make -webkit-line-clamp behave oddly - safe here even though it
+   wouldn't necessarily be for arbitrary full-length markdown. */
 .challenge-card__description {
   margin: 0;
   flex: 1;
-  max-height: 2.6em;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
   overflow: hidden;
   color: var(--muted);
   font-size: 0.85rem;
@@ -1106,7 +1127,7 @@ pre {
 
 .challenge-card__actions {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
   margin-top: 4px;
 }
@@ -1117,6 +1138,13 @@ pre {
   padding: 9px 16px;
   font-size: 0.82rem;
 }
+
+/* .challenge-row__edit's own padding (10px 11px) and .challenge-submit's
+   (9px 16px + a bigger font-size) don't land on quite the same height,
+   so the icon button read as floating a couple pixels off from the
+   button beside it - fixed by align-items: stretch above, which makes
+   every child in the row match its height exactly instead of each
+   sizing to its own content and center-aligning at a mismatch. */
 
 .challenge-row {
   position: relative;
