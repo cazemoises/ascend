@@ -843,77 +843,73 @@ pre {
 }
 
 .challenge-feed {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
 }
 
 /* Collapsed collection groups hide this via the `hidden` attribute (kept
    mounted rather than conditionally rendered — see ChallengeList.tsx). The
    attribute alone wouldn't win: author CSS always beats the UA stylesheet's
    default `[hidden] { display: none }`, so without this override the
-   `display: flex` above would keep it visible. */
+   `display: grid` above would keep it visible. */
 .challenge-feed[hidden] {
   display: none;
 }
 
-/* Collection section header on the challenge feed — same spirit as
-   .list-month-header on the Listas page: mono, uppercase, muted, hairline
-   rule beneath. Bottom margin is deliberately larger than the inter-card
-   gap (.challenge-feed) so the group boundary reads clearly. A <button>
-   (not <h2>): the whole bar toggles the group, same as .audit-toggle
-   elsewhere, so it's reset to plain-text button chrome and made a
-   full-width flex row for the caret + label instead of reusing
-   .audit-toggle's inline-flex (which isn't full-width and would reset
-   this header's own font styling via its `font: inherit`).
-*/
+/* A collection reads as one bordered card — header fused to the top,
+   the feed grid as its padded body — rather than a heavy standalone bar
+   floating above an unrelated block. Only applies when there's actually a
+   header to fuse with (:has); an ungrouped single bucket renders with no
+   header and no card chrome, just the bare grid. */
+.challenge-collection-group:has(> .challenge-collection-header) {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  overflow: hidden;
+}
+
 .challenge-collection-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
   width: 100%;
-  margin: 24px 0 28px;
-  padding: 0 0 8px;
+  padding: 20px 24px;
   border: none;
-  border-bottom: 2px solid var(--border-strong);
   background: transparent;
   cursor: pointer;
   text-align: left;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-primary);
+  color: var(--title);
 }
 
-.challenge-collection-header:first-child {
-  margin-top: 0;
+/* Border between header and body only while expanded — collapsed, the
+   header row is the entire card and a trailing rule would look stray. */
+.challenge-collection-group:not(.challenge-collection-group--nested):has(.challenge-feed:not([hidden]))
+  .challenge-collection-header {
+  border-bottom: 1px solid var(--border);
 }
 
-/* Resting caret color reads too faint (--muted) at this header's larger
-   size — scoped here rather than in the shared .audit-caret rule so other
-   collapsible sections (audit log, submissions, etc.) are unaffected. */
+.challenge-collection-group:not(.challenge-collection-group--nested):has(> .challenge-collection-header)
+  > .challenge-feed {
+  padding: 20px 24px;
+}
+
 .challenge-collection-header .audit-caret {
   color: var(--text-secondary);
 }
 
-/* Wrapper around one collection's header + feed. Bottom margin mirrors the
-   header's own bottom margin so the gap before the *next* collection's
-   header matches the gap after *this* collection's header. */
 .challenge-collection-group {
-  margin-bottom: 28px;
+  margin-bottom: 16px;
 }
 
 .challenge-collection-group:last-child {
   margin-bottom: 0;
 }
 
-/* Nested inside a .challenge-group-body: smaller and indented relative to
-   .challenge-collection-header, so a group's collections read as level 2
-   under its level-1 header. Less vertical margin than the top-level
-   version too — the group header above already establishes the section
-   break, a second big gap here would be redundant. */
+/* Nested inside a .challenge-group-body: no card chrome of its own (its
+   parent .challenge-group already provides that) — just a lighter,
+   indented header so a group's collections read as level 2 under its
+   level-1 header. */
 .challenge-collection-group--nested {
   margin-bottom: 20px;
 }
@@ -923,17 +919,26 @@ pre {
 }
 
 .challenge-collection-header--nested {
-  margin: 0 0 16px;
-  padding-left: 20px;
-  font-size: 0.72rem;
-  border-bottom-width: 1px;
+  padding: 0 0 12px 20px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border-hairline);
 }
 
-/* Level 1: one step heavier than .challenge-collection-header (bigger
-   size, background tint, thicker rule) so a group unambiguously outranks
-   the collections nested inside it. */
+.challenge-collection-header--nested .challenge-progress-header__label {
+  font-size: 0.85rem;
+}
+
+.challenge-collection-header--nested .challenge-progress-header__bar {
+  width: 90px;
+  height: 5px;
+}
+
 .challenge-group {
-  margin-bottom: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  overflow: hidden;
+  margin-bottom: 16px;
 }
 
 .challenge-group:last-child {
@@ -943,76 +948,174 @@ pre {
 .challenge-group-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
   width: 100%;
-  margin: 0 0 20px;
-  padding: 10px 14px;
+  padding: 20px 24px;
   border: none;
-  border-left: 3px solid var(--accent-green);
-  border-bottom: 2px solid var(--border-strong);
-  border-radius: 0 var(--radius-s) 0 0;
-  background: var(--bg-surface-alt);
+  background: transparent;
   cursor: pointer;
   text-align: left;
-  font-family: var(--font-mono);
-  font-size: 0.88rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-primary);
+  color: var(--title);
+}
+
+.challenge-group:has(.challenge-group-body:not([hidden])) .challenge-group-header {
+  border-bottom: 1px solid var(--border);
 }
 
 .challenge-group-header .audit-caret {
-  color: var(--accent-green);
+  color: var(--accent-terracota);
 }
 
 .challenge-group-body {
-  padding-left: 4px;
+  padding: 20px 24px;
 }
 
-/* Label + solved/total count on one line, a thin progress bar below —
-   shared markup (HeaderProgress) for both header levels. Sits inside a
-   button that already sets font-family/size/weight/uppercase/color, so
-   only the count needs its own (lighter, non-uppercase-shouting) treatment. */
+/* Label + solved/total count on one line with an inline progress bar —
+   shared markup (HeaderProgress) for both header levels. */
 .challenge-progress-header {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 14px;
   flex: 1;
   min-width: 0;
-  gap: 6px;
 }
 
-.challenge-progress-header__row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
+.challenge-progress-header__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  font-family: var(--display);
+  font-size: 1.0625rem;
+  font-weight: 600;
 }
 
 .challenge-progress-header__count {
   flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
   font-weight: 400;
   color: var(--muted);
 }
 
 .challenge-progress-header__bar {
+  flex-shrink: 0;
   display: block;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--bg-surface-alt);
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
   overflow: hidden;
 }
 
 .challenge-progress-header__bar-fill {
   display: block;
   height: 100%;
-  background: var(--accent-green);
-  border-radius: 2px;
+  background: var(--accent-teal);
+  border-radius: 3px;
   transition: width 200ms ease;
 }
 
 .challenge-group-body[hidden] {
   display: none;
+}
+
+/* ===================== Challenge cards (grid) ===================== */
+/* Bordered-only, no separate fill — the card differentiates from its
+   .challenge-collection-group/.challenge-group parent (which already has
+   the elevated --panel surface) by border alone, same as the source
+   design's card-within-a-card treatment. */
+
+.challenge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: transparent;
+  transition: border-color 160ms ease;
+}
+
+.challenge-card:hover {
+  border-color: var(--accent-terracota);
+}
+
+.challenge-card--next {
+  border-left: 3px solid var(--accent-terracota);
+}
+
+.challenge-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.challenge-card__title {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+}
+
+.challenge-card__next-label {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-terracota);
+  color: var(--on-green);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+}
+
+/* Rendered markdown (see ChallengeCard) rather than a single plain <p>, so
+   it can't rely on -webkit-line-clamp (which only clamps one inline flow —
+   real markdown can produce several block children, e.g. two paragraphs
+   or a code fence). max-height + overflow:hidden clips whatever renders,
+   regardless of its block structure — a coarser but structure-agnostic
+   substitute for the old 2-line clamp. */
+.challenge-card__description {
+  margin: 0;
+  flex: 1;
+  max-height: 2.6em;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
+.challenge-card__description :first-child {
+  margin-top: 0;
+}
+
+.challenge-card__lang {
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: var(--radius-s);
+  background: var(--bg-surface-alt);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.challenge-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.challenge-card__actions .challenge-submit {
+  flex: 1;
+  justify-content: center;
+  padding: 9px 16px;
+  font-size: 0.82rem;
 }
 
 .challenge-row {
@@ -1580,6 +1683,22 @@ pre {
 .challenge-filters__search {
   flex: 1 1 220px;
   min-width: 160px;
+  padding: 11px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--bg-surface);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 0.87rem;
+}
+
+.challenge-filters__search::placeholder {
+  color: var(--muted);
+}
+
+.challenge-filters__search:focus-visible {
+  outline: 2px solid var(--accent-terracota);
+  outline-offset: 1px;
 }
 
 .challenge-filters__group {
