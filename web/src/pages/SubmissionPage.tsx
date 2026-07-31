@@ -26,6 +26,26 @@ function IconAlert() {
   )
 }
 
+// Same 12px icon convention as TelemetryChip's own IconClock/IconMemory —
+// these two extend that chip row to cover language and test count too.
+function IconLanguage() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+    </svg>
+  )
+}
+
+function IconTestCount() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="9 11 12 14 22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  )
+}
+
 export function SubmissionPage() {
   const { id, subId } = useParams<{ id: string; subId: string }>()
   const timeoutRef = useRef<number | null>(null)
@@ -182,11 +202,14 @@ export function SubmissionPage() {
                   timeLimitMs={submission.time_limit_ms}
                   memoryLimitMb={submission.memory_limit_mb}
                 />
-                <span className="submission-meta__item">{submission.language}</span>
-                <span className="submission-meta__item">#{submission.id.slice(0, 8)}</span>
+                <span className="submission-meta__item">
+                  <IconLanguage />
+                  {submission.language}
+                </span>
                 {submission.passed_count !== null && submission.total_test_cases !== null ? (
                   <span className="submission-meta__item">
-                    {submission.passed_count} de {submission.total_test_cases} test cases passaram
+                    <IconTestCount />
+                    {submission.passed_count} de {submission.total_test_cases} casos
                   </span>
                 ) : null}
               </div>
@@ -196,9 +219,9 @@ export function SubmissionPage() {
           {submission.status === 'accepted' && submission.stdout !== null ? (
             <section className="submission-section">
               <div className="submission-output">
-                <div className="submission-output__block">
-                  <p className="submission-output__label">Saída obtida</p>
-                  <pre className="submission-output__pre">{submission.stdout}</pre>
+                <div className="result-panel">
+                  <p className="result-panel__header">Saída obtida</p>
+                  <pre className="result-panel__body">{submission.stdout}</pre>
                 </div>
               </div>
             </section>
@@ -207,13 +230,13 @@ export function SubmissionPage() {
           {submission.status === 'wrong_answer' && submission.stdout !== null ? (
             <section className="submission-section">
               <div className="submission-output">
-                <div className="submission-output__block">
-                  <p className="submission-output__label">Saída obtida</p>
-                  <pre className="submission-output__pre">{submission.stdout}</pre>
+                <div className="result-panel">
+                  <p className="result-panel__header">Saída obtida</p>
+                  <pre className="result-panel__body">{submission.stdout}</pre>
                 </div>
-                <div className="submission-output__block">
-                  <p className="submission-output__label">Saída esperada</p>
-                  <pre className="submission-output__pre">{submission.expected_output}</pre>
+                <div className="result-panel">
+                  <p className="result-panel__header">Saída esperada</p>
+                  <pre className="result-panel__body">{submission.expected_output}</pre>
                 </div>
               </div>
             </section>
@@ -223,19 +246,21 @@ export function SubmissionPage() {
           submission.stderr !== null ? (
             <section className="submission-section">
               <div className="submission-output">
-                <div className="submission-output__block">
-                  <p className="submission-output__label">Erro</p>
-                  <pre className="submission-output__pre">{submission.stderr}</pre>
+                <div className="result-panel">
+                  <p className="result-panel__header">Erro</p>
+                  <pre className="result-panel__body">{submission.stderr}</pre>
                 </div>
               </div>
             </section>
           ) : null}
 
           <section className="submission-section">
-            <p className="submission-section-label">Código enviado</p>
-            <pre className="submission-code">
-              <code>{submission.source_code}</code>
-            </pre>
+            <div className="result-panel result-panel--code">
+              <p className="result-panel__header">Código enviado</p>
+              <pre className="result-panel__body">
+                <code>{submission.source_code}</code>
+              </pre>
+            </div>
           </section>
 
           {submission.status === 'accepted' ? (

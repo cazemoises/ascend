@@ -548,23 +548,28 @@ pre {
   margin: 0 12px;
 }
 
+/* Same icon-button convention already established by .list-item__icon-btn
+   (reorder ↑/↓ in the list editor) and .challenge-row__edit — border,
+   size and hover physics all reused verbatim rather than inventing a new
+   button style. */
 .sidebar__icon-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--border-hairline);
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-s);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--muted);
   cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease;
+  transition: border-color 150ms ease, color 150ms ease;
 }
 
 .sidebar__icon-toggle:hover {
-  color: var(--accent-green);
   border-color: var(--accent-green);
+  color: var(--accent-green);
 }
 
 .sidebar__logout {
@@ -2928,18 +2933,27 @@ pre {
   }
 }
 
+/* Meta chips (language, test count, etc.) — same icon+mono-text idiom as
+   .telemetry-chip__item, not loose gray text, so they read as the same
+   "chip" vocabulary as the rest of the app. */
 .submission-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin: 16px 0 0;
   align-items: center;
+  gap: 8px 20px;
 }
 
 .submission-meta__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-family: var(--mono);
+}
+
+.submission-meta__item svg {
+  flex-shrink: 0;
 }
 
 /* Sections of the result page (Veredito → Saída/Erro → Código enviado →
@@ -2966,8 +2980,16 @@ pre {
 
 /* Verdict hero — the first thing that should catch the eye. Solid tint +
    thick border in the outcome color, distinct from every other panel on
-   the page which stays neutral. */
+   the page. Badge+icon anchor the left edge; the meta chips fill the
+   right side of the SAME row (via .submission-meta below) instead of
+   leaving it empty, wrapping to a second row only once the row genuinely
+   runs out of space. */
 .submission-verdict-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px 32px;
   padding: 20px 24px;
   border: 2px solid var(--border-strong);
   border-radius: var(--radius);
@@ -2988,6 +3010,7 @@ pre {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .submission-verdict-hero__icon {
@@ -3011,6 +3034,62 @@ pre {
   letter-spacing: 0.06em;
 }
 
+.submission-verdict-hero .submission-meta {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+/* Result panels (test output, error log, submitted code) — a real header
+   bar (own background, spans the panel's full width) fused to a body
+   below, same card idiom as .terminal-log: one panel with two zones, not
+   a label floating above an unrelated box. */
+.result-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  background: var(--inset);
+}
+
+.result-panel__header {
+  padding: 8px 14px;
+  background: var(--bg-surface-alt);
+  border-bottom: 1px solid var(--border-hairline);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.result-panel__body {
+  margin: 0;
+  padding: 12px 16px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 240px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.result-panel__body code {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+/* Submitted code tends to run longer than a single test's output — give
+   its panel more vertical room before it scrolls. */
+.result-panel--code .result-panel__body {
+  max-height: 340px;
+}
+
+/* Bare code well used by the submission-history audit row (a different
+   page/pattern — a compact expando next to .terminal-log, not the result
+   page's dedicated panels above). */
 .submission-code {
   margin: 0;
   padding: 16px;
@@ -3038,43 +3117,18 @@ pre {
 }
 
 /* Wrong-answer diff (obtida/esperada) and runtime-error/timeout "Erro"
-   block on the submission result page — side by side, wrapping to stacked
-   on narrow viewports since each block has a min-width via flex-basis. */
+   panel on the submission result page — side by side, wrapping to
+   stacked on narrow viewports since each panel has a min-width via
+   flex-basis. */
 .submission-output {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
 }
 
-.submission-output__block {
+.submission-output .result-panel {
   flex: 1 1 260px;
   min-width: 0;
-}
-
-.submission-output__label {
-  margin: 0 0 6px;
-  font-family: var(--font-mono);
-  color: var(--muted);
-  font-size: 0.74rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.submission-output__pre {
-  margin: 0;
-  padding: 12px 16px;
-  background: var(--bg-surface-alt);
-  border: 1px solid var(--border-hairline);
-  border-radius: 4px;
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  overflow-x: auto;
-  overflow-y: auto;
-  max-height: 220px;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 /* ===================== Sidebar responsive ===================== */
