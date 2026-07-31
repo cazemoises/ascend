@@ -25,10 +25,21 @@
   --accent-amber: oklch(78% 0.13 85);
   --accent-red: oklch(70% 0.16 25);
   --accent-purple: oklch(72% 0.13 305);
+  --accent-teal-dim: oklch(30% 0.05 200);
   --accent-green-dim: oklch(30% 0.06 165);
   --accent-amber-dim: oklch(38% 0.07 85);
   --accent-red-dim: oklch(40% 0.1 25);
   --accent-purple-dim: oklch(34% 0.09 305);
+
+  /* Pill text ("ink") — badges pair a tinted -dim background with a
+     dedicated darker/lighter same-hue text shade, not the plain solid
+     accent swatch above (which reads washed-out at pill text sizes). */
+  --accent-teal-ink: oklch(85% 0.05 200);
+  --accent-green-ink: oklch(85% 0.08 165);
+  --accent-amber-ink: oklch(88% 0.09 85);
+  --accent-red-ink: oklch(88% 0.1 25);
+  --accent-purple-ink: oklch(85% 0.1 305);
+  --blue-ink: oklch(80% 0.04 250);
 
   --font-display: 'Space Grotesk', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
@@ -135,10 +146,18 @@
   --accent-amber: oklch(68% 0.13 85);
   --accent-red: oklch(58% 0.17 25);
   --accent-purple: oklch(54% 0.13 305);
+  --accent-teal-dim: oklch(90% 0.03 200);
   --accent-green-dim: oklch(92% 0.04 165);
   --accent-amber-dim: oklch(93% 0.045 85);
   --accent-red-dim: oklch(93% 0.05 25);
   --accent-purple-dim: oklch(92% 0.035 305);
+
+  --accent-teal-ink: oklch(30% 0.05 200);
+  --accent-green-ink: oklch(32% 0.08 165);
+  --accent-amber-ink: oklch(38% 0.08 85);
+  --accent-red-ink: oklch(35% 0.1 25);
+  --accent-purple-ink: oklch(32% 0.09 305);
+  --blue-ink: oklch(34% 0.05 250);
 
   --inset: var(--bg-surface-alt);
   --border-strong: var(--border-hairline);
@@ -391,7 +410,7 @@ pre {
   gap: 8px;
   padding: 10px 22px;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--grad-cta);
   color: var(--on-green);
   font-family: var(--sans);
@@ -399,7 +418,7 @@ pre {
   font-weight: 600;
   cursor: pointer;
   box-shadow:
-    0 2px 14px -4px rgba(46, 200, 102, 0.5),
+    0 2px 14px -4px color-mix(in oklch, var(--accent-terracota) 50%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
   transition:
     transform 180ms var(--ease-spring),
@@ -411,7 +430,7 @@ pre {
   transform: scale(1.03);
   filter: brightness(1.08);
   box-shadow:
-    0 4px 22px -4px rgba(46, 200, 102, 0.6),
+    0 4px 22px -4px color-mix(in oklch, var(--accent-terracota) 60%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
@@ -653,59 +672,48 @@ pre {
 }
 
 /* ===================== Verdict readouts ===================== */
-/* Instrument-panel bracket readout, not a filled pill: hairline border in
-   the status color, a barely-there tinted fill, brackets via pseudo-content
-   so the badge component itself never has to render them. */
+/* Solid rounded pill — tinted fill + a dedicated same-hue "ink" text
+   color, no border, no brackets. runtime_error/error get their own
+   purple, split off from wrong_answer's red (they used to share it). */
 
 .verdict {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 2px;
-  font-family: var(--font-mono);
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-family: var(--sans);
   font-size: 0.72rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   white-space: nowrap;
   color: var(--text-secondary);
   background: var(--bg-surface-alt);
-  border: 1px solid var(--border-hairline);
-}
-
-.verdict::before {
-  content: '[ ';
-}
-
-.verdict::after {
-  content: ' ]';
 }
 
 .verdict--accepted {
-  color: var(--accent-green);
+  color: var(--accent-green-ink);
   background: var(--accent-green-dim);
-  border-color: var(--accent-green);
 }
 
-.verdict--wrong_answer,
+.verdict--wrong_answer {
+  color: var(--accent-red-ink);
+  background: var(--accent-red-dim);
+}
+
 .verdict--runtime_error,
 .verdict--error {
-  color: var(--accent-red);
-  background: var(--accent-red-dim);
-  border-color: var(--accent-red);
+  color: var(--accent-purple-ink);
+  background: var(--accent-purple-dim);
 }
 
 .verdict--time_limit_exceeded {
-  color: var(--accent-amber);
+  color: var(--accent-amber-ink);
   background: var(--accent-amber-dim);
-  border-color: var(--accent-amber);
 }
 
 .verdict--pending,
 .verdict--running {
-  color: var(--blue);
+  color: var(--blue-ink);
   background: var(--blue-soft);
-  border-color: var(--blue);
   animation: verdict-pulse 1.4s ease-in-out infinite;
 }
 
@@ -725,16 +733,19 @@ pre {
 .telemetry-chip {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  color: var(--text-secondary);
+  gap: 8px;
 }
 
 .telemetry-chip__item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: var(--radius-s);
+  background: var(--bg-surface-alt);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
 }
 
 .telemetry-chip svg {
@@ -748,32 +759,77 @@ pre {
   margin-top: -4px;
 }
 
+/* ===================== Execution trail ===================== */
+/* Signature element: one bar per test case (see ExecutionTrail.tsx for
+   how bar state is derived from passed_count/total_test_cases). --sm is
+   the mini in-card size, --lg is the result screen's full size. */
+
+.execution-trail {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.execution-trail__bar {
+  width: 8px;
+  height: 24px;
+  border-radius: 3px;
+  background: var(--border);
+}
+
+.execution-trail--lg .execution-trail__bar {
+  width: 9px;
+  height: 32px;
+}
+
+.execution-trail--sm {
+  gap: 2px;
+}
+
+.execution-trail--sm .execution-trail__bar {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+}
+
+.execution-trail__bar--passed {
+  background: var(--accent-green);
+}
+
+.execution-trail__bar--failed {
+  background: var(--accent-red);
+}
+
 /* ===================== Difficulty pills ===================== */
 
 .difficulty {
   display: inline-flex;
   align-items: center;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-pill);
   padding: 4px 10px;
   font-size: 0.7rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  /* Underlying value is the English enum (easy/medium/hard) — capitalize
+     rather than force uppercase so it reads as a word, not a shout. A
+     proper pt-BR label (Fácil/Médio/Difícil, as the source design shows)
+     is a content change that belongs with the challenge-list screen pass. */
+  text-transform: capitalize;
 }
 
 .difficulty--easy {
-  color: var(--green);
-  background: var(--green-soft);
+  color: var(--accent-teal-ink);
+  background: var(--accent-teal-dim);
 }
 
 .difficulty--medium {
-  color: var(--amber);
-  background: var(--amber-soft);
+  color: var(--accent-amber-ink);
+  background: var(--accent-amber-dim);
 }
 
 .difficulty--hard {
-  color: var(--red);
-  background: var(--red-soft);
+  color: var(--accent-red-ink);
+  background: var(--accent-red-dim);
 }
 
 /* ===================== Challenge feed (list page) ===================== */
@@ -1552,7 +1608,7 @@ pre {
 .filter-pill {
   padding: 5px 12px;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-pill);
   background: var(--panel-alt);
   color: var(--muted);
   font-family: var(--sans);
@@ -1566,9 +1622,9 @@ pre {
 }
 
 .filter-pill--active {
-  border-color: rgba(46, 200, 102, 0.5);
+  border-color: color-mix(in oklch, var(--accent-terracota) 50%, transparent);
   color: var(--title);
-  background: rgba(46, 200, 102, 0.08);
+  background: color-mix(in oklch, var(--accent-terracota) 8%, transparent);
 }
 
 /* ===================== Teacher action bar & create form ===================== */
@@ -1658,7 +1714,7 @@ pre {
 .studio__mode-tab {
   padding: 8px 16px;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-pill);
   background: var(--panel-alt);
   color: var(--muted);
   font-family: var(--sans);
@@ -1673,9 +1729,9 @@ pre {
 }
 
 .studio__mode-tab--active {
-  border-color: rgba(46, 200, 102, 0.5);
+  border-color: color-mix(in oklch, var(--accent-terracota) 50%, transparent);
   color: var(--title);
-  background: rgba(46, 200, 102, 0.08);
+  background: color-mix(in oklch, var(--accent-terracota) 8%, transparent);
 }
 
 .studio__json-preview {
@@ -2245,7 +2301,7 @@ pre {
   font-weight: 700;
   cursor: pointer;
   box-shadow:
-    0 2px 14px -4px rgba(46, 200, 102, 0.5),
+    0 2px 14px -4px color-mix(in oklch, var(--accent-terracota) 50%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
   transition:
     transform 180ms var(--ease-spring),
@@ -2846,35 +2902,29 @@ pre {
 .list-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 2px;
-  font-family: var(--font-mono);
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  font-family: var(--sans);
   font-size: 0.72rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   white-space: nowrap;
   color: var(--text-secondary);
   background: var(--bg-surface-alt);
-  border: 1px solid var(--border-hairline);
 }
 
 .list-badge--easy {
-  color: var(--accent-green);
-  background: var(--accent-green-dim);
-  border-color: var(--accent-green);
+  color: var(--accent-teal-ink);
+  background: var(--accent-teal-dim);
 }
 
 .list-badge--medium {
-  color: var(--accent-amber);
+  color: var(--accent-amber-ink);
   background: var(--accent-amber-dim);
-  border-color: var(--accent-amber);
 }
 
 .list-badge--hard {
-  color: var(--accent-red);
+  color: var(--accent-red-ink);
   background: var(--accent-red-dim);
-  border-color: var(--accent-red);
 }
 
 .list-item__icon-btn {
