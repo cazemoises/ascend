@@ -7,6 +7,7 @@ import {
   createChallenge,
   createChallengeCollection,
   createChallengeGroup,
+  DIFFICULTY_LABELS,
   importChallenges,
   listChallengeCollections,
   listChallengeGroups,
@@ -28,12 +29,6 @@ import {
 } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { TelemetryChip } from '../components/TelemetryChip'
-
-const DIFFICULTY_LABELS: Record<ChallengeDifficulty, string> = {
-  easy: 'Fácil',
-  medium: 'Médio',
-  hard: 'Difícil',
-}
 
 type TestCaseDraft = {
   input: string

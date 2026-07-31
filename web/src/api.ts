@@ -24,6 +24,11 @@ export class ApiError extends Error {
 }
 
 export type ChallengeDifficulty = 'easy' | 'medium' | 'hard'
+export const DIFFICULTY_LABELS: Record<ChallengeDifficulty, string> = {
+  easy: 'Fácil',
+  medium: 'Médio',
+  hard: 'Difícil',
+}
 export type SubmissionLanguage = 'python' | 'go' | 'javascript' | 'sql' | 'java'
 // A challenge's language: null keeps today's multi-language behavior (the
 // student picks python/go/javascript per submission); 'sql' marks a
