@@ -2867,7 +2867,7 @@ pre {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin: 14px 0 22px;
+  margin: 16px 0 0;
   align-items: center;
 }
 
@@ -2877,8 +2877,77 @@ pre {
   font-family: var(--mono);
 }
 
+/* Sections of the result page (Veredito → Saída/Erro → Código enviado →
+   Ações), each preceded by a .submission-section-label. Generous spacing
+   between them is what gives the page a clear top-to-bottom hierarchy
+   instead of everything competing for attention at once. */
+.submission-section {
+  margin-top: 32px;
+}
+
+.submission-section:first-of-type {
+  margin-top: 20px;
+}
+
+.submission-section-label {
+  margin: 0 0 10px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+}
+
+/* Verdict hero — the first thing that should catch the eye. Solid tint +
+   thick border in the outcome color, distinct from every other panel on
+   the page which stays neutral. */
+.submission-verdict-hero {
+  padding: 20px 24px;
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--panel-alt);
+}
+
+.submission-verdict-hero--accepted {
+  border-color: var(--accent-green);
+  background: var(--accent-green-dim);
+}
+
+.submission-verdict-hero--rejected {
+  border-color: var(--accent-red);
+  background: var(--accent-red-dim);
+}
+
+.submission-verdict-hero__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.submission-verdict-hero__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.submission-verdict-hero--accepted .submission-verdict-hero__icon {
+  color: var(--accent-green);
+}
+
+.submission-verdict-hero--rejected .submission-verdict-hero__icon {
+  color: var(--accent-red);
+}
+
+/* Bigger, heavier badge than everywhere else .verdict is used (challenge
+   rows, submission tables) — scoped to the hero so those stay unaffected. */
+.submission-verdict-hero .verdict {
+  padding: 6px 16px;
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+}
+
 .submission-code {
-  margin: 8px 0 0;
+  margin: 0;
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-s);
@@ -2899,14 +2968,8 @@ pre {
   display: block;
 }
 
-/* Dedicated (not .studio__actions, which is reused as zero-margin header
-   chrome elsewhere — e.g. ChallengeList's studio header, ListFormPage —
-   giving it margin here would ripple spacing into every other user of
-   that class). .submission-code has no bottom margin of its own, so
-   without this the button sat flush against the code block. */
 .submission-next-action {
   display: flex;
-  margin-top: 24px;
 }
 
 /* Wrong-answer diff (obtida/esperada) and runtime-error/timeout "Erro"
@@ -2916,7 +2979,6 @@ pre {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  margin: 16px 0 0;
 }
 
 .submission-output__block {
@@ -2926,6 +2988,7 @@ pre {
 
 .submission-output__label {
   margin: 0 0 6px;
+  font-family: var(--font-mono);
   color: var(--muted);
   font-size: 0.74rem;
   font-weight: 700;
