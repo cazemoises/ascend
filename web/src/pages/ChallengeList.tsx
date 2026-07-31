@@ -29,6 +29,12 @@ import {
 import { useAuth } from '../auth/useAuth'
 import { TelemetryChip } from '../components/TelemetryChip'
 
+const DIFFICULTY_LABELS: Record<ChallengeDifficulty, string> = {
+  easy: 'Fácil',
+  medium: 'Médio',
+  hard: 'Difícil',
+}
+
 type TestCaseDraft = {
   input: string
   expected_output: string
@@ -239,14 +245,12 @@ function HeaderProgress({ label, progress }: { label: string; progress: Progress
   const pct = progress.total > 0 ? Math.round((progress.solved / progress.total) * 100) : 0
   return (
     <span className="challenge-progress-header">
-      <span className="challenge-progress-header__row">
-        <span className="challenge-progress-header__label">{label}</span>
-        <span className="challenge-progress-header__count">
-          {progress.solved}/{progress.total} concluídos
-        </span>
-      </span>
+      <span className="challenge-progress-header__label">{label}</span>
       <span className="challenge-progress-header__bar">
         <span className="challenge-progress-header__bar-fill" style={{ width: `${pct}%` }} />
+      </span>
+      <span className="challenge-progress-header__count">
+        {progress.solved}/{progress.total}
       </span>
     </span>
   )
@@ -283,32 +287,26 @@ function ChallengeCard({
   onEdit: (challenge: Challenge) => void
 }) {
   return (
-    <article className={isNext ? 'challenge-row challenge-row--next' : 'challenge-row'}>
-      <div className="challenge-row__badges">
+    <article className={isNext ? 'challenge-card challenge-card--next' : 'challenge-card'}>
+      <div className="challenge-card__top">
         <span className={`difficulty difficulty--${challenge.difficulty}`}>
-          {challenge.difficulty}
+          {DIFFICULTY_LABELS[challenge.difficulty]}
         </span>
-        {challenge.solved ? <span className="verdict verdict--accepted">CONCLUÍDO</span> : null}
+        {challenge.solved ? <span className="verdict verdict--accepted">✓ Concluído</span> : null}
       </div>
-      <div className="challenge-row__body">
-        <h2>
-          {challenge.title}
-          {isNext ? <span className="challenge-row__next-label">PRÓXIMO</span> : null}
-        </h2>
-        <div className="challenge-row__description markdown-content">
-          <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
-            {truncateForPreview(challenge.description, 220)}
-          </ReactMarkdown>
-        </div>
-        <div className="challenge-row__meta">
-          <span className="challenge-row__slug">/{challenge.slug}</span>
-          <TelemetryChip
-            timeLimitMs={challenge.time_limit_ms}
-            memoryLimitMb={challenge.memory_limit_mb}
-          />
-        </div>
+      <h2 className="challenge-card__title">
+        {challenge.title}
+        {isNext ? <span className="challenge-card__next-label">Próximo</span> : null}
+      </h2>
+      <div className="challenge-card__description markdown-content">
+        <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
+          {truncateForPreview(challenge.description, 140)}
+        </ReactMarkdown>
       </div>
-      <div className="challenge-row__actions">
+      <span className="challenge-card__lang">
+        {challenge.language === 'sql' ? 'sql' : 'multi-linguagem'}
+      </span>
+      <div className="challenge-card__actions">
         {isTeacher ? (
           <button
             type="button"
