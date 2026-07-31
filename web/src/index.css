@@ -1311,13 +1311,36 @@ pre {
 
 /* ===================== Data grid ===================== */
 
+/* overflow-x: auto (not hidden) so a table wider than the card — the
+   common case on narrow viewports, since the browser sizes <table> by
+   content with no help from flex/grid wrap — scrolls into reach instead
+   of silently clipping columns past the edge. overflow-y stays hidden
+   (nothing in here overflows vertically; this just keeps the rounded
+   corners clipped instead of trading them for a stray v-scrollbar). */
 .datagrid {
+  position: relative;
   width: 100%;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   background: var(--panel);
   box-shadow: var(--shadow-card);
+}
+
+/* Cheap affordance that there's more to scroll to horizontally — not
+   scroll-position-aware (would need JS to hide once fully scrolled),
+   but a static hint is enough to stop the DATA column from reading as
+   silently missing instead of "off to the right". */
+.datagrid::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 28px;
+  background: linear-gradient(to right, transparent, var(--panel));
+  pointer-events: none;
 }
 
 .datagrid table {
