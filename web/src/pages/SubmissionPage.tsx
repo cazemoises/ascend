@@ -4,8 +4,27 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { getSubmission, listChallenges, type Submission } from '../api'
 import { TelemetryChip } from '../components/TelemetryChip'
 import { VerdictBadge } from '../components/VerdictBadge'
+import { playAcceptedChime } from '../lib/sound'
 
 const POLLING_DELAY_MS = 2000
+
+function IconCheck() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  )
+}
+
+function IconAlert() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  )
+}
 
 export function SubmissionPage() {
   const { id, subId } = useParams<{ id: string; subId: string }>()
@@ -19,6 +38,17 @@ export function SubmissionPage() {
   // GET /challenges already returns challenges grouped by collection
   // ordinal then created_at, so "next" is simply the following array entry.
   const [nextChallengeId, setNextChallengeId] = useState<string | null | undefined>(undefined)
+  // Tracks which submission id we've already chimed for, so the sound
+  // plays once per accepted result — not on every re-render — even under
+  // React StrictMode's double-invoked effects in dev.
+  const chimedForRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (submission?.status === 'accepted' && chimedForRef.current !== submission.id) {
+      chimedForRef.current = submission.id
+      playAcceptedChime()
+    }
+  }, [submission])
 
   useEffect(() => {
     let active = true
@@ -129,74 +159,100 @@ export function SubmissionPage() {
           <p className="eyebrow">Submissão</p>
           <h1>Resultado</h1>
 
-          <div className="submission-meta">
-            <span className="submission-verdict-reveal">
-              <VerdictBadge status={submission.status} />
-            </span>
-            <TelemetryChip
-              timeLimitMs={submission.time_limit_ms}
-              memoryLimitMb={submission.memory_limit_mb}
-            />
-            <span className="submission-meta__item">{submission.language}</span>
-            <span className="submission-meta__item">#{submission.id.slice(0, 8)}</span>
-            {submission.passed_count !== null && submission.total_test_cases !== null ? (
-              <span className="submission-meta__item">
-                {submission.passed_count} de {submission.total_test_cases} test cases passaram
-              </span>
-            ) : null}
-          </div>
+          <section className="submission-section">
+            <p className="submission-section-label">Veredito</p>
+            <div
+              className={
+                submission.status === 'accepted'
+                  ? 'submission-verdict-hero submission-verdict-hero--accepted'
+                  : 'submission-verdict-hero submission-verdict-hero--rejected'
+              }
+            >
+              <div className="submission-verdict-hero__row">
+                <span className="submission-verdict-hero__icon">
+                  {submission.status === 'accepted' ? <IconCheck /> : <IconAlert />}
+                </span>
+                <span className="submission-verdict-reveal">
+                  <VerdictBadge status={submission.status} />
+                </span>
+              </div>
+
+              <div className="submission-meta">
+                <TelemetryChip
+                  timeLimitMs={submission.time_limit_ms}
+                  memoryLimitMb={submission.memory_limit_mb}
+                />
+                <span className="submission-meta__item">{submission.language}</span>
+                <span className="submission-meta__item">#{submission.id.slice(0, 8)}</span>
+                {submission.passed_count !== null && submission.total_test_cases !== null ? (
+                  <span className="submission-meta__item">
+                    {submission.passed_count} de {submission.total_test_cases} test cases passaram
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </section>
 
           {submission.status === 'accepted' && submission.stdout !== null ? (
-            <section className="submission-output">
-              <div className="submission-output__block">
-                <p className="submission-output__label">Saída obtida</p>
-                <pre className="submission-output__pre">{submission.stdout}</pre>
+            <section className="submission-section">
+              <div className="submission-output">
+                <div className="submission-output__block">
+                  <p className="submission-output__label">Saída obtida</p>
+                  <pre className="submission-output__pre">{submission.stdout}</pre>
+                </div>
               </div>
             </section>
           ) : null}
 
           {submission.status === 'wrong_answer' && submission.stdout !== null ? (
-            <section className="submission-output">
-              <div className="submission-output__block">
-                <p className="submission-output__label">Saída obtida</p>
-                <pre className="submission-output__pre">{submission.stdout}</pre>
-              </div>
-              <div className="submission-output__block">
-                <p className="submission-output__label">Saída esperada</p>
-                <pre className="submission-output__pre">{submission.expected_output}</pre>
+            <section className="submission-section">
+              <div className="submission-output">
+                <div className="submission-output__block">
+                  <p className="submission-output__label">Saída obtida</p>
+                  <pre className="submission-output__pre">{submission.stdout}</pre>
+                </div>
+                <div className="submission-output__block">
+                  <p className="submission-output__label">Saída esperada</p>
+                  <pre className="submission-output__pre">{submission.expected_output}</pre>
+                </div>
               </div>
             </section>
           ) : null}
 
           {(submission.status === 'runtime_error' || submission.status === 'time_limit_exceeded') &&
           submission.stderr !== null ? (
-            <section className="submission-output">
-              <div className="submission-output__block">
-                <p className="submission-output__label">Erro</p>
-                <pre className="submission-output__pre">{submission.stderr}</pre>
+            <section className="submission-section">
+              <div className="submission-output">
+                <div className="submission-output__block">
+                  <p className="submission-output__label">Erro</p>
+                  <pre className="submission-output__pre">{submission.stderr}</pre>
+                </div>
               </div>
             </section>
           ) : null}
 
-          <section>
-            <p className="muted">Código enviado</p>
+          <section className="submission-section">
+            <p className="submission-section-label">Código enviado</p>
             <pre className="submission-code">
               <code>{submission.source_code}</code>
             </pre>
           </section>
 
           {submission.status === 'accepted' ? (
-            <div className="submission-next-action">
-              {nextChallengeId ? (
-                <Link className="challenge-submit" to={`/challenges/${nextChallengeId}`}>
-                  Próximo desafio →
-                </Link>
-              ) : nextChallengeId === null ? (
-                <button type="button" className="challenge-submit" disabled title="Não há mais desafios">
-                  Não há mais desafios
-                </button>
-              ) : null}
-            </div>
+            <section className="submission-section">
+              <p className="submission-section-label">Ações</p>
+              <div className="submission-next-action">
+                {nextChallengeId ? (
+                  <Link className="challenge-submit" to={`/challenges/${nextChallengeId}`}>
+                    Próximo desafio →
+                  </Link>
+                ) : nextChallengeId === null ? (
+                  <button type="button" className="challenge-submit" disabled title="Não há mais desafios">
+                    Não há mais desafios
+                  </button>
+                ) : null}
+              </div>
+            </section>
           ) : null}
         </section>
       ) : null}
