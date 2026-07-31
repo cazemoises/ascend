@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth'
+import { ThemeToggle } from './ThemeToggle'
 
 const isOnlyLists = import.meta.env.VITE_ONLY_LISTS_MODE === 'true'
 
@@ -168,6 +169,10 @@ export function Sidebar() {
               {viewingAsStudent ? 'Ver como professor' : 'Ver como aluno'}
             </button>
           ) : null}
+
+          <div className="sidebar__utility-row">
+            <ThemeToggle />
+          </div>
         </div>
       </aside>
     </>

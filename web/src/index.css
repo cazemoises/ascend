@@ -75,6 +75,43 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Light mode — same design identity (mono type, bracket badges, telemetry
+   chips, flat surfaces), luminosity inverted. Only the color primitives are
+   redeclared here; every derived token above (--canvas, --panel, --title,
+   --green, --grad-cta, ...) is a var() reference to one of these and
+   re-resolves automatically, so the rest of the stylesheet needs no
+   changes. Surfaces read slightly *darker* than the page background
+   (mirroring dark mode's "elevated = lighter" ladder, just flipped), and
+   the accent hues are deepened from their neon dark-mode values so they
+   still clear 4.5:1 against a light background. */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-base: #f5f5f3;
+  --bg-surface: #ececea;
+  --bg-surface-alt: #e3e3e0;
+  --border-hairline: rgba(0, 0, 0, 0.08);
+  --text-primary: #1a1b1e;
+  --text-secondary: #5a5d63;
+
+  --accent-green: #1f9d4a;
+  --accent-amber: #a15c00;
+  --accent-red: #c62828;
+  --accent-green-dim: rgba(31, 157, 74, 0.12);
+  --accent-amber-dim: rgba(161, 92, 0, 0.12);
+  --accent-red-dim: rgba(198, 40, 40, 0.12);
+
+  --inset: #ffffff;
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --shadow-card: 0 4px 20px -6px rgba(0, 0, 0, 0.14);
+
+  --green-hover: #178a3f;
+  --on-green: #ffffff;
+
+  --blue: #1f6fd1;
+  --blue-soft: rgba(31, 111, 209, 0.12);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -498,6 +535,34 @@ pre {
 }
 
 .sidebar__view-as-toggle:hover {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+}
+
+/* Small square icon buttons for footer utilities (theme, sound) — grouped
+   in a row rather than each getting the wider .sidebar__view-as-toggle
+   treatment, since they're single-glyph toggles, not labeled actions. */
+.sidebar__utility-row {
+  display: flex;
+  gap: 8px;
+  margin: 0 12px;
+}
+
+.sidebar__icon-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.sidebar__icon-toggle:hover {
   color: var(--accent-green);
   border-color: var(--accent-green);
 }
