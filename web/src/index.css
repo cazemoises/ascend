@@ -2804,12 +2804,19 @@ pre {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
 }
 
+/* min-width: 140px (not 0) is deliberate — with min-width:0, flex-wrap
+   still shrank this all the way down to a few characters ("So...")
+   before ever wrapping the chip/badge siblings to a new line, since an
+   auto flex-basis on a nowrap+ellipsis title doesn't give the wrap
+   algorithm a natural floor to wrap against. Forcing a real floor makes
+   it wrap the row instead of over-shrinking the one thing that matters. */
 .challenge-accordion__title {
   flex: 1;
-  min-width: 0;
+  min-width: 140px;
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
