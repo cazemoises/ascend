@@ -1859,6 +1859,12 @@ pre {
   min-height: calc(100vh - 40px);
 }
 
+/* background/border were hardcoded to near-black rgba literals — fine
+   in dark theme (where they were written), but never made theme-aware
+   when light theme was added, so breadcrumb/ghost-button text (which
+   IS theme-aware, via --muted/--title) sat dark-on-dark and nearly
+   vanished in light mode. color-mix keeps the same sticky-blur-header
+   opacity feel while actually tracking the theme. */
 .studio__header {
   position: sticky;
   top: 0;
@@ -1870,8 +1876,8 @@ pre {
   flex-wrap: wrap;
   margin-bottom: 8px;
   padding: 14px 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(4, 6, 10, 0.82);
+  border-bottom: 1px solid var(--border-hairline);
+  background: color-mix(in oklch, var(--bg-base) 82%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -1952,7 +1958,7 @@ pre {
 
 .btn-ghost:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in oklch, var(--text) 8%, transparent);
 }
 
 /* Inline "Gerenciar coleções" panel on the challenge list page — same card
@@ -2015,7 +2021,7 @@ pre {
 
 .studio__panel {
   padding: 26px 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-hairline);
 }
 
 .studio__panel:last-of-type {
@@ -2115,7 +2121,7 @@ pre {
 }
 
 .tc-card:hover {
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--border-strong);
 }
 
 .tc-card__head {
@@ -2179,7 +2185,7 @@ pre {
   height: 19px;
   border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-surface-alt);
   transition: background-color 180ms ease, border-color 180ms ease;
 }
 
