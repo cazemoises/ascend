@@ -367,7 +367,7 @@ export function ChallengeList() {
   const [searchQuery, setSearchQuery] = useState('')
   const [difficultyFilter, setDifficultyFilter] = useState<Set<ChallengeDifficulty>>(new Set())
   const [languageFilter, setLanguageFilter] = useState<Set<SubmissionLanguage>>(new Set())
-  const [sortMode, setSortMode] = useState<SortMode>('recent')
+  const [sortMode, setSortMode] = useState<SortMode>('alpha')
 
   const [creating, setCreating] = useState(false)
   const [editingChallengeId, setEditingChallengeId] = useState<string | null>(null)
