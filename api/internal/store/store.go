@@ -118,6 +118,14 @@ type Submission struct {
 	// judged before these columns existed.
 	Stdout         *string `json:"stdout"`
 	ExpectedOutput *string `json:"expected_output"`
+	// FailedInput is the failing case's input, only ever non-NULL when that
+	// case is a sample (FailedIsSample true) — a hidden case's input is
+	// never written to this column at all, so there's nothing here to leak
+	// regardless of what the frontend renders. FailedIsSample distinguishes
+	// "hidden case" (false) from "submission predates this column" (NULL);
+	// both otherwise look like an absent FailedInput.
+	FailedInput    *string `json:"failed_input"`
+	FailedIsSample *bool   `json:"failed_is_sample"`
 	// Nullable "X of Y test cases passed"; NULL for submissions judged before
 	// the counts existed, or that failed before the worker ran a single case.
 	PassedCount    *int `json:"passed_count"`
@@ -554,6 +562,7 @@ func (s *Store) GetSubmission(ctx context.Context, id string) (Submission, error
 	row := s.db.QueryRowContext(ctx,
 		`SELECT s.id, s.challenge_id, s.language, s.source_code, s.status,
 		        s.exec_time_ms, s.memory_peak_mb, s.stderr, s.stdout, s.expected_output,
+		        s.failed_input, s.failed_is_sample,
 		        s.passed_count, s.total_test_cases,
 		        c.time_limit_ms, c.memory_limit_mb,
 		        s.created_at, s.updated_at
@@ -563,6 +572,7 @@ func (s *Store) GetSubmission(ctx context.Context, id string) (Submission, error
 	var sub Submission
 	if err := row.Scan(&sub.ID, &sub.ChallengeID, &sub.Language, &sub.SourceCode, &sub.Status,
 		&sub.ExecTimeMs, &sub.MemoryPeakMb, &sub.Stderr, &sub.Stdout, &sub.ExpectedOutput,
+		&sub.FailedInput, &sub.FailedIsSample,
 		&sub.PassedCount, &sub.TotalTestCases,
 		&sub.TimeLimitMs, &sub.MemoryLimitMb,
 		&sub.CreatedAt, &sub.UpdatedAt); err != nil {

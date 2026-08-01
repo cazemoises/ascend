@@ -3410,6 +3410,27 @@ pre {
   max-height: 340px;
 }
 
+/* "Obtida" (what the submission actually printed, wrong) vs "esperada"
+   (what it should have printed) were visually identical before — same
+   border, same header style, nothing to anchor on at a glance. Border +
+   header-color accent only; body stays var(--inset)/var(--text) so the
+   code itself keeps full contrast instead of sitting on a tinted panel. */
+.result-panel--actual {
+  border-left: 2px solid var(--accent-red);
+}
+
+.result-panel--actual .result-panel__header {
+  color: var(--accent-red);
+}
+
+.result-panel--expected {
+  border-left: 2px solid var(--accent-teal);
+}
+
+.result-panel--expected .result-panel__header {
+  color: var(--accent-teal);
+}
+
 /* Bare code well used by the submission-history audit row (a different
    page/pattern — a compact expando next to .terminal-log, not the result
    page's dedicated panels above). */

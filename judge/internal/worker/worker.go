@@ -41,6 +41,10 @@ type testCaseRecord struct {
 	// comparison SQL challenges use (see outputsMatch); irrelevant for every
 	// other language, which always compares exactly.
 	OrderMatters bool
+	// IsSample gates whether a wrong_answer verdict on this case is allowed
+	// to surface its Input on the result page (see evaluate) — false for a
+	// hidden case means the input must never leave the server.
+	IsSample bool
 }
 
 type queue interface {
@@ -172,6 +176,12 @@ type evalResult struct {
 	// the result page's diff display.
 	stdout         string
 	expectedOutput string
+	// failedInput/failedIsSample are only set alongside stdout/expectedOutput
+	// on wrong_answer. failedInput is deliberately left empty unless
+	// failedIsSample is true — a hidden case's input must never make it
+	// into the result row at all, not just be hidden by the frontend.
+	failedInput    string
+	failedIsSample bool
 }
 
 // evaluate runs the submission against every test case in order, stopping at
@@ -228,6 +238,10 @@ func evaluate(ctx context.Context, executor DockerExecutor, language, sourceCode
 			res.status = "wrong_answer"
 			res.stdout = result.Stdout
 			res.expectedOutput = testCase.ExpectedOutput
+			res.failedIsSample = testCase.IsSample
+			if testCase.IsSample {
+				res.failedInput = testCase.Input
+			}
 			return res
 		}
 
@@ -322,7 +336,7 @@ func buildExecutable(studentCode, starterCode string) string {
 
 func (w *Worker) fetchTestCases(ctx context.Context, challengeID string) ([]testCaseRecord, error) {
 	rows, err := w.db.QueryContext(ctx,
-		`SELECT input, expected_output, order_matters FROM test_cases WHERE challenge_id = $1 ORDER BY ordinal`, challengeID)
+		`SELECT input, expected_output, order_matters, is_sample FROM test_cases WHERE challenge_id = $1 ORDER BY ordinal`, challengeID)
 	if err != nil {
 		return nil, fmt.Errorf("query test cases %s: %w", challengeID, err)
 	}
@@ -331,7 +345,7 @@ func (w *Worker) fetchTestCases(ctx context.Context, challengeID string) ([]test
 	var testCases []testCaseRecord
 	for rows.Next() {
 		var testCase testCaseRecord
-		if err := rows.Scan(&testCase.Input, &testCase.ExpectedOutput, &testCase.OrderMatters); err != nil {
+		if err := rows.Scan(&testCase.Input, &testCase.ExpectedOutput, &testCase.OrderMatters, &testCase.IsSample); err != nil {
 			return nil, fmt.Errorf("scan test case %s: %w", challengeID, err)
 		}
 		testCases = append(testCases, testCase)
@@ -366,14 +380,31 @@ func (w *Worker) updateSubmissionResult(ctx context.Context, submissionID string
 	stderrLog := truncate(res.stderr, maxStderrBytes)
 	stdoutLog := truncate(res.stdout, maxOutputBytes)
 	expectedLog := truncate(res.expectedOutput, maxOutputBytes)
+
+	// sql.NullString/NullBool, not NULLIF(x, ''): failedInput can
+	// legitimately BE an empty string for a sample case whose test input is
+	// blank (e.g. a no-stdin program) — NULLIF would collapse that to NULL,
+	// indistinguishable from "hidden case, deliberately withheld". Valid
+	// tracks that distinction explicitly instead of overloading emptiness.
+	var failedInput sql.NullString
+	var failedIsSample sql.NullBool
+	if res.status == "wrong_answer" {
+		failedIsSample = sql.NullBool{Bool: res.failedIsSample, Valid: true}
+		if res.failedIsSample {
+			failedInput = sql.NullString{String: truncate(res.failedInput, maxOutputBytes), Valid: true}
+		}
+	}
+
 	_, err := w.db.ExecContext(ctx,
 		`UPDATE submissions
 		 SET status = $1, passed_count = $2, total_test_cases = $3,
 		     exec_time_ms = $4, stderr = NULLIF($5, ''),
 		     stdout = NULLIF($6, ''), expected_output = NULLIF($7, ''),
+		     failed_input = $8, failed_is_sample = $9,
 		     updated_at = NOW()
-		 WHERE id = $8`,
-		res.status, res.passedCount, res.total, res.execTimeMs, stderrLog, stdoutLog, expectedLog, submissionID)
+		 WHERE id = $10`,
+		res.status, res.passedCount, res.total, res.execTimeMs, stderrLog, stdoutLog, expectedLog,
+		failedInput, failedIsSample, submissionID)
 	if err != nil {
 		return fmt.Errorf("exec submission update %s: %w", submissionID, err)
 	}
