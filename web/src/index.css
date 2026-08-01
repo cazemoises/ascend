@@ -507,14 +507,12 @@ pre {
   letter-spacing: 0.04em;
 }
 
-/* Interim: still the old triangle glyph and a solid glow, pending the
-   sidebar/brand-mark rebuild (rotated bicolor terracota/teal diamond) in
-   the dedicated Tela 6 pass — this only keeps its color in step with
-   "green is verdict-only now" so it doesn't clash with the new palette
-   in the meantime. */
-.sidebar__brand-mark {
-  color: var(--accent-terracota);
-  text-shadow: 0 0 14px oklch(74% 0.02 53 / 0.55);
+/* Rotated bicolor diamond (see BrandMark.tsx) — replaces the interim "▲"
+   placeholder glyph. Kept the same warm-glow spirit as the old text-shadow,
+   via drop-shadow (text-shadow doesn't apply to SVG). */
+.brand-mark {
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 8px oklch(74% 0.02 53 / 0.45));
 }
 
 .sidebar__nav {

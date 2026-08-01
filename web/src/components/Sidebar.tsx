@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth'
+import { BrandMark } from './BrandMark'
 import { SoundToggle } from './SoundToggle'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -92,7 +93,7 @@ export function Sidebar() {
           <IconMenu />
         </button>
         <span className="mobile-topbar__brand">
-          <span className="sidebar__brand-mark">▲</span>
+          <BrandMark />
           Ascend
         </span>
       </div>
@@ -103,7 +104,7 @@ export function Sidebar() {
 
       <aside className={mobileOpen ? 'sidebar sidebar--open' : 'sidebar'}>
         <div className="sidebar__brand">
-          <span className="sidebar__brand-mark">▲</span>
+          <BrandMark />
           <span>Ascend</span>
         </div>
 
