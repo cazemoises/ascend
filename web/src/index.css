@@ -941,13 +941,14 @@ pre {
 }
 
 .challenge-collection-header--nested .challenge-progress-header__label {
+  color: var(--text-secondary);
   font-size: 0.8rem;
   font-weight: 500;
 }
 
 .challenge-collection-header--nested .challenge-progress-header__bar {
   width: 90px;
-  height: 5px;
+  height: 4px;
 }
 
 .challenge-group {
@@ -1019,7 +1020,7 @@ pre {
   flex-shrink: 0;
   display: block;
   width: 120px;
-  height: 6px;
+  height: 8px;
   border-radius: 3px;
   background: var(--border);
   overflow: hidden;
