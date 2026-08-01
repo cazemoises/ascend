@@ -79,6 +79,23 @@
   --text: var(--text-primary);
   --muted: var(--text-secondary);
 
+  /* Group/collection hierarchy (challenge list): a nested collection block
+     inverts to a dark "spotlight" panel in light theme only — a group's
+     light panel reads better with a deliberately darker sub-container
+     standing out inside it. Dark theme's own elevation ladder (panel 24%
+     -> surface-alt 28%) already reads as "raised" without that trick, and
+     inverting there would clash with the cool dark-violet identity instead
+     of reinforcing hierarchy — so these just alias today's existing values
+     there, unchanged. Light theme overrides all six below to the --code-*
+     (always-dark) palette. The component rules only ever read these vars,
+     never data-theme itself — same rule as every other color in this file. */
+  --nested-bg: var(--bg-surface-alt);
+  --nested-border: var(--border-hairline);
+  --nested-label: var(--text-secondary);
+  --nested-caret: var(--text-secondary);
+  --nested-muted-text: var(--muted);
+  --nested-card-title: var(--title);
+
   /* "green" keeps its name for backward compat but is no longer the brand
      color — it's the accepted-verdict hue only. Anything that wants the
      primary brand/CTA color reaches for --accent-terracota directly, or
@@ -162,6 +179,16 @@
   --inset: var(--bg-surface-alt);
   --border-strong: var(--border-hairline);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+
+  /* The asymmetric half of the nested-collection inversion described where
+     these are first declared, above in :root — light theme is the only one
+     that swaps to the --code-* (always-dark) palette. */
+  --nested-bg: var(--code-surface-alt);
+  --nested-border: var(--code-border);
+  --nested-label: var(--code-ink);
+  --nested-caret: var(--code-muted);
+  --nested-muted-text: var(--code-muted);
+  --nested-card-title: var(--code-ink);
 
   --green-hover: oklch(50% 0.02 53);
   --on-green: var(--bg-base);
@@ -872,8 +899,14 @@ pre {
    the feed grid as its padded body — rather than a heavy standalone bar
    floating above an unrelated block. Only applies when there's actually a
    header to fuse with (:has); an ungrouped single bucket renders with no
-   header and no card chrome, just the bare grid. */
-.challenge-collection-group:has(> .challenge-collection-header) {
+   header and no card chrome, just the bare grid. :not(--nested) matches
+   the two sibling rules below — a nested collection gets its own card
+   chrome from .challenge-collection-group--nested instead, and without
+   this exclusion this rule's higher specificity silently clobbered that
+   background/border (the nested block rendered with --panel and an
+   unintended 1px border, identical to its parent group, despite this file
+   always having documented --bg-surface-alt as its own tinted background). */
+.challenge-collection-group:not(.challenge-collection-group--nested):has(> .challenge-collection-header) {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
@@ -926,7 +959,7 @@ pre {
 .challenge-collection-group--nested {
   margin-bottom: 16px;
   padding: 14px 16px 16px;
-  background: var(--bg-surface-alt);
+  background: var(--nested-bg);
   border-radius: var(--radius-s);
 }
 
@@ -934,21 +967,50 @@ pre {
   margin-bottom: 0;
 }
 
+/* Card chrome inside a nested collection reads against --nested-bg rather
+   than the page's ambient surface, so border/title/description are pulled
+   from the same nested-* family instead of their plain defaults — in dark
+   theme these resolve to the exact same values the defaults already give
+   (see --nested-* declarations), so this only visibly changes anything in
+   light theme, where --nested-bg itself goes dark. Declared before
+   .challenge-card:hover below so the hover state (same specificity) still
+   wins on interaction. */
+.challenge-collection-group--nested .challenge-card {
+  border-color: var(--nested-border);
+}
+
+.challenge-collection-group--nested .challenge-card__title {
+  color: var(--nested-card-title);
+}
+
+.challenge-collection-group--nested .challenge-card__description {
+  color: var(--nested-muted-text);
+}
+
 .challenge-collection-header--nested {
   padding: 0 0 10px;
   margin-bottom: 10px;
-  border-bottom: 1px solid var(--border-hairline);
+  border-bottom: 1px solid var(--nested-border);
 }
 
 .challenge-collection-header--nested .challenge-progress-header__label {
-  color: var(--text-secondary);
+  color: var(--nested-label);
   font-size: 0.8rem;
   font-weight: 500;
+}
+
+.challenge-collection-header--nested .challenge-progress-header__count {
+  color: var(--nested-muted-text);
+}
+
+.challenge-collection-header--nested .audit-caret {
+  color: var(--nested-caret);
 }
 
 .challenge-collection-header--nested .challenge-progress-header__bar {
   width: 90px;
   height: 4px;
+  background: var(--nested-border);
 }
 
 .challenge-group {
