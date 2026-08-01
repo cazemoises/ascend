@@ -205,14 +205,31 @@ export function SubmissionPage() {
                 </section>
               ) : null}
 
+              {submission.status === 'wrong_answer' && submission.failed_input !== null ? (
+                <section className="submission-section">
+                  <div className="result-panel">
+                    <p className="result-panel__header">Entrada</p>
+                    <pre className="result-panel__body">{submission.failed_input}</pre>
+                  </div>
+                </section>
+              ) : null}
+
+              {submission.status === 'wrong_answer' &&
+              submission.failed_input === null &&
+              submission.failed_is_sample === false ? (
+                <section className="submission-section">
+                  <p className="status-message">Este caso de teste é oculto.</p>
+                </section>
+              ) : null}
+
               {submission.status === 'wrong_answer' && submission.stdout !== null ? (
                 <section className="submission-section">
                   <div className="submission-output">
-                    <div className="result-panel">
+                    <div className="result-panel result-panel--actual">
                       <p className="result-panel__header">Saída obtida</p>
                       <pre className="result-panel__body">{submission.stdout}</pre>
                     </div>
-                    <div className="result-panel">
+                    <div className="result-panel result-panel--expected">
                       <p className="result-panel__header">Saída esperada</p>
                       <pre className="result-panel__body">{submission.expected_output}</pre>
                     </div>

@@ -112,6 +112,14 @@ export interface Submission {
   // expected output.
   stdout: string | null
   expected_output: string | null
+  // failed_input is only non-null when the failing case is a sample
+  // (failed_is_sample true) — a hidden case's input is never sent by the
+  // backend at all, not just hidden here. failed_is_sample is tri-state:
+  // false means "hidden case, show a notice instead"; null means "this
+  // submission predates the column, show neither the input nor the notice"
+  // — those two read the same on failed_input alone, so check this first.
+  failed_input: string | null
+  failed_is_sample: boolean | null
   passed_count: number | null
   total_test_cases: number | null
   time_limit_ms: number
