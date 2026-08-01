@@ -507,14 +507,12 @@ pre {
   letter-spacing: 0.04em;
 }
 
-/* Interim: still the old triangle glyph and a solid glow, pending the
-   sidebar/brand-mark rebuild (rotated bicolor terracota/teal diamond) in
-   the dedicated Tela 6 pass — this only keeps its color in step with
-   "green is verdict-only now" so it doesn't clash with the new palette
-   in the meantime. */
-.sidebar__brand-mark {
-  color: var(--accent-terracota);
-  text-shadow: 0 0 14px oklch(74% 0.02 53 / 0.55);
+/* Rotated bicolor diamond (see BrandMark.tsx) — replaces the interim "▲"
+   placeholder glyph. Kept the same warm-glow spirit as the old text-shadow,
+   via drop-shadow (text-shadow doesn't apply to SVG). */
+.brand-mark {
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 8px oklch(74% 0.02 53 / 0.45));
 }
 
 .sidebar__nav {
@@ -1861,6 +1859,12 @@ pre {
   min-height: calc(100vh - 40px);
 }
 
+/* background/border were hardcoded to near-black rgba literals — fine
+   in dark theme (where they were written), but never made theme-aware
+   when light theme was added, so breadcrumb/ghost-button text (which
+   IS theme-aware, via --muted/--title) sat dark-on-dark and nearly
+   vanished in light mode. color-mix keeps the same sticky-blur-header
+   opacity feel while actually tracking the theme. */
 .studio__header {
   position: sticky;
   top: 0;
@@ -1872,8 +1876,8 @@ pre {
   flex-wrap: wrap;
   margin-bottom: 8px;
   padding: 14px 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(4, 6, 10, 0.82);
+  border-bottom: 1px solid var(--border-hairline);
+  background: color-mix(in oklch, var(--bg-base) 82%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -1954,7 +1958,7 @@ pre {
 
 .btn-ghost:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in oklch, var(--text) 8%, transparent);
 }
 
 /* Inline "Gerenciar coleções" panel on the challenge list page — same card
@@ -2017,7 +2021,7 @@ pre {
 
 .studio__panel {
   padding: 26px 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-hairline);
 }
 
 .studio__panel:last-of-type {
@@ -2117,7 +2121,7 @@ pre {
 }
 
 .tc-card:hover {
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--border-strong);
 }
 
 .tc-card__head {
@@ -2181,7 +2185,7 @@ pre {
   height: 19px;
   border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-surface-alt);
   transition: background-color 180ms ease, border-color 180ms ease;
 }
 
@@ -2560,6 +2564,7 @@ pre {
 .audit-toggle {
   display: inline-flex;
   align-items: center;
+  min-width: 0;
   gap: 8px;
   padding: 0;
   border: none;
@@ -2805,12 +2810,19 @@ pre {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
 }
 
+/* min-width: 140px (not 0) is deliberate — with min-width:0, flex-wrap
+   still shrank this all the way down to a few characters ("So...")
+   before ever wrapping the chip/badge siblings to a new line, since an
+   auto flex-basis on a nowrap+ellipsis title doesn't give the wrap
+   algorithm a natural floor to wrap against. Forcing a real floor makes
+   it wrap the row instead of over-shrinking the one thing that matters. */
 .challenge-accordion__title {
   flex: 1;
-  min-width: 0;
+  min-width: 140px;
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2952,8 +2964,12 @@ pre {
   color: var(--accent-green);
 }
 
+/* padding was 28px 32px — enough narrower than the button/title row above
+   it to squeeze .challenge-row__meta into wrapping the week-range chip
+   onto its own line here while every other card fits it inline. 24px 28px
+   still reads roomier than the 14px 20px base card, without the wrap. */
 .challenge-row--current {
-  padding: 28px 32px;
+  padding: 24px 28px;
   border-left: 3px solid var(--accent-green);
 }
 
@@ -3069,7 +3085,8 @@ pre {
 .list-item__head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding: 14px 16px;
 }
 
