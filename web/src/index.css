@@ -219,7 +219,14 @@ a {
   text-decoration: none;
 }
 
-a:hover {
+/* :not(.challenge-submit) — this is meant for plain inline text links
+   (prose, back-links), not button-styled anchors. .challenge-submit is
+   a <Link> in several places (ChallengeList, SubmissionPage, ListsPage),
+   so without the exclusion this rule's (0,1,1) specificity beats the
+   *base* .challenge-submit class rule's (0,1,0) and repaints the button
+   label terracota on hover — which is also the hover fill color, so the
+   text visually vanished into its own background. */
+a:hover:not(.challenge-submit) {
   color: var(--accent-terracota);
 }
 
@@ -427,6 +434,7 @@ pre {
 }
 
 .challenge-submit:hover:not(:disabled) {
+  color: var(--on-green);
   transform: scale(1.03);
   filter: brightness(1.08);
   box-shadow:
