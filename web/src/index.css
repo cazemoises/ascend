@@ -2558,6 +2558,7 @@ pre {
 .audit-toggle {
   display: inline-flex;
   align-items: center;
+  min-width: 0;
   gap: 8px;
   padding: 0;
   border: none;
@@ -2950,8 +2951,12 @@ pre {
   color: var(--accent-green);
 }
 
+/* padding was 28px 32px — enough narrower than the button/title row above
+   it to squeeze .challenge-row__meta into wrapping the week-range chip
+   onto its own line here while every other card fits it inline. 24px 28px
+   still reads roomier than the 14px 20px base card, without the wrap. */
 .challenge-row--current {
-  padding: 28px 32px;
+  padding: 24px 28px;
   border-left: 3px solid var(--accent-green);
 }
 
@@ -3067,7 +3072,8 @@ pre {
 .list-item__head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding: 14px 16px;
 }
 

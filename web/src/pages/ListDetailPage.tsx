@@ -187,42 +187,44 @@ export function ListDetailPage() {
       {!loading && !error && detail ? (
         <>
           <section className="panel submission-panel">
-            <div className="list-detail__eyebrow-row">
-              <p className="eyebrow">Lista semanal</p>
-              {detail.week_start && detail.week_end ? (
-                <WeekChip weekStart={detail.week_start} weekEnd={detail.week_end} />
+            <div className="submission-panel__body">
+              <div className="list-detail__eyebrow-row">
+                <p className="eyebrow">Lista semanal</p>
+                {detail.week_start && detail.week_end ? (
+                  <WeekChip weekStart={detail.week_start} weekEnd={detail.week_end} />
+                ) : null}
+              </div>
+              <h1>{detail.title}</h1>
+
+              <div className="list-detail__meta">
+                {detail.week_label ? <span className="constraint">{detail.week_label}</span> : null}
+                {!detail.published ? <span className="verdict test-run-tag">RASCUNHO</span> : null}
+              </div>
+
+              {detail.description ? (
+                <div className="list-detail__description markdown-content">
+                  <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{detail.description}</ReactMarkdown>
+                </div>
+              ) : null}
+
+              {actionError ? <p className="status-message status-error">{actionError}</p> : null}
+
+              {isOwner ? (
+                <div className="list-detail__actions">
+                  {!detail.published ? (
+                    <button type="button" className="challenge-submit" onClick={() => void handlePublish()}>
+                      Publicar
+                    </button>
+                  ) : null}
+                  <Link className="btn-secondary" to={`/listas/${detail.id}/editar`}>
+                    Editar lista
+                  </Link>
+                  <button type="button" className="btn-secondary" onClick={() => void handleDeleteList()}>
+                    Excluir lista
+                  </button>
+                </div>
               ) : null}
             </div>
-            <h1>{detail.title}</h1>
-
-            <div className="list-detail__meta">
-              {detail.week_label ? <span className="constraint">{detail.week_label}</span> : null}
-              {!detail.published ? <span className="verdict test-run-tag">RASCUNHO</span> : null}
-            </div>
-
-            {detail.description ? (
-              <div className="list-detail__description markdown-content">
-                <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{detail.description}</ReactMarkdown>
-              </div>
-            ) : null}
-
-            {actionError ? <p className="status-message status-error">{actionError}</p> : null}
-
-            {isOwner ? (
-              <div className="list-detail__actions">
-                {!detail.published ? (
-                  <button type="button" className="challenge-submit" onClick={() => void handlePublish()}>
-                    Publicar
-                  </button>
-                ) : null}
-                <Link className="btn-secondary" to={`/listas/${detail.id}/editar`}>
-                  Editar lista
-                </Link>
-                <button type="button" className="btn-secondary" onClick={() => void handleDeleteList()}>
-                  Excluir lista
-                </button>
-              </div>
-            ) : null}
           </section>
 
           <section className="history-section">
