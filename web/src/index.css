@@ -19,7 +19,7 @@
   --text-secondary: oklch(68% 0.015 80);
 
   /* Primitive tokens — brand (terracota/teal) and verdict hues */
-  --accent-terracota: oklch(74% 0.10 53);
+  --accent-terracota: oklch(65% 0.04 53);
   --accent-teal: oklch(72% 0.09 200);
   --accent-green: oklch(70% 0.12 165);
   --accent-amber: oklch(78% 0.13 85);
@@ -84,7 +84,7 @@
      primary brand/CTA color reaches for --accent-terracota directly, or
      the --grad-cta/--grad-accent aliases below. */
   --green: var(--accent-green);
-  --green-hover: oklch(70% 0.10 53);
+  --green-hover: oklch(61% 0.04 53);
   --green-soft: var(--accent-green-dim);
   --on-green: var(--bg-base);
 
@@ -140,7 +140,7 @@
   --text-primary: oklch(23% 0.02 50);
   --text-secondary: oklch(48% 0.02 50);
 
-  --accent-terracota: oklch(66% 0.10 53);
+  --accent-terracota: oklch(57% 0.04 53);
   --accent-teal: oklch(52% 0.09 200);
   --accent-green: oklch(58% 0.12 165);
   --accent-amber: oklch(68% 0.13 85);
@@ -163,7 +163,7 @@
   --border-strong: var(--border-hairline);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
 
-  --green-hover: oklch(62% 0.10 53);
+  --green-hover: oklch(53% 0.04 53);
   --on-green: var(--bg-base);
 
   --blue: oklch(54% 0.05 250);
@@ -506,7 +506,7 @@ pre {
    in the meantime. */
 .sidebar__brand-mark {
   color: var(--accent-terracota);
-  text-shadow: 0 0 14px oklch(74% 0.10 53 / 0.55);
+  text-shadow: 0 0 14px oklch(65% 0.04 53 / 0.55);
 }
 
 .sidebar__nav {
