@@ -120,6 +120,55 @@ func TestEvaluate_WrongAnswerCapturesActualAndExpectedOutput(t *testing.T) {
 	}
 }
 
+// A wrong_answer on a sample (is_sample=true) case must also carry that
+// case's input, so the result page can show what was actually fed in.
+func TestEvaluate_WrongAnswerCapturesInputWhenSample(t *testing.T) {
+	exec := &scriptedExecutor{
+		results: []RunResult{{Stdout: "nope"}},
+		errs:    []error{nil},
+	}
+	cases := []testCaseRecord{
+		{Input: "3 4", ExpectedOutput: "ok", IsSample: true},
+	}
+
+	res := evaluate(context.Background(), exec, "python", "code", "", cases, 1000, 128)
+
+	if res.status != "wrong_answer" {
+		t.Fatalf("status = %q, want wrong_answer", res.status)
+	}
+	if !res.failedIsSample {
+		t.Error("failedIsSample = false, want true")
+	}
+	if res.failedInput != "3 4" {
+		t.Errorf("failedInput = %q, want %q", res.failedInput, "3 4")
+	}
+}
+
+// A wrong_answer on a hidden (is_sample=false) case must NEVER carry that
+// case's input — the whole point of a hidden case is that its input isn't
+// shown to the student, even on a failing result.
+func TestEvaluate_WrongAnswerHidesInputWhenNotSample(t *testing.T) {
+	exec := &scriptedExecutor{
+		results: []RunResult{{Stdout: "nope"}},
+		errs:    []error{nil},
+	}
+	cases := []testCaseRecord{
+		{Input: "secret seed data", ExpectedOutput: "ok", IsSample: false},
+	}
+
+	res := evaluate(context.Background(), exec, "python", "code", "", cases, 1000, 128)
+
+	if res.status != "wrong_answer" {
+		t.Fatalf("status = %q, want wrong_answer", res.status)
+	}
+	if res.failedIsSample {
+		t.Error("failedIsSample = true, want false")
+	}
+	if res.failedInput != "" {
+		t.Errorf("failedInput = %q, want empty — a hidden case's input must never be captured", res.failedInput)
+	}
+}
+
 // An accepted run has no failing case, so expectedOutput must stay empty —
 // the result page shows no "esperada" block on a clean pass. stdout,
 // however, must carry the last-executed case's real output, so the result

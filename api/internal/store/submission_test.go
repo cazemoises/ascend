@@ -193,6 +193,78 @@ func TestGetSubmission_ExposesStdoutAndExpectedOutput(t *testing.T) {
 	}
 }
 
+// TestGetSubmission_ExposesFailedInputAndIsSample covers the same
+// worker-writes/store-reads contract as the stdout/expected_output test
+// above, for the two new columns — including the specific case the whole
+// feature exists for: a hidden test case's input must come back nil even
+// though failed_is_sample itself is populated (false, not NULL).
+func TestGetSubmission_ExposesFailedInputAndIsSample(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+
+	ch, err := s.CreateChallenge(ctx, store.CreateChallengeRequest{
+		Slug: "get-submission-failed-input", Title: "Get Submission Failed Input", Difficulty: "easy",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallenge: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteChallenge(ctx, ch.ID) })
+	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM submissions WHERE challenge_id = $1`, ch.ID) })
+
+	sub, err := s.CreateSubmission(ctx, store.CreateSubmissionRequest{
+		ChallengeID: ch.ID, Language: "python", SourceCode: "print('nope')",
+	})
+	if err != nil {
+		t.Fatalf("CreateSubmission: %v", err)
+	}
+
+	// Before judging (and for any submission predating this column), both
+	// must be nil — never a misleading false.
+	before, err := s.GetSubmission(ctx, sub.ID)
+	if err != nil {
+		t.Fatalf("GetSubmission (before): %v", err)
+	}
+	if before.FailedInput != nil || before.FailedIsSample != nil {
+		t.Errorf("failed_input=%v failed_is_sample=%v, want both nil before judging", before.FailedInput, before.FailedIsSample)
+	}
+
+	// Simulate the worker judging a wrong_answer on a SAMPLE case.
+	if _, err := db.ExecContext(ctx,
+		`UPDATE submissions SET status = 'wrong_answer', failed_input = $1, failed_is_sample = $2 WHERE id = $3`,
+		"3 4", true, sub.ID); err != nil {
+		t.Fatalf("simulate worker update (sample case): %v", err)
+	}
+	afterSample, err := s.GetSubmission(ctx, sub.ID)
+	if err != nil {
+		t.Fatalf("GetSubmission (after sample): %v", err)
+	}
+	if afterSample.FailedIsSample == nil || !*afterSample.FailedIsSample {
+		t.Errorf("failed_is_sample = %v, want true", afterSample.FailedIsSample)
+	}
+	if afterSample.FailedInput == nil || *afterSample.FailedInput != "3 4" {
+		t.Errorf("failed_input = %v, want %q", afterSample.FailedInput, "3 4")
+	}
+
+	// Simulate the worker judging a wrong_answer on a HIDDEN case: input
+	// must come back nil even though failed_is_sample is populated (false).
+	if _, err := db.ExecContext(ctx,
+		`UPDATE submissions SET status = 'wrong_answer', failed_input = NULL, failed_is_sample = $1 WHERE id = $2`,
+		false, sub.ID); err != nil {
+		t.Fatalf("simulate worker update (hidden case): %v", err)
+	}
+	afterHidden, err := s.GetSubmission(ctx, sub.ID)
+	if err != nil {
+		t.Fatalf("GetSubmission (after hidden): %v", err)
+	}
+	if afterHidden.FailedIsSample == nil || *afterHidden.FailedIsSample {
+		t.Errorf("failed_is_sample = %v, want false", afterHidden.FailedIsSample)
+	}
+	if afterHidden.FailedInput != nil {
+		t.Errorf("failed_input = %v, want nil — a hidden case's input must never be exposed", afterHidden.FailedInput)
+	}
+}
+
 func TestCreateSubmission_ChallengeNotFound(t *testing.T) {
 	db := openTestDB(t)
 	rdb := openTestRedis(t)
