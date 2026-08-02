@@ -1423,7 +1423,14 @@ pre {
 /* Cheap affordance that there's more to scroll to horizontally — not
    scroll-position-aware (would need JS to hide once fully scrolled),
    but a static hint is enough to stop the DATA column from reading as
-   silently missing instead of "off to the right". */
+   silently missing instead of "off to the right". Fades to a translucent
+   tint of --text rather than a solid var(--panel): the header row paints
+   var(--panel-alt), not var(--panel), so a solid endpoint color left the
+   top-right corner showing the wrong background outright (looked
+   unpainted, cut off before the rounded corner it sits under). A
+   translucent tint just dims whatever's actually underneath — correct
+   over both the --panel-alt header and the --panel body without needing
+   to track row boundaries or table geometry. */
 .datagrid::after {
   content: '';
   position: absolute;
@@ -1431,7 +1438,7 @@ pre {
   right: 0;
   bottom: 0;
   width: 28px;
-  background: linear-gradient(to right, transparent, var(--panel));
+  background: linear-gradient(to right, transparent, color-mix(in oklch, var(--text) 10%, transparent));
   pointer-events: none;
 }
 
