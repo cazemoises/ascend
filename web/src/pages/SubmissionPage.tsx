@@ -1,13 +1,43 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 
-import { getSubmission, listChallenges, type Submission } from '../api'
+import { getSubmission, listChallenges, type Challenge, type Submission } from '../api'
 import { ExecutionTrail } from '../components/ExecutionTrail'
 import { TelemetryChip } from '../components/TelemetryChip'
 import { VerdictBadge } from '../components/VerdictBadge'
 import { playAcceptedChime } from '../lib/sound'
 
 const POLLING_DELAY_MS = 2000
+
+// GET /challenges returns challenges sorted by collection ordinal then
+// created_at — NOT the alphabetical order /desafios actually displays them
+// in (its default sort since the "default challenge list sort to
+// alphabetical" change). Numbered titles like "01. ...", "02. ..." only
+// land in that order by title, not by creation time, so "next" must
+// re-sort each collection's own challenges alphabetically before walking
+// the list — otherwise "next" can jump to whichever challenge in the
+// collection happened to be created second, skipping the ones in between.
+// Collection (and therefore group) order itself is left untouched: once a
+// collection's challenges are exhausted, the next entry is already the
+// first challenge of the following collection in the server's order.
+function orderForNextChallenge(challenges: Challenge[]): Challenge[] {
+  const buckets = new Map<string, Challenge[]>()
+  const collectionOrder: string[] = []
+  for (const challenge of challenges) {
+    const key = challenge.collection_id ?? ''
+    let bucket = buckets.get(key)
+    if (!bucket) {
+      bucket = []
+      buckets.set(key, bucket)
+      collectionOrder.push(key)
+    }
+    bucket.push(challenge)
+  }
+  for (const bucket of buckets.values()) {
+    bucket.sort((a, b) => a.title.localeCompare(b.title))
+  }
+  return collectionOrder.flatMap((key) => buckets.get(key) ?? [])
+}
 
 // Same 12px icon convention as TelemetryChip's own IconClock/IconMemory —
 // these two extend that chip row to cover language and test count too.
@@ -37,9 +67,9 @@ export function SubmissionPage() {
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   // undefined = still resolving; null = determined, no next challenge;
-  // string = the next challenge's id. Same display order as /desafios —
-  // GET /challenges already returns challenges grouped by collection
-  // ordinal then created_at, so "next" is simply the following array entry.
+  // string = the next challenge's id. See orderForNextChallenge — walks
+  // each collection in its own alphabetical (title) order, matching what
+  // /desafios actually displays, not the raw API order.
   const [nextChallengeId, setNextChallengeId] = useState<string | null | undefined>(undefined)
   // Tracks which submission id we've already chimed for, so the sound
   // plays once per accepted result — not on every re-render — even under
@@ -124,8 +154,9 @@ export function SubmissionPage() {
     listChallenges()
       .then((data) => {
         if (!active) return
-        const index = data.findIndex((c) => c.id === id)
-        setNextChallengeId(index !== -1 && index + 1 < data.length ? data[index + 1].id : null)
+        const ordered = orderForNextChallenge(data)
+        const index = ordered.findIndex((c) => c.id === id)
+        setNextChallengeId(index !== -1 && index + 1 < ordered.length ? ordered[index + 1].id : null)
       })
       .catch(() => {
         if (active) setNextChallengeId(null)
