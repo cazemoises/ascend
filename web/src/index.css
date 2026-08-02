@@ -3519,8 +3519,12 @@ pre {
   display: block;
 }
 
+/* Right-aligned to match the site's action convention (e.g. .editor-actions'
+   own "Enviar solução" button) — this container only ever renders one
+   child (see SubmissionPage), so flex-end is enough, no wrapping needed. */
 .submission-next-action {
   display: flex;
+  justify-content: flex-end;
 }
 
 /* Wrong-answer diff (obtida/esperada) and runtime-error/timeout "Erro"
