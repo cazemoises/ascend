@@ -4,6 +4,7 @@ package store_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"os"
 	"testing"
@@ -12,6 +13,25 @@ import (
 
 	"github.com/caze/ascend/api/internal/store"
 )
+
+// resetChallengeFixture defensively clears any leftover row for slug from a
+// previous interrupted test run before CreateChallenge below creates a
+// fresh one. Every test in this file registers its challenge cleanup via
+// t.Cleanup only after CreateChallenge succeeds — so a run killed mid-test
+// (process interrupted, no chance for deferred cleanup to fire) leaves the
+// row behind, and CreateChallenge then fails outright on the unique slug
+// index on every later run, with no id available to clean up with either.
+// Root-caused from a leftover "sub-test-challenge" row and four leftover
+// pangolin-auth-test user rows found mid-session (see also
+// pangolinauth_integration_test.go, same underlying pattern). Submissions
+// are removed first since they FK-reference the challenge (DeleteChallenge
+// itself hits ErrConflict/23503 otherwise, same as the LIFO-cleanup-order
+// note in TestCreateSubmission_IsTestRunPersisted below).
+func resetChallengeFixture(t *testing.T, db *sql.DB, ctx context.Context, slug string) {
+	t.Helper()
+	db.ExecContext(ctx, `DELETE FROM submissions WHERE challenge_id IN (SELECT id FROM challenges WHERE slug = $1)`, slug)
+	db.ExecContext(ctx, `DELETE FROM challenges WHERE slug = $1`, slug)
+}
 
 func openTestRedis(t *testing.T) *redis.Client {
 	t.Helper()
@@ -33,6 +53,7 @@ func TestCreateSubmission_HappyPath(t *testing.T) {
 	s := store.New(db, rdb)
 	ctx := context.Background()
 
+	resetChallengeFixture(t, db, ctx, "sub-test-challenge")
 	ch, err := s.CreateChallenge(ctx, store.CreateChallengeRequest{
 		Slug:       "sub-test-challenge",
 		Title:      "Sub Test",
@@ -100,6 +121,7 @@ func TestCreateSubmission_QueueOrderIsFIFO(t *testing.T) {
 	s := store.New(db, rdb)
 	ctx := context.Background()
 
+	resetChallengeFixture(t, db, ctx, "sub-test-fifo-challenge")
 	ch, err := s.CreateChallenge(ctx, store.CreateChallengeRequest{
 		Slug:       "sub-test-fifo-challenge",
 		Title:      "Sub Test FIFO",
@@ -159,6 +181,7 @@ func TestCreateSubmission_IsTestRunPersisted(t *testing.T) {
 	s := store.New(db, nil)
 	ctx := context.Background()
 
+	resetChallengeFixture(t, db, ctx, "is-test-run-persisted")
 	ch, err := s.CreateChallenge(ctx, store.CreateChallengeRequest{
 		Slug:       "is-test-run-persisted",
 		Title:      "Is Test Run Persisted",
@@ -212,6 +235,7 @@ func TestGetSubmission_ExposesStdoutAndExpectedOutput(t *testing.T) {
 	s := store.New(db, nil)
 	ctx := context.Background()
 
+	resetChallengeFixture(t, db, ctx, "get-submission-output")
 	ch, err := s.CreateChallenge(ctx, store.CreateChallengeRequest{
 		Slug: "get-submission-output", Title: "Get Submission Output", Difficulty: "easy",
 	})
@@ -265,6 +289,7 @@ func TestGetSubmission_ExposesFailedInputAndIsSample(t *testing.T) {
 	s := store.New(db, nil)
 	ctx := context.Background()
 
+	resetChallengeFixture(t, db, ctx, "get-submission-failed-input")
 	ch, err := s.CreateChallenge(ctx, store.CreateChallengeRequest{
 		Slug: "get-submission-failed-input", Title: "Get Submission Failed Input", Difficulty: "easy",
 	})

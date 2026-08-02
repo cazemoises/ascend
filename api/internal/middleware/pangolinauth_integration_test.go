@@ -50,11 +50,20 @@ func TestPangolinAuth_ExistingUser(t *testing.T) {
 	s := store.New(db, nil)
 	ctx := t.Context()
 
+	email := "pangolin-existing@example.com"
+	// Defensive pre-clean: t.Cleanup below only registers after CreateUser
+	// succeeds, so a previous run interrupted before that point (process
+	// killed mid-test, no chance for cleanup to ever run) leaves this row
+	// behind — and every subsequent run then fails CreateUser outright on
+	// the unique email index, with no id to clean up with. Self-heal here
+	// instead of requiring a one-off manual DB fix.
+	db.ExecContext(ctx, `DELETE FROM users WHERE email = $1`, email)
+
 	hash, err := auth.HashPassword("unused")
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
-	u, err := s.CreateUser(ctx, "pangolin-existing@example.com", hash)
+	u, err := s.CreateUser(ctx, email, hash)
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
@@ -110,11 +119,17 @@ func TestPangolinAuth_DevFakeEmail_OnlyWhenHeaderAbsent(t *testing.T) {
 	devEmail := "pangolin-dev-fallback@example.com"
 	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM users WHERE email = $1`, devEmail) })
 
+	headerEmail := "pangolin-header-wins@example.com"
+	// Same defensive pre-clean as TestPangolinAuth_ExistingUser above — see
+	// that comment for why cleanup-after-success alone can't self-heal a
+	// leftover row from an interrupted previous run.
+	db.ExecContext(ctx, `DELETE FROM users WHERE email = $1`, headerEmail)
+
 	headerHash, err := auth.HashPassword("unused")
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
-	headerUser, err := s.CreateUser(ctx, "pangolin-header-wins@example.com", headerHash)
+	headerUser, err := s.CreateUser(ctx, headerEmail, headerHash)
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
