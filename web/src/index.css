@@ -64,6 +64,19 @@
   --sidebar-border: oklch(34% 0.02 280);
   --sidebar-ink: oklch(93% 0.01 80);
   --sidebar-muted: oklch(68% 0.015 80);
+  /* Accent colors used inside the sidebar need their own theme-invariant
+     copies too — --accent-terracota/--amber/--red/--red-soft all flip to
+     light-theme-tuned values (meant for text/fills on a light background)
+     when data-theme=light, which read badly against a chrome that never
+     stops being dark: --red-soft in particular goes from a muted dark-red
+     fill (40% L) to a pale pink one (93% L), so the logout hover state was
+     rendering a bright pink patch on the still-dark sidebar. Pinned to
+     today's dark-theme accent values, same as the --sidebar-* tokens
+     above. */
+  --sidebar-accent: oklch(74% 0.02 53);
+  --sidebar-teacher: oklch(78% 0.13 85);
+  --sidebar-danger: oklch(70% 0.16 25);
+  --sidebar-danger-soft: oklch(40% 0.1 25);
 
   /* Elevation ladder: base → surface → alt surface (all solid, no alpha) */
   --canvas: var(--bg-base);
@@ -585,10 +598,10 @@ pre {
 }
 
 .sidebar__link--active {
-  color: var(--accent-terracota);
+  color: var(--sidebar-accent);
   opacity: 1;
   background: var(--sidebar-surface-alt);
-  border-left-color: var(--accent-terracota);
+  border-left-color: var(--sidebar-accent);
 }
 
 .sidebar__footer {
@@ -626,7 +639,7 @@ pre {
 }
 
 .sidebar__role--teacher {
-  color: var(--amber);
+  color: var(--sidebar-teacher);
 }
 
 .sidebar__view-as-toggle {
@@ -650,8 +663,8 @@ pre {
 }
 
 .sidebar__view-as-toggle:hover {
-  color: var(--accent-terracota);
-  border-color: var(--accent-terracota);
+  color: var(--sidebar-accent);
+  border-color: var(--sidebar-accent);
 }
 
 /* Small square icon buttons for footer utilities (theme, sound) — grouped
@@ -683,8 +696,8 @@ pre {
 }
 
 .sidebar__icon-toggle:hover {
-  border-color: var(--accent-terracota);
-  color: var(--accent-terracota);
+  border-color: var(--sidebar-accent);
+  color: var(--sidebar-accent);
 }
 
 .sidebar__logout {
@@ -710,8 +723,8 @@ pre {
 
 .sidebar__logout:hover {
   opacity: 1;
-  color: var(--red);
-  background: var(--red-soft);
+  color: var(--sidebar-danger);
+  background: var(--sidebar-danger-soft);
 }
 
 /* ===================== Verdict readouts ===================== */
