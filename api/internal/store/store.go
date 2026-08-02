@@ -550,7 +550,7 @@ func (s *Store) CreateSubmission(ctx context.Context, req CreateSubmissionReques
 			"submission_id": sub.ID,
 			"challenge_id":  sub.ChallengeID,
 		})
-		if err := s.rdb.LPush(ctx, "submissions", payload).Err(); err != nil {
+		if err := s.rdb.RPush(ctx, "submissions", payload).Err(); err != nil {
 			return Submission{}, fmt.Errorf("enqueue submission: %w", err)
 		}
 	}

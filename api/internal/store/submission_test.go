@@ -87,6 +87,68 @@ func TestCreateSubmission_HappyPath(t *testing.T) {
 	}
 }
 
+// TestCreateSubmission_QueueOrderIsFIFO guards the producer side of the
+// submissions queue's ordering contract: the judge worker consumes with
+// BLPop (pops from the list head), so CreateSubmission must RPush (append at
+// the tail) for arrival order to be preserved. RPush+BLPop is FIFO; the bug
+// this regression-tests was LPush+BLPop, which is LIFO — under a burst of
+// submissions the worker would always grab the most recent one first,
+// starving earlier submissions until the queue drained.
+func TestCreateSubmission_QueueOrderIsFIFO(t *testing.T) {
+	db := openTestDB(t)
+	rdb := openTestRedis(t)
+	s := store.New(db, rdb)
+	ctx := context.Background()
+
+	ch, err := s.CreateChallenge(ctx, store.CreateChallengeRequest{
+		Slug:       "sub-test-fifo-challenge",
+		Title:      "Sub Test FIFO",
+		Difficulty: "easy",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallenge: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteChallenge(ctx, ch.ID) })
+	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM submissions WHERE challenge_id = $1`, ch.ID) })
+
+	rdb.Del(ctx, "submissions")
+
+	var wantOrder []string
+	for i := 0; i < 3; i++ {
+		sub, err := s.CreateSubmission(ctx, store.CreateSubmissionRequest{
+			ChallengeID: ch.ID,
+			Language:    "go",
+			SourceCode:  "package main\nfunc main() {}",
+		})
+		if err != nil {
+			t.Fatalf("CreateSubmission %d: %v", i, err)
+		}
+		wantOrder = append(wantOrder, sub.ID)
+	}
+
+	// BLPop pops from the head (index 0), so simulate the worker draining
+	// the queue by reading front-to-back with LRange.
+	msgs, err := rdb.LRange(ctx, "submissions", 0, -1).Result()
+	if err != nil {
+		t.Fatalf("LRANGE: %v", err)
+	}
+	if len(msgs) != len(wantOrder) {
+		t.Fatalf("expected %d messages in Redis, got %d", len(wantOrder), len(msgs))
+	}
+	for i, raw := range msgs {
+		var payload struct {
+			SubmissionID string `json:"submission_id"`
+		}
+		if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+			t.Fatalf("unmarshal Redis payload %d: %v", i, err)
+		}
+		if payload.SubmissionID != wantOrder[i] {
+			t.Errorf("queue position %d: got submission %q, want %q (arrival order not preserved)",
+				i, payload.SubmissionID, wantOrder[i])
+		}
+	}
+}
+
 // TestCreateSubmission_IsTestRunPersisted covers the store's half of the
 // teacher-test-run flag: whatever the caller passes in IsTestRun must land
 // unchanged in the is_test_run column. Deriving true/false from the JWT role
