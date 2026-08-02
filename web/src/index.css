@@ -1715,7 +1715,7 @@ pre {
   animation: fadeInUp 0.4s var(--ease-spring) 60ms both;
 }
 
-/* Codespace tab-bar locking the file tabs + language switch above Monaco. */
+/* Codespace tab-bar locking the filename/language switch above Monaco. */
 .editor-toolbar {
   display: flex;
   align-items: flex-end;
@@ -1737,39 +1737,32 @@ pre {
   color: var(--code-muted);
 }
 
-.editor-tabs {
-  display: flex;
-  align-items: stretch;
-  gap: 4px;
-  padding-bottom: 8px;
-}
-
-.editor-tab {
-  position: relative;
-  padding: 5px 12px;
-  border: none;
+/* Replaces the old fixed language tab strip (a button per LANGUAGES entry,
+   shown even for challenges that only accept one) — a single-select menu
+   only makes sense once there's more than one real choice, which is
+   exactly the case ChallengePage.tsx renders this in (the pinned-language
+   case gets a plain .editor-toolbar__title instead, no menu at all). Sized
+   and colored to sit at the same baseline .editor-tab used to, against the
+   toolbar's always-dark --code-* surface (same reasoning as the rest of
+   this codespace chrome — see --code-bg's own declaration). No custom
+   arrow/appearance:none: every other <select> in this app (e.g.
+   .studio__grid select) also just themes the native control rather than
+   replacing its chrome, so this stays consistent with that. */
+.editor-language-select {
+  padding: 5px 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--code-border);
   border-radius: 7px;
-  background: transparent;
-  color: var(--code-muted);
+  background: var(--code-surface-alt);
+  color: var(--code-ink);
   font-family: var(--mono);
   font-size: 0.78rem;
   cursor: pointer;
-  transition: color 150ms ease, background-color 150ms ease;
 }
 
-.editor-tab:hover:not(:disabled) {
-  color: var(--code-ink);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.editor-tab:disabled {
+.editor-language-select:disabled {
   cursor: not-allowed;
   opacity: 0.6;
-}
-
-.editor-tab--active {
-  color: var(--code-ink);
-  background: var(--code-surface-alt);
 }
 
 .editor-host {

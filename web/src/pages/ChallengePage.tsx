@@ -179,12 +179,16 @@ export function ChallengePage() {
         const data = await getChallenge(id)
         if (active) {
           setChallenge(data)
-          // Loading a challenge resets the workspace to the default tab and
-          // clears every tab's stored code — templateFor derives each tab's
-          // starting content (the teacher's starter_code for Python, '' for
-          // SQL, built-in stubs otherwise) once `challenge` is set above.
+          // Loading a challenge resets the workspace to the default
+          // language and clears every language's stored code — templateFor
+          // derives each one's starting content (the teacher's starter_code
+          // for Python, '' for SQL, built-in stubs otherwise) once
+          // `challenge` is set above. A pinned challenge (data.language set
+          // to anything) has no real choice, so it starts — and stays —
+          // on that one language; only a true multi-language challenge
+          // defaults to python.
           setCodeByLanguage({})
-          setLanguage(data.language === 'sql' ? 'sql' : 'python')
+          setLanguage(data.language ?? 'python')
         }
 
         // Restore the student's own last attempt at this challenge, in
@@ -345,27 +349,29 @@ export function ChallengePage() {
 
           <form className="workspace__editor" onSubmit={handleSubmit}>
             <div className="editor-toolbar">
-              {challenge.language === 'sql' ? (
-                <span className="editor-toolbar__title">{FILE_NAMES.sql}</span>
+              {challenge.language ? (
+                // Pinned to one language (any SubmissionLanguage, not just
+                // 'sql' — see Challenge.language's comment in api.ts) —
+                // there's no real choice to present, so a fixed filename
+                // reads better than a single-option menu. This is the same
+                // treatment 'sql' already got before pinning generalized
+                // beyond it.
+                <span className="editor-toolbar__title">{FILE_NAMES[challenge.language]}</span>
               ) : (
                 <>
-                  <div className="editor-tabs" role="tablist" aria-label="Linguagem">
+                  <select
+                    className="editor-language-select"
+                    aria-label="Linguagem"
+                    value={language}
+                    disabled={submitting}
+                    onChange={(e) => setLanguage(e.target.value as SubmissionLanguage)}
+                  >
                     {LANGUAGES.map((lang) => (
-                      <button
-                        key={lang}
-                        type="button"
-                        role="tab"
-                        aria-selected={language === lang}
-                        className={
-                          language === lang ? 'editor-tab editor-tab--active' : 'editor-tab'
-                        }
-                        disabled={submitting}
-                        onClick={() => setLanguage(lang)}
-                      >
+                      <option key={lang} value={lang}>
                         {FILE_NAMES[lang]}
-                      </button>
+                      </option>
                     ))}
-                  </div>
+                  </select>
                   <span className="editor-toolbar__title">Editor de código</span>
                 </>
               )}

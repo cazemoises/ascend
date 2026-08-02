@@ -31,8 +31,18 @@ export const DIFFICULTY_LABELS: Record<ChallengeDifficulty, string> = {
 }
 export type SubmissionLanguage = 'python' | 'go' | 'javascript' | 'sql' | 'java' | 'c' | 'cpp'
 // A challenge's language: null keeps today's multi-language behavior (the
-// student picks python/go/javascript per submission); 'sql' marks a
-// SQL-only challenge, which uses sql_schema instead of starter_code.
+// student picks from every SubmissionLanguage). A non-null value pins the
+// challenge to exactly that one — enforced generically server-side
+// (store.languageAllowed: submission.language must equal challenge.language
+// whenever the latter is set, not just for "sql"), so any SubmissionLanguage
+// value is possible on read even though 'sql' is the only one the create/
+// edit Studio form (ChallengeList.tsx's LanguageDraft) currently offers —
+// e.g. the Trilha de Evolução challenges are pinned to "python" this way
+// without going through that form. ChallengeLanguage stays scoped to just
+// 'sql' for LanguageDraft/CreateChallengeInput below, matching what the API
+// actually accepts on write; only the read-side Challenge.language field
+// uses the full SubmissionLanguage union, since GET can return any pinned
+// value regardless of what POST/PUT currently allow.
 export type ChallengeLanguage = 'sql'
 
 export interface SampleTestCase {
@@ -51,7 +61,7 @@ export interface Challenge {
   memory_limit_mb: number
   notes: string | null
   starter_code: string | null
-  language: ChallengeLanguage | null
+  language: SubmissionLanguage | null
   sql_schema: string | null
   collection_id: string | null
   sample_test_cases: SampleTestCase[]

@@ -153,12 +153,15 @@ function groupByGroupAndCollection(challenges: Challenge[]): TopLevelEntry[] {
 }
 
 // A challenge's language column is null for "multi-language" (the student
-// picks a tab on the solve page) or 'sql' for SQL-only — there's no list of
-// "languages this challenge accepts" stored anywhere, so it's derived here
-// from that one column, matching ChallengePage.tsx's own LANGUAGES tab set
-// for the null case exactly (keep the two in sync if that set ever changes).
+// picks from the solve page's language menu) or pinned to exactly one
+// SubmissionLanguage value otherwise — not just 'sql', see ChallengeLanguage's
+// own comment in api.ts (e.g. the Trilha de Evolução challenges pin
+// "python"). There's no list of "languages this challenge accepts" stored
+// anywhere, so it's derived here from that one column, matching
+// ChallengePage.tsx's own LANGUAGES set for the null case exactly (keep the
+// two in sync if that set ever changes).
 function acceptedLanguages(challenge: Challenge): SubmissionLanguage[] {
-  if (challenge.language === 'sql') return ['sql']
+  if (challenge.language) return [challenge.language]
   return ['python', 'go', 'javascript', 'java', 'c', 'cpp']
 }
 
@@ -299,7 +302,7 @@ function ChallengeCard({
         </ReactMarkdown>
       </div>
       <span className="challenge-card__lang">
-        {challenge.language === 'sql' ? 'sql' : 'multi-linguagem'}
+        {challenge.language ?? 'multi-linguagem'}
       </span>
       <div className="challenge-card__actions">
         {isTeacher ? (
@@ -737,6 +740,26 @@ export function ChallengeList() {
   async function openEditor(challenge: Challenge) {
     setError(null)
     setSaveError(null)
+    // The Studio's own Modalidade select only offers the two language modes
+    // it can actually write back: multi (null) and SQL — see LanguageDraft
+    // and its <select>'s two <option>s below. A challenge pinned to any
+    // other SubmissionLanguage (e.g. the Trilha de Evolução's "python",
+    // set outside this form — see Challenge.language's comment in api.ts)
+    // can't be represented in that select, and handleSaveEdit always
+    // resends `language` unconditionally on every save regardless of
+    // whether the teacher touches that field — so opening this editor on
+    // such a challenge risks either silently erasing the pin (if it
+    // defaulted to "Multi-linguagem") or the whole save failing outright
+    // (the backend's validateSQLFields rejects anything but null/"sql").
+    // Refusing to open the editor here is the safe, non-destructive option
+    // pending a real decision on whether/how the Studio should support
+    // editing pinned-language challenges — out of scope for this change.
+    if (challenge.language !== null && challenge.language !== 'sql') {
+      setError(
+        `"${challenge.title}" está fixado na linguagem "${challenge.language}" fora do Studio — edição não é suportada aqui ainda.`,
+      )
+      return
+    }
     try {
       const cases = await listTestCases(challenge.id)
       setDraft({
