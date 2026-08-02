@@ -120,7 +120,14 @@ export function ChallengePage() {
 
   const [challenge, setChallenge] = useState<Challenge | null>(null)
   const [language, setLanguage] = useState<SubmissionLanguage>('python')
-  const [sourceCode, setSourceCode] = useState<string>(CODE_TEMPLATES['python'])
+  // Keyed by language so each tab keeps its own edits independently — a
+  // single shared string here previously let an edit made under one tab
+  // leak into another tab's syntax highlighting when switching (the editor
+  // only swapped in the new tab's template while the old one was still
+  // untouched, so any edit anywhere else stuck around under the new
+  // language). Falls back to templateFor(language) below for tabs that
+  // haven't been touched yet.
+  const [codeByLanguage, setCodeByLanguage] = useState<Partial<Record<SubmissionLanguage, string>>>({})
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<boolean>(false)
@@ -150,22 +157,12 @@ export function ChallengePage() {
         const data = await getChallenge(id)
         if (active) {
           setChallenge(data)
-          if (data.language === 'sql') {
-            // SQL challenges have no harness/stub: the whole query the
-            // student writes is the submission, so the editor starts empty.
-            setLanguage('sql')
-            setSourceCode('')
-          } else {
-            // Loading a challenge resets the workspace to the default tab
-            // and force-injects the student-visible stub of the teacher's
-            // starter_code (the hidden runner below the marker is
-            // stripped). The single starter_code field belongs to the
-            // Python tab; other tabs fall back to the built-in templates.
-            setLanguage('python')
-            setSourceCode(
-              data.starter_code ? visibleTemplate(data.starter_code) : CODE_TEMPLATES.python,
-            )
-          }
+          // Loading a challenge resets the workspace to the default tab and
+          // clears every tab's stored code — templateFor derives each tab's
+          // starting content (the teacher's starter_code for Python, '' for
+          // SQL, built-in stubs otherwise) once `challenge` is set above.
+          setCodeByLanguage({})
+          setLanguage(data.language === 'sql' ? 'sql' : 'python')
         }
 
         // Restore the student's own last attempt at this challenge, in
@@ -177,7 +174,7 @@ export function ChallengePage() {
           const last = await getLastSubmission(id)
           if (active) {
             setLanguage(last.language)
-            setSourceCode(last.source_code)
+            setCodeByLanguage((prev) => ({ ...prev, [last.language]: last.source_code }))
           }
         } catch {
           // No previous submission, or a transient fetch error — either
@@ -246,6 +243,8 @@ export function ChallengePage() {
     }
     return CODE_TEMPLATES[lang]
   }
+
+  const sourceCode = codeByLanguage[language] ?? templateFor(language)
 
   if (!id) {
     return <Navigate to="/" replace />
@@ -339,14 +338,7 @@ export function ChallengePage() {
                           language === lang ? 'editor-tab editor-tab--active' : 'editor-tab'
                         }
                         disabled={submitting}
-                        onClick={() => {
-                          // Swap templates only while the editor still holds the
-                          // untouched template of the active tab; user edits stay.
-                          if (sourceCode === '' || sourceCode === templateFor(language)) {
-                            setSourceCode(templateFor(lang))
-                          }
-                          setLanguage(lang)
-                        }}
+                        onClick={() => setLanguage(lang)}
                       >
                         {FILE_NAMES[lang]}
                       </button>
@@ -364,7 +356,7 @@ export function ChallengePage() {
                 beforeMount={defineAscendMonacoTheme}
                 language={language}
                 value={sourceCode}
-                onChange={(v) => setSourceCode(v ?? '')}
+                onChange={(v) => setCodeByLanguage((prev) => ({ ...prev, [language]: v ?? '' }))}
                 options={{
                   fontFamily: 'JetBrains Mono, Consolas, monospace',
                   fontSize: 13,
