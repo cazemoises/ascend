@@ -80,15 +80,15 @@
   --muted: var(--text-secondary);
 
   /* Group/collection hierarchy (challenge list): a nested collection block
-     inverts to a dark "spotlight" panel in light theme only — a group's
-     light panel reads better with a deliberately darker sub-container
-     standing out inside it. Dark theme's own elevation ladder (panel 24%
-     -> surface-alt 28%) already reads as "raised" without that trick, and
-     inverting there would clash with the cool dark-violet identity instead
-     of reinforcing hierarchy — so these just alias today's existing values
-     there, unchanged. Light theme overrides all six below to the --code-*
-     (always-dark) palette. The component rules only ever read these vars,
-     never data-theme itself — same rule as every other color in this file. */
+     gets one more tinted step in the same neutral family as the rest of
+     the elevation ladder — the same idea dark theme's own base (19%) ->
+     surface-alt (28%) step already uses, just carried one degree further.
+     Dark theme's own elevation ladder (panel 24% -> surface-alt 28%)
+     already reads as "raised" without any extra trick, so these just alias
+     today's existing values there, unchanged. Light theme overrides all
+     six below — see that block for the actual tint. The component rules
+     only ever read these vars, never data-theme itself — same rule as
+     every other color in this file. */
   --nested-bg: var(--bg-surface-alt);
   --nested-border: var(--border-hairline);
   --nested-label: var(--text-secondary);
@@ -180,15 +180,25 @@
   --border-strong: var(--border-hairline);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
 
-  /* The asymmetric half of the nested-collection inversion described where
-     these are first declared, above in :root — light theme is the only one
-     that swaps to the --code-* (always-dark) palette. */
-  --nested-bg: var(--code-surface-alt);
-  --nested-border: var(--code-border);
-  --nested-label: var(--code-ink);
-  --nested-caret: var(--code-muted);
-  --nested-muted-text: var(--code-muted);
-  --nested-card-title: var(--code-ink);
+  /* One more step in the same cream family as --bg-base -> --bg-surface-alt
+     above, not a jump to the --code-* (always-dark) palette — a subtle tint
+     reads as "nested inside the group" without the sub-container clashing
+     against the rest of the light theme. Same hue (75) as the rest of the
+     ladder; L picked to keep --muted (0.48 L) at >=4.5:1 against it (the
+     smallest text painted on it, .challenge-card__description/__count at
+     0.75-0.85rem — normal-weight small text needs WCAG AA's 4.5:1, not the
+     3:1 large-text minimum), verified at oklch(88% 0.035 75) ~ 4.57:1;
+     chroma bumped past the plain --bg-surface-alt step so the tint still
+     reads as a deliberate warm step rather than vanishing into the parent
+     panel despite the two now sitting close in raw lightness. Default
+     light-theme text keeps plenty of contrast against a background this
+     light, so --nested-label/--nested-caret/--nested-muted-text/
+     --nested-card-title are intentionally left unoverridden here — they
+     fall through to :root's plain --text-secondary/--title aliases, which
+     already re-resolve against this block's own --text-primary/
+     --text-secondary. */
+  --nested-bg: oklch(88% 0.035 75);
+  --nested-border: oklch(76% 0.03 75);
 
   --green-hover: oklch(50% 0.02 53);
   --on-green: var(--bg-base);
