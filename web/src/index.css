@@ -541,9 +541,18 @@ pre {
   flex-direction: column;
   padding: 18px 12px;
   border-right: 1px solid rgba(255, 255, 255, 0.05);
-  background: color-mix(in oklch, var(--sidebar-bg) 72%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  /* Fully opaque, not color-mix'd with transparent: .sidebar sits beside
+     .app-main as a flex sibling (see AppLayout.tsx), never layered over
+     scrolling content, so the backdrop-filter blur this replaced had
+     nothing textured to blur — its only real effect was letting the flat
+     page canvas color bleed through the remaining alpha. Harmless in dark
+     theme (canvas is dark too, so the blend still read as ~dark), but in
+     light theme blending 72% dark sidebar-bg with 28% of a ~97%-L canvas
+     landed around 41% L — a washed-out, medium-gray sidebar instead of
+     the always-dark chrome --sidebar-bg is meant to guarantee (same
+     invariant-token intent as 0b2824a, just not carried into this rule
+     at the time). */
+  background: var(--sidebar-bg);
 }
 
 .sidebar__brand {
