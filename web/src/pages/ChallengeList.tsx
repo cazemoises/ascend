@@ -63,7 +63,7 @@ const EMPTY_TEST_CASE: TestCaseDraft = {
 }
 
 const DIFFICULTY_FILTER_OPTIONS: ChallengeDifficulty[] = ['easy', 'medium', 'hard']
-const LANGUAGE_FILTER_OPTIONS: SubmissionLanguage[] = ['python', 'javascript', 'go', 'sql', 'java']
+const LANGUAGE_FILTER_OPTIONS: SubmissionLanguage[] = ['python', 'javascript', 'go', 'sql', 'java', 'c', 'cpp']
 
 type JsonImportPreview = {
   collectionTitle: string
@@ -159,7 +159,7 @@ function groupByGroupAndCollection(challenges: Challenge[]): TopLevelEntry[] {
 // for the null case exactly (keep the two in sync if that set ever changes).
 function acceptedLanguages(challenge: Challenge): SubmissionLanguage[] {
   if (challenge.language === 'sql') return ['sql']
-  return ['python', 'go', 'javascript', 'java']
+  return ['python', 'go', 'javascript', 'java', 'c', 'cpp']
 }
 
 // Search: title, case-insensitive substring. Difficulty/language: OR within

@@ -80,6 +80,26 @@ public class Solution {
     }
 }
 `,
+  c: `#include <stdio.h>
+
+int main(void) {
+    int a, b;
+    scanf("%d %d", &a, &b);
+    // TODO
+    printf("\\n");
+    return 0;
+}
+`,
+  cpp: `#include <iostream>
+
+int main() {
+    int a, b;
+    std::cin >> a >> b;
+    // TODO
+    std::cout << std::endl;
+    return 0;
+}
+`,
 }
 
 // Mirrors the judge worker's split-marker convention: in starter_code, the
@@ -103,7 +123,7 @@ function visibleTemplate(starter: string): string {
 
 // SQL is deliberately excluded: it has no tab of its own (see the editor
 // toolbar below), so it never needs a template swap or a tab label.
-const LANGUAGES: SubmissionLanguage[] = ['python', 'go', 'javascript', 'java']
+const LANGUAGES: SubmissionLanguage[] = ['python', 'go', 'javascript', 'java', 'c', 'cpp']
 
 const FILE_NAMES: Record<SubmissionLanguage, string> = {
   sql: 'query.sql',
@@ -111,6 +131,8 @@ const FILE_NAMES: Record<SubmissionLanguage, string> = {
   go: 'main.go',
   javascript: 'solution.js',
   java: 'Solution.java',
+  c: 'solution.c',
+  cpp: 'solution.cpp',
 }
 
 export function ChallengePage() {

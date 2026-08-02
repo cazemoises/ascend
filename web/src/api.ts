@@ -29,7 +29,7 @@ export const DIFFICULTY_LABELS: Record<ChallengeDifficulty, string> = {
   medium: 'Médio',
   hard: 'Difícil',
 }
-export type SubmissionLanguage = 'python' | 'go' | 'javascript' | 'sql' | 'java'
+export type SubmissionLanguage = 'python' | 'go' | 'javascript' | 'sql' | 'java' | 'c' | 'cpp'
 // A challenge's language: null keeps today's multi-language behavior (the
 // student picks python/go/javascript per submission); 'sql' marks a
 // SQL-only challenge, which uses sql_schema instead of starter_code.

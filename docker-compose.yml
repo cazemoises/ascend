@@ -63,6 +63,17 @@ services:
     profiles: ["build-only"]
     command: ["true"]
 
+  # Sandbox image for C/C++ challenges — same build-only shape as sqlite
+  # above, tags ascend-cpp:latest for the judge to launch as a sibling
+  # container (see executor.go).
+  cpp:
+    build:
+      context: .
+      dockerfile: docker/cpp.Dockerfile
+    image: ascend-cpp:latest
+    profiles: ["build-only"]
+    command: ["true"]
+
   judge:
     build:
       context: .

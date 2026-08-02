@@ -22,6 +22,8 @@ var validLanguages = map[string]bool{
 	"javascript": true,
 	"sql":        true,
 	"java":       true,
+	"c":          true,
+	"cpp":        true,
 }
 
 type createSubmissionBody struct {
@@ -42,7 +44,7 @@ func (h *ChallengesHandler) CreateSubmission(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if !validLanguages[body.Language] {
-		writeError(w, http.StatusUnprocessableEntity, "language must be go, python, javascript, java, or sql")
+		writeError(w, http.StatusUnprocessableEntity, "language must be go, python, javascript, java, c, cpp, or sql")
 		return
 	}
 	if body.SourceCode == "" {

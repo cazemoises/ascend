@@ -23,6 +23,8 @@ const (
 	LanguageGo         Language = "go"
 	LanguageSQL        Language = "sql"
 	LanguageJava       Language = "java"
+	LanguageC          Language = "c"
+	LanguageCPP        Language = "cpp"
 )
 
 type RunRequest struct {
@@ -156,6 +158,24 @@ func containerConfig(language Language) (image string, command []string, fileNam
 		return "eclipse-temurin:21-jdk-alpine",
 			[]string{"sh", "-c", "tar -xf - -C /tmp && cd /tmp && javac Solution.java && java Solution < input.txt"},
 			"Solution.java", nil
+	case LanguageC:
+		// ascend-cpp:latest (docker/cpp.Dockerfile) — no official minimal
+		// Alpine image ships gcc/g++ pre-installed, same reasoning as
+		// ascend-sqlite:latest next to it. A failed compile makes gcc exit
+		// non-zero, so `&&` short-circuits before the run step and the
+		// existing generic ExitError handling in Run() reports it as
+		// ErrRuntimeError — the same verdict path every other language's
+		// runtime failures already take, no new machinery needed. Same for
+		// a submission that compiles but segfaults at runtime: the killed
+		// process's exit code propagates through sh -c the same way, still
+		// just an ErrRuntimeError return value, never a worker crash.
+		return "ascend-cpp:latest",
+			[]string{"sh", "-c", "tar -xf - -C /tmp && cd /tmp && gcc -O2 -std=c11 -o solution solution.c && ./solution < input.txt"},
+			"solution.c", nil
+	case LanguageCPP:
+		return "ascend-cpp:latest",
+			[]string{"sh", "-c", "tar -xf - -C /tmp && cd /tmp && g++ -O2 -std=c++17 -o solution solution.cpp && ./solution < input.txt"},
+			"solution.cpp", nil
 	default:
 		return "", nil, "", fmt.Errorf("unsupported language: %s", language)
 	}
