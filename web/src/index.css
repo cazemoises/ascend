@@ -92,22 +92,31 @@
   --text: var(--text-primary);
   --muted: var(--text-secondary);
 
-  /* Group/collection hierarchy (challenge list): a nested collection block
-     gets one more tinted step in the same neutral family as the rest of
-     the elevation ladder — the same idea dark theme's own base (19%) ->
-     surface-alt (28%) step already uses, just carried one degree further.
-     Dark theme's own elevation ladder (panel 24% -> surface-alt 28%)
-     already reads as "raised" without any extra trick, so these just alias
-     today's existing values there, unchanged. Light theme overrides all
-     six below — see that block for the actual tint. The component rules
-     only ever read these vars, never data-theme itself — same rule as
-     every other color in this file. */
+  /* Group/collection hierarchy (challenge list): LIGHT theme only (see that
+     block) moves the tinted step from the nested collection up to the
+     outer group — manually tested and approved there: the group gets one
+     more tinted step in the same cream family as the rest of the
+     elevation ladder, the collection and its cards go plain, and
+     hierarchy reads from spacing/border/type-weight alone (already
+     reinforced earlier this session) instead of a second color layer.
+     Dark theme is deliberately UNCHANGED here pending its own review —
+     --group-bg/--nested-bg below alias exactly what --panel/
+     --bg-surface-alt already gave .challenge-group/.challenge-collection-
+     group--nested before this move (24%/28%, the existing "panel ->
+     surface-alt already reads as raised" elevation step), so dark
+     theme's rendering is byte-for-byte identical to before it. Light
+     theme overrides both below — see that block for the actual tint and
+     for --nested-bg's flip to transparent. The component rules only ever
+     read these vars, never data-theme itself — same rule as every other
+     color in this file. */
+  --group-bg: var(--panel);
+  --group-border: var(--border-hairline);
   --nested-bg: var(--bg-surface-alt);
-  --nested-border: var(--border-hairline);
+  /* Independent of the tint above — the nested collection's own label
+     stays dimmer/lighter-weight than the group header's bold --title, a
+     typographic (not color-surface) hierarchy cue that isn't affected by
+     which level owns the background tint. */
   --nested-label: var(--text-secondary);
-  --nested-caret: var(--text-secondary);
-  --nested-muted-text: var(--muted);
-  --nested-card-title: var(--title);
 
   /* "green" keeps its name for backward compat but is no longer the brand
      color — it's the accepted-verdict hue only. Anything that wants the
@@ -195,23 +204,39 @@
 
   /* One more step in the same cream family as --bg-base -> --bg-surface-alt
      above, not a jump to the --code-* (always-dark) palette — a subtle tint
-     reads as "nested inside the group" without the sub-container clashing
-     against the rest of the light theme. Same hue (75) as the rest of the
-     ladder; L picked to keep --muted (0.48 L) at >=4.5:1 against it (the
-     smallest text painted on it, .challenge-card__description/__count at
-     0.75-0.85rem — normal-weight small text needs WCAG AA's 4.5:1, not the
-     3:1 large-text minimum), verified at oklch(88% 0.035 75) ~ 4.57:1;
-     chroma bumped past the plain --bg-surface-alt step so the tint still
-     reads as a deliberate warm step rather than vanishing into the parent
-     panel despite the two now sitting close in raw lightness. Default
-     light-theme text keeps plenty of contrast against a background this
-     light, so --nested-label/--nested-caret/--nested-muted-text/
-     --nested-card-title are intentionally left unoverridden here — they
-     fall through to :root's plain --text-secondary/--title aliases, which
-     already re-resolve against this block's own --text-primary/
-     --text-secondary. */
-  --nested-bg: oklch(88% 0.035 75);
-  --nested-border: oklch(76% 0.03 75);
+     reads as "the group is one level deeper than the page" without
+     clashing against the rest of the light theme. Same hue (75) as the
+     rest of the ladder; L picked to keep --muted (0.48 L) at >=4.5:1
+     against it (the smallest text painted on it — see below), verified at
+     oklch(88% 0.035 75) ~ 4.57:1; chroma bumped past the plain
+     --bg-surface-alt step so the tint still reads as a deliberate warm
+     step rather than vanishing into the parent panel despite the two now
+     sitting close in raw lightness.
+
+     Moved here from the nested collection one level down (see --group-bg
+     in :root for why) — the collection and its cards are transparent/
+     unstyled now, so this is the only background between the page canvas
+     and whatever text sits on it. --muted stayed the binding contrast
+     case: .challenge-card__description is transparent-background text
+     that now reads directly against this tint (font-size 0.85rem,
+     normal-weight — WCAG AA's 4.5:1 applies, not the 3:1 large-text
+     minimum), same as .challenge-progress-header__count at 0.75rem. Both
+     already used the plain --muted token before this move (no
+     --nested-muted-text override actually changed their color — it
+     resolved to the same value --muted already gives them by default —
+     so removing it here changed nothing to verify, just deleted dead
+     code); relocating the tint doesn't change what color they render,
+     only what surface renders under them, so the same 4.57:1 check still
+     covers them. --nested-label (declared in :root, not here) stays
+     independent of this tint entirely — it's a typographic dimming, not a
+     surface-contrast fix. */
+  --group-bg: oklch(88% 0.035 75);
+  --group-border: oklch(76% 0.03 75);
+  /* The collection loses its own background entirely now that the group
+     carries the tint — transparent, not a color, so .challenge-card
+     (also transparent) reads straight through to the group's tint behind
+     it with nothing in between. */
+  --nested-bg: transparent;
 
   --green-hover: oklch(50% 0.02 53);
   --on-green: var(--bg-base);
@@ -932,12 +957,10 @@ pre {
    floating above an unrelated block. Only applies when there's actually a
    header to fuse with (:has); an ungrouped single bucket renders with no
    header and no card chrome, just the bare grid. :not(--nested) matches
-   the two sibling rules below — a nested collection gets its own card
-   chrome from .challenge-collection-group--nested instead, and without
-   this exclusion this rule's higher specificity silently clobbered that
-   background/border (the nested block rendered with --panel and an
-   unintended 1px border, identical to its parent group, despite this file
-   always having documented --bg-surface-alt as its own tinted background). */
+   the two sibling rules below — this is specifically the ungrouped,
+   top-level collection case (no wrapping .challenge-group at all); a
+   nested collection (inside a group) stays plain per
+   .challenge-collection-group--nested below, unaffected by this rule. */
 .challenge-collection-group:not(.challenge-collection-group--nested):has(> .challenge-collection-header) {
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -982,12 +1005,15 @@ pre {
   margin-bottom: 0;
 }
 
-/* Nested inside a .challenge-group-body. A same-size, same-weight label
-   plus a 20px text-indent read as barely different from the level-1
-   group header above it — a real sub-container now: its own tinted
-   background (reads as "collection lives inside group", not just
-   "slightly indented text") plus a smaller, lighter-weight label. The
-   background's own padding replaces the old text-only indent. */
+/* Nested inside a .challenge-group-body. --nested-bg is transparent in
+   light theme only (LIGHT theme's group one level up now carries the
+   tint instead — see .challenge-group below and --group-bg's own
+   comment — so a second tinted layer here would double up on a
+   hierarchy cue that's already spacing/border/type-weight, bare grid +
+   smaller lighter-weight label, below). Dark theme keeps its own
+   pre-existing --bg-surface-alt tint here, unchanged, pending its own
+   review. Padding stays regardless: in light theme it's what actually
+   reads as "collection lives inside group" now that color doesn't. */
 .challenge-collection-group--nested {
   margin-bottom: 16px;
   padding: 14px 16px 16px;
@@ -999,30 +1025,30 @@ pre {
   margin-bottom: 0;
 }
 
-/* Card chrome inside a nested collection reads against --nested-bg rather
-   than the page's ambient surface, so border/title/description are pulled
-   from the same nested-* family instead of their plain defaults — in dark
-   theme these resolve to the exact same values the defaults already give
-   (see --nested-* declarations), so this only visibly changes anything in
-   light theme, where --nested-bg itself goes dark. Declared before
-   .challenge-card:hover below so the hover state (same specificity) still
-   wins on interaction. */
+/* .challenge-card is transparent-background (border-only chrome, see its
+   own rule below), so it reads directly against whatever's behind it: in
+   light theme, the group's tint (this wrapper has none there); in dark
+   theme, this wrapper's own --nested-bg, unchanged from before. Either
+   way --group-border is the pairing border for whichever of the two is
+   actually painting a background at the moment (the plain --border a
+   card gets outside a group is tuned against --panel/--bg-surface
+   instead). Title/description need no matching override:
+   .challenge-card__title has no color of its own (inherits the page's
+   plain --text, same value --title already resolves to) and
+   .challenge-card__description hardcodes --muted directly — both were
+   already contrast-checked against light theme's tint at its old
+   location (see --group-bg's comment in the light theme block), and
+   relocating which element paints that exact color doesn't change either
+   check. Declared before .challenge-card:hover below so the hover state
+   (same specificity) still wins on interaction. */
 .challenge-collection-group--nested .challenge-card {
-  border-color: var(--nested-border);
-}
-
-.challenge-collection-group--nested .challenge-card__title {
-  color: var(--nested-card-title);
-}
-
-.challenge-collection-group--nested .challenge-card__description {
-  color: var(--nested-muted-text);
+  border-color: var(--group-border);
 }
 
 .challenge-collection-header--nested {
   padding: 0 0 10px;
   margin-bottom: 10px;
-  border-bottom: 1px solid var(--nested-border);
+  border-bottom: 1px solid var(--group-border);
 }
 
 .challenge-collection-header--nested .challenge-progress-header__label {
@@ -1031,24 +1057,25 @@ pre {
   font-weight: 500;
 }
 
-.challenge-collection-header--nested .challenge-progress-header__count {
-  color: var(--nested-muted-text);
-}
-
-.challenge-collection-header--nested .audit-caret {
-  color: var(--nested-caret);
-}
-
 .challenge-collection-header--nested .challenge-progress-header__bar {
   width: 90px;
   height: 4px;
-  background: var(--nested-border);
+  background: var(--group-border);
 }
+
+/* .challenge-progress-header__count and .audit-caret need no nested-scoped
+   override here — .challenge-progress-header__count already hardcodes
+   --muted and .challenge-collection-header .audit-caret (the base,
+   non-nested-specific rule just above the ungrouped-collection rules
+   above) already hardcodes --text-secondary, both unconditionally, so a
+   more-specific --nested-* rule pointing at the exact same values was
+   dead code — removed along with the now-unused --nested-caret/
+   --nested-muted-text/--nested-card-title tokens themselves. */
 
 .challenge-group {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--panel);
+  background: var(--group-bg);
   overflow: hidden;
   margin-bottom: 16px;
 }
