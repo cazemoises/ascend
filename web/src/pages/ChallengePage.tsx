@@ -20,6 +20,7 @@ import {
 import { useAuth } from '../auth/useAuth'
 import { TelemetryChip } from '../components/TelemetryChip'
 import { VerdictBadge } from '../components/VerdictBadge'
+import { registerAscendSnippets } from '../lib/monacoSnippets'
 import { defineAscendMonacoTheme } from '../lib/monacoTheme'
 
 // SQL challenges have no starter template or tab — the student writes the
@@ -381,7 +382,10 @@ export function ChallengePage() {
               <Editor
                 height="100%"
                 theme="ascend"
-                beforeMount={defineAscendMonacoTheme}
+                beforeMount={(monaco) => {
+                  defineAscendMonacoTheme(monaco)
+                  registerAscendSnippets(monaco)
+                }}
                 language={language}
                 value={sourceCode}
                 onChange={(v) => setCodeByLanguage((prev) => ({ ...prev, [language]: v ?? '' }))}
@@ -392,6 +396,23 @@ export function ChallengePage() {
                   automaticLayout: true,
                   padding: { top: 12 },
                   readOnly: submitting,
+                  // Explicit rather than relying on Monaco's own defaults —
+                  // investigated (node_modules/monaco-editor's own
+                  // editorConfigurationSchema.js) and confirmed both already
+                  // default to exactly this (quickSuggestions:
+                  // {other:'on', comments:'off', strings:'off'},
+                  // wordBasedSuggestions:'matchingDocuments'), but pinning
+                  // them here documents the decision and protects against a
+                  // future Monaco upgrade silently changing either default
+                  // out from under this editor. registerAscendSnippets
+                  // above is what actually adds new suggestions — Monaco's
+                  // basic-languages bundle ships tokenizers for
+                  // python/go/java/c/cpp/javascript but no completion
+                  // provider at all, so "syntax snippets" (type "for", get
+                  // a loop skeleton) didn't exist for any of them before it.
+                  quickSuggestions: { other: true, comments: false, strings: false },
+                  wordBasedSuggestions: 'matchingDocuments',
+                  snippetSuggestions: 'inline',
                 }}
               />
             </div>
