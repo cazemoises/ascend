@@ -110,6 +110,42 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
+    # Listing `networks:` here means this service no longer joins the
+    # compose-generated default network implicitly — `default` is named
+    # explicitly below so it still reaches `api` exactly as before.
+    # `shared_net` (external, see bottom of file) is the only new thing: it's
+    # how this container's nginx reaches the yamabiko-platform core-api
+    # (yamabiko/docker-compose.prod.yml joins the same external network),
+    # without publishing any yamabiko port on the host and without asking
+    # Pangolin to route anything new — same publicly-exposed 8000:80 as
+    # before, nginx just gained two new location blocks (see docker/nginx.conf).
+    networks:
+      default:
+      shared_net:
+    # Static build output of the yamabiko frontend, published by the
+    # yamabiko-platform `web-static` one-shot service into this same
+    # external volume — read-only here since this container only serves it,
+    # never writes it. Re-running that publisher on the yamabiko side is
+    # enough to update /yamabiko/ content; this container never needs a
+    # rebuild for a yamabiko-only frontend change, only for a nginx.conf
+    # change (which IS baked into the image at build time).
+    volumes:
+      - yamabiko_web_dist:/usr/share/nginx/html/yamabiko:ro
 
 volumes:
   postgres_data:
+  # External: created once (`docker volume create yamabiko_web_dist`) and
+  # shared across the ascend and yamabiko-platform compose projects — see
+  # yamabiko/docker-compose.prod.yml and BUILD_STATE.md in both repos.
+  yamabiko_web_dist:
+    external: true
+
+networks:
+  # External: created once (`docker network create shared_net`) so ascend's
+  # `web` (nginx) container and yamabiko-platform's `core-api` container can
+  # reach each other by service name, without either compose project's
+  # internal services (postgres, redis, judge, yamabiko's own postgres, etc.)
+  # being exposed to one another or to the host. See BUILD_STATE.md for the
+  # full same-origin architecture decision.
+  shared_net:
+    external: true
