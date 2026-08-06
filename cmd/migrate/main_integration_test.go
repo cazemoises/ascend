@@ -57,11 +57,24 @@ func TestIntegration_Version(t *testing.T) {
 	}
 }
 
+// TestIntegration_Down exercises `down` against whatever database
+// DATABASE_URL points at, which — unlike a throwaway test schema — may be a
+// real dev database other tests and manual sessions share. A DROP COLUMN
+// dropped by `down` here would otherwise sit reverted for every test (or
+// person) that runs afterward, silently discarding that column's data. This
+// test's own job is only to confirm `down` works, not to leave the schema
+// downgraded, so it re-applies `up` in cleanup — even on failure — to leave
+// the database exactly as it found it.
 func TestIntegration_Down(t *testing.T) {
 	env := integrationEnv(t)
 	if err := os.Chdir(repoRoot(t)); err != nil {
 		t.Fatalf("chdir: %v", err)
 	}
+	t.Cleanup(func() {
+		if code := run([]string{"up"}, env); code != 0 {
+			t.Errorf("cleanup: re-applying migrations after down failed, exit %d", code)
+		}
+	})
 	code := run([]string{"down", "-steps", "1"}, env)
 	if code != 0 {
 		t.Errorf("down -steps 1: expected exit 0, got %d", code)
