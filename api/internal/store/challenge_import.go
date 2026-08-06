@@ -139,11 +139,11 @@ func (s *Store) ImportChallenges(ctx context.Context, req ImportChallengesReques
 		}
 
 		row := tx.QueryRowContext(ctx,
-			`INSERT INTO challenges (slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, language, sql_schema, collection_id)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			`INSERT INTO challenges (slug, title, description, difficulty, time_limit_ms, memory_limit_mb, notes, starter_code, starter_code_by_language, language, sql_schema, collection_id)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			 RETURNING `+challengeColumns,
 			item.Slug, item.Title, item.Description, item.Difficulty, timeLimitMs, memLimitMb, item.Notes, item.StarterCode,
-			item.Language, item.SQLSchema, collectionID)
+			item.StarterCodeByLanguage, item.Language, item.SQLSchema, collectionID)
 		c, err := scanChallenge(row)
 		if err != nil {
 			if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {

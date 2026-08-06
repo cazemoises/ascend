@@ -261,11 +261,17 @@ export function ChallengePage() {
     }
   }
 
-  // Template shown on a given tab: the visible stub of starter_code owns the
-  // Python tab when the teacher defined one; every other tab uses its
-  // built-in stub.
+  // Template shown on a given tab: starter_code_by_language[lang] owns the
+  // tab when the teacher authored a harness for that language; the legacy
+  // single-language starter_code owns the Python tab when there's no
+  // per-language map at all (a challenge from before that field existed);
+  // every other tab uses its built-in stub.
   function templateFor(lang: SubmissionLanguage): string {
-    if (lang === 'python' && challenge?.starter_code) {
+    const byLanguage = challenge?.starter_code_by_language?.[lang]
+    if (byLanguage) {
+      return visibleTemplate(byLanguage)
+    }
+    if (lang === 'python' && !challenge?.starter_code_by_language && challenge?.starter_code) {
       return visibleTemplate(challenge.starter_code)
     }
     return CODE_TEMPLATES[lang]

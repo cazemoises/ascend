@@ -61,6 +61,11 @@ export interface Challenge {
   memory_limit_mb: number
   notes: string | null
   starter_code: string | null
+  // Per-language override of starter_code: when a key is present for the
+  // student's chosen language, its marker-delimited stub/harness is used
+  // instead of starter_code (which only ever holds one language's harness).
+  // Absent/undefined for every challenge that predates this field.
+  starter_code_by_language?: Partial<Record<SubmissionLanguage, string>> | null
   language: SubmissionLanguage | null
   sql_schema: string | null
   collection_id: string | null
@@ -210,6 +215,7 @@ export interface CreateChallengeInput {
   memory_limit_mb?: number
   notes?: string | null
   starter_code?: string | null
+  starter_code_by_language?: Partial<Record<SubmissionLanguage, string>> | null
   language?: ChallengeLanguage | null
   sql_schema?: string | null
   collection_id?: string | null

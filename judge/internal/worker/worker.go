@@ -31,7 +31,30 @@ type challengeRecord struct {
 	TimeLimitMs   int
 	MemoryLimitMB int
 	StarterCode   string
-	SQLSchema     string
+	// StarterCodeByLanguage maps a language (e.g. "python", "javascript") to
+	// its own marker-delimited starter_code, for a challenge with a harness
+	// authored per language. Nil/empty for a challenge that predates this
+	// column, or that only ever had one language's harness — see
+	// starterCodeFor.
+	StarterCodeByLanguage map[string]string
+	SQLSchema             string
+}
+
+// starterCodeFor returns the harness source for language, preferring the
+// structured per-language map when present so a challenge with harnesses in
+// multiple languages doesn't leak one language's marker text into another's
+// runtime (the language mismatch bug this method exists to close). Falls
+// back to the legacy single-language StarterCode only when the map is empty
+// — every challenge from before this column was added keeps working
+// unchanged. A map entry missing for the requested language deliberately
+// returns "" rather than falling back: no harness in the runtime language
+// means the student's raw code runs as-is (buildExecutable's no-marker
+// path), never another language's harness.
+func (c challengeRecord) starterCodeFor(language string) string {
+	if len(c.StarterCodeByLanguage) > 0 {
+		return c.StarterCodeByLanguage[language]
+	}
+	return c.StarterCode
 }
 
 type testCaseRecord struct {
@@ -152,7 +175,7 @@ func (w *Worker) processSubmission(ctx context.Context, job SubmissionJob) error
 		return fmt.Errorf("fetch test cases %s: %w", challenge.ID, err)
 	}
 
-	sourceCode := buildExecutable(submission.SourceCode, challenge.StarterCode)
+	sourceCode := buildExecutable(submission.SourceCode, challenge.starterCodeFor(submission.Language))
 
 	res := evaluate(ctx, w.executor, submission.Language, sourceCode, challenge.SQLSchema, testCases, challenge.TimeLimitMs, challenge.MemoryLimitMB)
 
@@ -297,16 +320,37 @@ func (w *Worker) fetchSubmission(ctx context.Context, id string) (submissionReco
 	return submission, nil
 }
 
+// decodeStarterCodeByLanguage parses the challenges.starter_code_by_language
+// JSONB column. A NULL/empty column (every challenge created before it
+// existed, or one that never got a per-language harness) decodes to an
+// empty map rather than an error.
+func decodeStarterCodeByLanguage(raw []byte) (map[string]string, error) {
+	if len(raw) == 0 {
+		return map[string]string{}, nil
+	}
+	var m map[string]string
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, fmt.Errorf("decode starter_code_by_language: %w", err)
+	}
+	return m, nil
+}
+
 func (w *Worker) fetchChallenge(ctx context.Context, id string) (challengeRecord, error) {
 	row := w.db.QueryRowContext(ctx,
-		`SELECT time_limit_ms, memory_limit_mb, COALESCE(starter_code, ''), COALESCE(sql_schema, '')
+		`SELECT time_limit_ms, memory_limit_mb, COALESCE(starter_code, ''), COALESCE(sql_schema, ''), starter_code_by_language
 		 FROM challenges WHERE id = $1`, id)
 
 	var challenge challengeRecord
+	var starterCodeByLanguage []byte
 	challenge.ID = id
-	if err := row.Scan(&challenge.TimeLimitMs, &challenge.MemoryLimitMB, &challenge.StarterCode, &challenge.SQLSchema); err != nil {
+	if err := row.Scan(&challenge.TimeLimitMs, &challenge.MemoryLimitMB, &challenge.StarterCode, &challenge.SQLSchema, &starterCodeByLanguage); err != nil {
 		return challengeRecord{}, fmt.Errorf("scan challenge %s: %w", id, err)
 	}
+	m, err := decodeStarterCodeByLanguage(starterCodeByLanguage)
+	if err != nil {
+		return challengeRecord{}, fmt.Errorf("challenge %s: %w", id, err)
+	}
+	challenge.StarterCodeByLanguage = m
 	return challenge, nil
 }
 

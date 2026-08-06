@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/caze/ascend/api/internal/auth"
 	"github.com/caze/ascend/api/internal/store"
+	"github.com/go-chi/chi/v5"
 )
 
 type ChallengesHandler struct {
@@ -98,17 +98,18 @@ func (h *ChallengesHandler) Stats(w http.ResponseWriter, r *http.Request) {
 }
 
 type createChallengeBody struct {
-	Slug          string  `json:"slug"`
-	Title         string  `json:"title"`
-	Description   string  `json:"description"`
-	Difficulty    string  `json:"difficulty"`
-	TimeLimitMs   int     `json:"time_limit_ms"`
-	MemoryLimitMb int     `json:"memory_limit_mb"`
-	Notes         *string `json:"notes"`
-	StarterCode   *string `json:"starter_code"`
-	Language      *string `json:"language"`
-	SQLSchema     *string `json:"sql_schema"`
-	CollectionID  *string `json:"collection_id"`
+	Slug                  string                         `json:"slug"`
+	Title                 string                         `json:"title"`
+	Description           string                         `json:"description"`
+	Difficulty            string                         `json:"difficulty"`
+	TimeLimitMs           int                            `json:"time_limit_ms"`
+	MemoryLimitMb         int                            `json:"memory_limit_mb"`
+	Notes                 *string                        `json:"notes"`
+	StarterCode           *string                        `json:"starter_code"`
+	StarterCodeByLanguage store.StarterCodeByLanguageMap `json:"starter_code_by_language"`
+	Language              *string                        `json:"language"`
+	SQLSchema             *string                        `json:"sql_schema"`
+	CollectionID          *string                        `json:"collection_id"`
 }
 
 // validateSQLFields enforces the scope of the SQL challenge modality: the
@@ -155,17 +156,18 @@ func (h *ChallengesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c, err := h.store.CreateChallenge(r.Context(), store.CreateChallengeRequest{
-		Slug:          body.Slug,
-		Title:         body.Title,
-		Description:   body.Description,
-		Difficulty:    body.Difficulty,
-		TimeLimitMs:   body.TimeLimitMs,
-		MemoryLimitMb: body.MemoryLimitMb,
-		Notes:         body.Notes,
-		StarterCode:   body.StarterCode,
-		Language:      body.Language,
-		SQLSchema:     body.SQLSchema,
-		CollectionID:  body.CollectionID,
+		Slug:                  body.Slug,
+		Title:                 body.Title,
+		Description:           body.Description,
+		Difficulty:            body.Difficulty,
+		TimeLimitMs:           body.TimeLimitMs,
+		MemoryLimitMb:         body.MemoryLimitMb,
+		Notes:                 body.Notes,
+		StarterCode:           body.StarterCode,
+		StarterCodeByLanguage: body.StarterCodeByLanguage,
+		Language:              body.Language,
+		SQLSchema:             body.SQLSchema,
+		CollectionID:          body.CollectionID,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
@@ -195,17 +197,18 @@ func (h *ChallengesHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	id := chi.URLParam(r, "id")
 	c, err := h.store.UpdateChallenge(r.Context(), id, store.CreateChallengeRequest{
-		Slug:          body.Slug,
-		Title:         body.Title,
-		Description:   body.Description,
-		Difficulty:    body.Difficulty,
-		TimeLimitMs:   body.TimeLimitMs,
-		MemoryLimitMb: body.MemoryLimitMb,
-		Notes:         body.Notes,
-		StarterCode:   body.StarterCode,
-		Language:      body.Language,
-		SQLSchema:     body.SQLSchema,
-		CollectionID:  body.CollectionID,
+		Slug:                  body.Slug,
+		Title:                 body.Title,
+		Description:           body.Description,
+		Difficulty:            body.Difficulty,
+		TimeLimitMs:           body.TimeLimitMs,
+		MemoryLimitMb:         body.MemoryLimitMb,
+		Notes:                 body.Notes,
+		StarterCode:           body.StarterCode,
+		StarterCodeByLanguage: body.StarterCodeByLanguage,
+		Language:              body.Language,
+		SQLSchema:             body.SQLSchema,
+		CollectionID:          body.CollectionID,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -414,17 +417,18 @@ func (h *ChallengesHandler) Import(w http.ResponseWriter, r *http.Request) {
 
 		reqs = append(reqs, store.ImportChallengeRequest{
 			CreateChallengeRequest: store.CreateChallengeRequest{
-				Slug:          ch.Slug,
-				Title:         ch.Title,
-				Description:   ch.Description,
-				Difficulty:    ch.Difficulty,
-				TimeLimitMs:   ch.TimeLimitMs,
-				MemoryLimitMb: ch.MemoryLimitMb,
-				Notes:         ch.Notes,
-				StarterCode:   ch.StarterCode,
-				Language:      ch.Language,
-				SQLSchema:     ch.SQLSchema,
-				CollectionID:  ch.CollectionID,
+				Slug:                  ch.Slug,
+				Title:                 ch.Title,
+				Description:           ch.Description,
+				Difficulty:            ch.Difficulty,
+				TimeLimitMs:           ch.TimeLimitMs,
+				MemoryLimitMb:         ch.MemoryLimitMb,
+				Notes:                 ch.Notes,
+				StarterCode:           ch.StarterCode,
+				StarterCodeByLanguage: ch.StarterCodeByLanguage,
+				Language:              ch.Language,
+				SQLSchema:             ch.SQLSchema,
+				CollectionID:          ch.CollectionID,
 			},
 			TestCases: tcReqs,
 		})
