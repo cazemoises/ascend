@@ -26,3 +26,8 @@ ascend-images.tar
 images.tar
 go1.26.0.linux-amd64.tar.gz
 *.tar.gz
+
+# DB dumps/snapshots accidentally left in the repo root (e.g. pg_dump output
+# pulled down for local inspection) — root-anchored so migrations/*.sql,
+# which must stay tracked, is unaffected.
+/*.sql
