@@ -154,9 +154,17 @@ func containerConfig(language Language) (image string, command []string, fileNam
 		// run`) is also higher than the interpreted languages even once
 		// warm, worth accounting for in time_limit_ms on Java challenges.
 		// The public class must be named Solution to match the filename —
-		// javac enforces this.
+		// javac enforces this. Marker-split harnesses (see worker.go
+		// runnerMarker) put main() in a second, non-public "Runner" class in
+		// the same file instead of reopening the student's Solution class,
+		// so the student's visible stub can stay a normal, fully-closed
+		// class. javac compiles every top-level class in Solution.java
+		// regardless of which one is public, so Runner.class exists
+		// whenever a harness used that convention; plain (non-marker)
+		// submissions never produce a Runner.class and keep running via
+		// Solution's own main(), unchanged.
 		return "eclipse-temurin:21-jdk-alpine",
-			[]string{"sh", "-c", "tar -xf - -C /tmp && cd /tmp && javac Solution.java && java Solution < input.txt"},
+			[]string{"sh", "-c", "tar -xf - -C /tmp && cd /tmp && javac Solution.java && if [ -f Runner.class ]; then java Runner < input.txt; else java Solution < input.txt; fi"},
 			"Solution.java", nil
 	case LanguageC:
 		// ascend-cpp:latest (docker/cpp.Dockerfile) — no official minimal
