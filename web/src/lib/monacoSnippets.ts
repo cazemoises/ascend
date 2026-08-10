@@ -143,18 +143,85 @@ export function registerAscendSnippets(monaco: Monaco): void {
 // docs/superpowers/plans/2026-08-10-lsp-java-autocomplete.md — full jdtls
 // was evaluated and rejected: no official Docker image, 300MB+ per active
 // session, a whole new backend subsystem). This is a static, curated map of
-// the JDK types this judge's Java challenges actually use to their common
-// instance methods, plus a source-scan heuristic to guess which type a
-// variable is — not real type inference (doesn't survive chained calls
-// like `texto.trim().` or generics), just enough to make `.` after a
-// `String`/`Scanner`/`StringBuilder` variable suggest its real methods
-// instead of only whatever identifiers already appear in the buffer.
-// Scope approved 2026-08-10: these three types only (the most common across
-// the 41 trilha-* Java challenges); List/Map/LinkedList deferred to a
-// second pass, not blocking.
-const JAVA_MEMBER_TYPES = ['String', 'Scanner', 'StringBuilder'] as const
+// the JDK types most common in algorithm/data-structure exercises to their
+// common instance methods, plus a source-scan heuristic to guess which type
+// a variable is — not real type inference (doesn't survive chained calls
+// like `texto.trim().`), just enough to make `.` after a variable of one of
+// these types suggest its real methods instead of only whatever identifiers
+// already appear in the buffer.
+//
+// This is NOT "every Java type" — it's the curated short list that actually
+// shows up across the 41 trilha-* challenges plus the general-purpose types
+// (List/Map/Set) any algorithm exercise reaches for. A class the STUDENT
+// defines (e.g. `FilaAtendimento` in trilha-n3-fila-fifo) will never get
+// member completion through this mechanism — there's no static list to look
+// it up in, and there never will be without a real language server (already
+// evaluated and rejected on cost). That's an accepted, permanent limitation
+// of this approach, not a gap to fill in a future pass.
+//
+// Scope: String/Scanner/StringBuilder approved 2026-08-10; List/ArrayList,
+// Map/HashMap, Set/HashSet, Integer/Double statics, and the array `.length`
+// field added in this pass. LinkedList still deferred (uses the same List
+// surface students actually reach for elsewhere, so New Value Small — can
+// come back if a real challenge needs it explicitly).
+const JAVA_MEMBER_TYPES = [
+  'String',
+  'Scanner',
+  'StringBuilder',
+  'List',
+  'ArrayList',
+  'Map',
+  'HashMap',
+  'Set',
+  'HashSet',
+] as const
+
+// List and Map and Set are commonly declared by their interface type
+// (`List<String> nomes = new ArrayList<>();`) as often as by their concrete
+// class — both spellings need to resolve to the same member list, since a
+// student calling `.add` doesn't care which one they wrote on the left.
+const LIST_MEMBERS: SnippetSpec[] = [
+  { label: 'add', detail: 'boolean add(E element)', insertText: 'add(${1:element})' },
+  { label: 'get', detail: 'E get(int index)', insertText: 'get(${1:index})' },
+  { label: 'size', detail: 'int size()', insertText: 'size()' },
+  { label: 'remove', detail: 'E remove(int index)', insertText: 'remove(${1:index})' },
+  { label: 'contains', detail: 'boolean contains(Object o)', insertText: 'contains(${1:o})' },
+  { label: 'indexOf', detail: 'int indexOf(Object o)', insertText: 'indexOf(${1:o})' },
+  { label: 'isEmpty', detail: 'boolean isEmpty()', insertText: 'isEmpty()' },
+  { label: 'set', detail: 'E set(int index, E element)', insertText: 'set(${1:index}, ${2:element})' },
+]
+
+const MAP_MEMBERS: SnippetSpec[] = [
+  { label: 'put', detail: 'V put(K key, V value)', insertText: 'put(${1:key}, ${2:value})' },
+  { label: 'get', detail: 'V get(Object key)', insertText: 'get(${1:key})' },
+  { label: 'containsKey', detail: 'boolean containsKey(Object key)', insertText: 'containsKey(${1:key})' },
+  { label: 'keySet', detail: 'Set<K> keySet()', insertText: 'keySet()' },
+  { label: 'values', detail: 'Collection<V> values()', insertText: 'values()' },
+  { label: 'entrySet', detail: 'Set<Map.Entry<K,V>> entrySet()', insertText: 'entrySet()' },
+  { label: 'remove', detail: 'V remove(Object key)', insertText: 'remove(${1:key})' },
+  { label: 'size', detail: 'int size()', insertText: 'size()' },
+  {
+    label: 'getOrDefault',
+    detail: 'V getOrDefault(Object key, V defaultValue)',
+    insertText: 'getOrDefault(${1:key}, ${2:defaultValue})',
+  },
+]
+
+const SET_MEMBERS: SnippetSpec[] = [
+  { label: 'add', detail: 'boolean add(E element)', insertText: 'add(${1:element})' },
+  { label: 'contains', detail: 'boolean contains(Object o)', insertText: 'contains(${1:o})' },
+  { label: 'remove', detail: 'boolean remove(Object o)', insertText: 'remove(${1:o})' },
+  { label: 'size', detail: 'int size()', insertText: 'size()' },
+  { label: 'isEmpty', detail: 'boolean isEmpty()', insertText: 'isEmpty()' },
+]
 
 const JAVA_MEMBERS: Record<(typeof JAVA_MEMBER_TYPES)[number], SnippetSpec[]> = {
+  List: LIST_MEMBERS,
+  ArrayList: LIST_MEMBERS,
+  Map: MAP_MEMBERS,
+  HashMap: MAP_MEMBERS,
+  Set: SET_MEMBERS,
+  HashSet: SET_MEMBERS,
   String: [
     { label: 'length', detail: 'int length()', insertText: 'length()' },
     { label: 'charAt', detail: 'char charAt(int index)', insertText: 'charAt(${1:index})' },
@@ -236,12 +303,46 @@ const JAVA_MEMBERS: Record<(typeof JAVA_MEMBER_TYPES)[number], SnippetSpec[]> = 
   ],
 }
 
+// Static methods called directly on the type name — `Integer.parseInt(s)`,
+// not on an instance — so these need no declaration lookup at all: if the
+// identifier right before the `.` is literally one of these keys, that's
+// the whole match. Deliberately narrow (only the statics asked for): a
+// boxed Integer/Double INSTANCE's own methods (intValue(), compareTo(),
+// ...) are out of scope here, not part of this request.
+const JAVA_STATIC_MEMBERS: Partial<Record<string, SnippetSpec[]>> = {
+  Integer: [
+    { label: 'parseInt', detail: 'static int parseInt(String s)', insertText: 'parseInt(${1:s})' },
+    { label: 'toString', detail: 'static String toString(int i)', insertText: 'toString(${1:i})' },
+    { label: 'valueOf', detail: 'static Integer valueOf(String s)', insertText: 'valueOf(${1:s})' },
+  ],
+  Double: [
+    { label: 'parseDouble', detail: 'static double parseDouble(String s)', insertText: 'parseDouble(${1:s})' },
+    { label: 'toString', detail: 'static String toString(double d)', insertText: 'toString(${1:d})' },
+    { label: 'valueOf', detail: 'static Double valueOf(String s)', insertText: 'valueOf(${1:s})' },
+  ],
+}
+
+// `.length` is a FIELD on every array type (`int[]`, `String[]`, a custom
+// type's array, doesn't matter), not a method — no parentheses, and no
+// per-element-type list to look up since every array has exactly this one
+// member. Handled as its own case rather than folded into JAVA_MEMBERS,
+// which is keyed by declared type name and has no entry that means "any
+// array of anything."
+const ARRAY_LENGTH_FIELD: SnippetSpec = {
+  label: 'length',
+  detail: 'int length (campo do array, sem parênteses)',
+  insertText: 'length',
+}
+
 // Scans everything in the buffer before the cursor for a declaration or
 // parameter of one of JAVA_MEMBER_TYPES naming this exact variable —
-// `String texto = ...`, `Scanner scanner = ...`, or a method parameter like
-// `(String texto)` all match. Source-order only (a declaration after the
-// use site won't be found), which matches how these single-file student
-// submissions actually read.
+// `String texto = ...`, `Scanner scanner = ...`, `List<String> nomes = ...`,
+// or a method parameter like `(String texto)` all match. The optional
+// `(?:<[\s\S]*?>)?` segment skips over generic type arguments (including
+// nested ones like `Map<String, List<Integer>>`) without trying to parse
+// them for real. Source-order only (a declaration after the use site won't
+// be found), which matches how these single-file student submissions
+// actually read.
 function inferJavaVariableType(
   model: editor.ITextModel,
   position: Position,
@@ -253,9 +354,40 @@ function inferJavaVariableType(
     endLineNumber: position.lineNumber,
     endColumn: position.column,
   })
-  const declRe = new RegExp(`\\b(${JAVA_MEMBER_TYPES.join('|')})\\s+${varName}\\s*[=;,)]`)
+  const declRe = new RegExp(`\\b(${JAVA_MEMBER_TYPES.join('|')})(?:<[\\s\\S]*?>)?\\s+${varName}\\s*[=;,)]`)
   const match = declRe.exec(textBefore)
   return match?.[1] as (typeof JAVA_MEMBER_TYPES)[number] | undefined
+}
+
+// Same shape as inferJavaVariableType but for `SomeType[] varName` — the
+// element type is intentionally unconstrained (`\w+`, not JAVA_MEMBER_TYPES)
+// since `.length` applies identically to an array of anything, including
+// types this curated map has never heard of (e.g. `FilaAtendimento[]`).
+function isJavaArrayVariable(model: editor.ITextModel, position: Position, varName: string): boolean {
+  const textBefore = model.getValueInRange({
+    startLineNumber: 1,
+    startColumn: 1,
+    endLineNumber: position.lineNumber,
+    endColumn: position.column,
+  })
+  const declRe = new RegExp(`\\b\\w+(?:<[\\s\\S]*?>)?\\[\\]\\s+${varName}\\s*[=;,)]`)
+  return declRe.test(textBefore)
+}
+
+function toSuggestions(
+  monaco: Monaco,
+  members: SnippetSpec[],
+  kind: (typeof monaco.languages.CompletionItemKind)[keyof typeof monaco.languages.CompletionItemKind],
+  range: { startLineNumber: number; endLineNumber: number; startColumn: number; endColumn: number },
+) {
+  return members.map((m) => ({
+    label: m.label,
+    kind,
+    detail: m.detail,
+    insertText: m.insertText,
+    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+    range,
+  }))
 }
 
 function registerJavaMemberCompletions(monaco: Monaco): void {
@@ -270,10 +402,7 @@ function registerJavaMemberCompletions(monaco: Monaco): void {
       })
       const varMatch = /([A-Za-z_]\w*)\.$/.exec(lineUpToCursor)
       if (!varMatch) return { suggestions: [] }
-
-      const type = inferJavaVariableType(model, position, varMatch[1])
-      const members = type ? JAVA_MEMBERS[type] : undefined
-      if (!members) return { suggestions: [] }
+      const varName = varMatch[1]
 
       const range = {
         startLineNumber: position.lineNumber,
@@ -281,16 +410,23 @@ function registerJavaMemberCompletions(monaco: Monaco): void {
         startColumn: position.column,
         endColumn: position.column,
       }
-      return {
-        suggestions: members.map((m) => ({
-          label: m.label,
-          kind: monaco.languages.CompletionItemKind.Method,
-          detail: m.detail,
-          insertText: m.insertText,
-          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-          range,
-        })),
+
+      // Static call on the type name itself (`Integer.parseInt(...)`) takes
+      // priority — it's an exact match on the identifier, not a guess.
+      const staticMembers = JAVA_STATIC_MEMBERS[varName]
+      if (staticMembers) {
+        return { suggestions: toSuggestions(monaco, staticMembers, monaco.languages.CompletionItemKind.Method, range) }
       }
+
+      if (isJavaArrayVariable(model, position, varName)) {
+        return { suggestions: toSuggestions(monaco, [ARRAY_LENGTH_FIELD], monaco.languages.CompletionItemKind.Field, range) }
+      }
+
+      const type = inferJavaVariableType(model, position, varName)
+      const members = type ? JAVA_MEMBERS[type] : undefined
+      if (!members) return { suggestions: [] }
+
+      return { suggestions: toSuggestions(monaco, members, monaco.languages.CompletionItemKind.Method, range) }
     },
   })
 }
