@@ -135,4 +135,162 @@ export function registerAscendSnippets(monaco: Monaco): void {
       },
     })
   }
+
+  registerJavaMemberCompletions(monaco)
+}
+
+// Cheaper alternative to a real language server (see
+// docs/superpowers/plans/2026-08-10-lsp-java-autocomplete.md — full jdtls
+// was evaluated and rejected: no official Docker image, 300MB+ per active
+// session, a whole new backend subsystem). This is a static, curated map of
+// the JDK types this judge's Java challenges actually use to their common
+// instance methods, plus a source-scan heuristic to guess which type a
+// variable is — not real type inference (doesn't survive chained calls
+// like `texto.trim().` or generics), just enough to make `.` after a
+// `String`/`Scanner`/`StringBuilder` variable suggest its real methods
+// instead of only whatever identifiers already appear in the buffer.
+// Scope approved 2026-08-10: these three types only (the most common across
+// the 41 trilha-* Java challenges); List/Map/LinkedList deferred to a
+// second pass, not blocking.
+const JAVA_MEMBER_TYPES = ['String', 'Scanner', 'StringBuilder'] as const
+
+const JAVA_MEMBERS: Record<(typeof JAVA_MEMBER_TYPES)[number], SnippetSpec[]> = {
+  String: [
+    { label: 'length', detail: 'int length()', insertText: 'length()' },
+    { label: 'charAt', detail: 'char charAt(int index)', insertText: 'charAt(${1:index})' },
+    { label: 'substring', detail: 'String substring(int beginIndex)', insertText: 'substring(${1:beginIndex})' },
+    {
+      label: 'substring',
+      detail: 'String substring(int beginIndex, int endIndex)',
+      insertText: 'substring(${1:beginIndex}, ${2:endIndex})',
+    },
+    { label: 'indexOf', detail: 'int indexOf(String str)', insertText: 'indexOf(${1:str})' },
+    { label: 'lastIndexOf', detail: 'int lastIndexOf(String str)', insertText: 'lastIndexOf(${1:str})' },
+    { label: 'contains', detail: 'boolean contains(CharSequence s)', insertText: 'contains(${1:s})' },
+    { label: 'startsWith', detail: 'boolean startsWith(String prefix)', insertText: 'startsWith(${1:prefix})' },
+    { label: 'endsWith', detail: 'boolean endsWith(String suffix)', insertText: 'endsWith(${1:suffix})' },
+    { label: 'toUpperCase', detail: 'String toUpperCase()', insertText: 'toUpperCase()' },
+    { label: 'toLowerCase', detail: 'String toLowerCase()', insertText: 'toLowerCase()' },
+    { label: 'trim', detail: 'String trim()', insertText: 'trim()' },
+    { label: 'strip', detail: 'String strip()', insertText: 'strip()' },
+    {
+      label: 'replace',
+      detail: 'String replace(CharSequence target, CharSequence replacement)',
+      insertText: 'replace(${1:target}, ${2:replacement})',
+    },
+    { label: 'split', detail: 'String[] split(String regex)', insertText: 'split(${1:regex})' },
+    { label: 'equals', detail: 'boolean equals(Object obj)', insertText: 'equals(${1:obj})' },
+    {
+      label: 'equalsIgnoreCase',
+      detail: 'boolean equalsIgnoreCase(String other)',
+      insertText: 'equalsIgnoreCase(${1:other})',
+    },
+    { label: 'isEmpty', detail: 'boolean isEmpty()', insertText: 'isEmpty()' },
+    { label: 'isBlank', detail: 'boolean isBlank()', insertText: 'isBlank()' },
+    { label: 'toCharArray', detail: 'char[] toCharArray()', insertText: 'toCharArray()' },
+    { label: 'concat', detail: 'String concat(String str)', insertText: 'concat(${1:str})' },
+    { label: 'compareTo', detail: 'int compareTo(String other)', insertText: 'compareTo(${1:other})' },
+    { label: 'matches', detail: 'boolean matches(String regex)', insertText: 'matches(${1:regex})' },
+    { label: 'repeat', detail: 'String repeat(int count)', insertText: 'repeat(${1:count})' },
+  ],
+  Scanner: [
+    { label: 'nextInt', detail: 'int nextInt()', insertText: 'nextInt()' },
+    { label: 'nextLong', detail: 'long nextLong()', insertText: 'nextLong()' },
+    { label: 'nextDouble', detail: 'double nextDouble()', insertText: 'nextDouble()' },
+    { label: 'next', detail: 'String next()', insertText: 'next()' },
+    { label: 'nextLine', detail: 'String nextLine()', insertText: 'nextLine()' },
+    { label: 'nextBoolean', detail: 'boolean nextBoolean()', insertText: 'nextBoolean()' },
+    { label: 'hasNext', detail: 'boolean hasNext()', insertText: 'hasNext()' },
+    { label: 'hasNextInt', detail: 'boolean hasNextInt()', insertText: 'hasNextInt()' },
+    { label: 'hasNextLine', detail: 'boolean hasNextLine()', insertText: 'hasNextLine()' },
+    { label: 'close', detail: 'void close()', insertText: 'close()' },
+  ],
+  StringBuilder: [
+    { label: 'append', detail: 'StringBuilder append(String str)', insertText: 'append(${1:str})' },
+    { label: 'toString', detail: 'String toString()', insertText: 'toString()' },
+    { label: 'reverse', detail: 'StringBuilder reverse()', insertText: 'reverse()' },
+    {
+      label: 'insert',
+      detail: 'StringBuilder insert(int offset, String str)',
+      insertText: 'insert(${1:offset}, ${2:str})',
+    },
+    { label: 'deleteCharAt', detail: 'StringBuilder deleteCharAt(int index)', insertText: 'deleteCharAt(${1:index})' },
+    {
+      label: 'delete',
+      detail: 'StringBuilder delete(int start, int end)',
+      insertText: 'delete(${1:start}, ${2:end})',
+    },
+    { label: 'length', detail: 'int length()', insertText: 'length()' },
+    { label: 'charAt', detail: 'char charAt(int index)', insertText: 'charAt(${1:index})' },
+    {
+      label: 'setCharAt',
+      detail: 'void setCharAt(int index, char ch)',
+      insertText: 'setCharAt(${1:index}, ${2:ch})',
+    },
+    { label: 'indexOf', detail: 'int indexOf(String str)', insertText: 'indexOf(${1:str})' },
+    {
+      label: 'replace',
+      detail: 'StringBuilder replace(int start, int end, String str)',
+      insertText: 'replace(${1:start}, ${2:end}, ${3:str})',
+    },
+  ],
+}
+
+// Scans everything in the buffer before the cursor for a declaration or
+// parameter of one of JAVA_MEMBER_TYPES naming this exact variable —
+// `String texto = ...`, `Scanner scanner = ...`, or a method parameter like
+// `(String texto)` all match. Source-order only (a declaration after the
+// use site won't be found), which matches how these single-file student
+// submissions actually read.
+function inferJavaVariableType(
+  model: editor.ITextModel,
+  position: Position,
+  varName: string,
+): (typeof JAVA_MEMBER_TYPES)[number] | undefined {
+  const textBefore = model.getValueInRange({
+    startLineNumber: 1,
+    startColumn: 1,
+    endLineNumber: position.lineNumber,
+    endColumn: position.column,
+  })
+  const declRe = new RegExp(`\\b(${JAVA_MEMBER_TYPES.join('|')})\\s+${varName}\\s*[=;,)]`)
+  const match = declRe.exec(textBefore)
+  return match?.[1] as (typeof JAVA_MEMBER_TYPES)[number] | undefined
+}
+
+function registerJavaMemberCompletions(monaco: Monaco): void {
+  monaco.languages.registerCompletionItemProvider('java', {
+    triggerCharacters: ['.'],
+    provideCompletionItems(model: editor.ITextModel, position: Position) {
+      const lineUpToCursor = model.getValueInRange({
+        startLineNumber: position.lineNumber,
+        startColumn: 1,
+        endLineNumber: position.lineNumber,
+        endColumn: position.column,
+      })
+      const varMatch = /([A-Za-z_]\w*)\.$/.exec(lineUpToCursor)
+      if (!varMatch) return { suggestions: [] }
+
+      const type = inferJavaVariableType(model, position, varMatch[1])
+      const members = type ? JAVA_MEMBERS[type] : undefined
+      if (!members) return { suggestions: [] }
+
+      const range = {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: position.column,
+        endColumn: position.column,
+      }
+      return {
+        suggestions: members.map((m) => ({
+          label: m.label,
+          kind: monaco.languages.CompletionItemKind.Method,
+          detail: m.detail,
+          insertText: m.insertText,
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          range,
+        })),
+      }
+    },
+  })
 }
