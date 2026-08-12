@@ -375,8 +375,23 @@ export function fetchMe() {
   return requestJSON<AuthUser>('/api/v1/auth/me')
 }
 
-export function listChallenges() {
-  return requestJSON<Challenge[]>('/api/v1/challenges')
+// Walks every page of GET /api/v1/challenges (server caps limit at 100) and
+// concatenates them — ChallengeList renders the whole catalog with no
+// pagination UI of its own, so it needs every challenge regardless of how
+// many pages that takes, not just the first page's default 50.
+export async function listChallenges() {
+  const pageSize = 100
+  const all: Challenge[] = []
+  let offset = 0
+  for (;;) {
+    const page = await requestJSON<Challenge[]>(
+      `/api/v1/challenges?limit=${pageSize}&offset=${offset}`,
+    )
+    all.push(...page)
+    if (page.length < pageSize) break
+    offset += pageSize
+  }
+  return all
 }
 
 export function getChallenge(id: string) {
