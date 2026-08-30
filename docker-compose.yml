@@ -113,15 +113,16 @@ services:
     # Listing `networks:` here means this service no longer joins the
     # compose-generated default network implicitly — `default` is named
     # explicitly below so it still reaches `api` exactly as before.
-    # `shared_net` (external, see bottom of file) is the only new thing: it's
-    # how this container's nginx reaches the yamabiko-platform core-api
-    # (yamabiko/docker-compose.prod.yml joins the same external network),
-    # without publishing any yamabiko port on the host and without asking
-    # Pangolin to route anything new — same publicly-exposed 8000:80 as
-    # before, nginx just gained two new location blocks (see docker/nginx.conf).
+    # `shared-services` (external, see bottom of file) is the only new
+    # thing: it's how this container's nginx reaches the yamabiko-platform
+    # core-api (yamabiko/docker-compose.prod.yml joins the same external
+    # network), without publishing any yamabiko port on the host and
+    # without asking Pangolin to route anything new — same publicly-exposed
+    # 8000:80 as before, nginx just gained two new location blocks (see
+    # docker/nginx.conf).
     networks:
       default:
-      shared_net:
+      shared-services:
     # Static build output of the yamabiko frontend, published by the
     # yamabiko-platform `web-static` one-shot service into this same
     # external volume — read-only here since this container only serves it,
@@ -141,11 +142,11 @@ volumes:
     external: true
 
 networks:
-  # External: created once (`docker network create shared_net`) so ascend's
-  # `web` (nginx) container and yamabiko-platform's `core-api` container can
-  # reach each other by service name, without either compose project's
-  # internal services (postgres, redis, judge, yamabiko's own postgres, etc.)
-  # being exposed to one another or to the host. See BUILD_STATE.md for the
-  # full same-origin architecture decision.
-  shared_net:
+  # External: pre-existing network on this VM (see `docker network ls`) so
+  # ascend's `web` (nginx) container and yamabiko-platform's `core-api`
+  # container can reach each other by service name, without either compose
+  # project's internal services (postgres, redis, judge, yamabiko's own
+  # postgres, etc.) being exposed to one another or to the host. See
+  # BUILD_STATE.md for the full same-origin architecture decision.
+  shared-services:
     external: true
