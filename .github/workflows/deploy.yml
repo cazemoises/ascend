@@ -1,0 +1,64 @@
+name: Deploy ascend
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux]
+    # Runs on the VM itself via the self-hosted runner - no inbound SSH needed.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build sandbox images (sqlite, cpp)
+        # build-only profile services aren't started by `up`, but the judge
+        # launches them as sibling containers via docker.sock - must be
+        # tagged before judge can use them.
+        run: docker compose build sqlite cpp
+
+      - name: Bring the stack up
+        run: docker compose up -d --build postgres redis api judge web
+
+      - name: Health check - api
+        run: |
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:9000/healthz >/dev/null; then
+              echo "api healthy"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::api did not become healthy"
+          docker compose logs api
+          exit 1
+
+      - name: Health check - web
+        run: |
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:8000/ >/dev/null; then
+              echo "web healthy"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::web did not become healthy"
+          docker compose logs web
+          exit 1
+
+      - name: Check judge is up
+        run: |
+          for i in $(seq 1 15); do
+            status="$(docker inspect -f '{{.State.Running}}' ascend-judge-1 2>/dev/null || echo false)"
+            if [ "$status" = "true" ]; then
+              echo "judge running"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::judge did not stay up"
+          docker compose logs judge
+          exit 1
+
+      - name: Prune old images
+        # Avoid unbounded disk growth from repeated --build deploys on a
+        # long-lived VM (this box only has ~76G free on /).
+        run: docker image prune -f
