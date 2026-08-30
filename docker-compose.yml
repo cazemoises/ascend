@@ -93,7 +93,7 @@ services:
       args:
         # Same-origin: browser calls /api/... and nginx proxies to the api
         # service, so production needs no CORS.
-        VITE_API_URL: ""
+        VITE_API_URL: "/ascend"
     ports:
       - "8000:80"
     depends_on:
