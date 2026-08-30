@@ -28,7 +28,7 @@ jobs:
       - name: Health check - api
         run: |
           for i in $(seq 1 15); do
-            if curl -sf http://localhost:9000/healthz >/dev/null; then
+            if curl -sf http://localhost:9001/healthz >/dev/null; then
               echo "api healthy"; exit 0
             fi
             sleep 2
