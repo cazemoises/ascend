@@ -46,6 +46,9 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
+    networks:
+      - default
+      - shared-services
 
   # Sandbox image for SQL challenges: not a long-running service, just a
   # build target so `docker compose build sqlite` tags ascend-sqlite:latest
@@ -93,7 +96,7 @@ services:
       args:
         # Same-origin: browser calls /api/... and nginx proxies to the api
         # service, so production needs no CORS.
-        VITE_API_URL: "/ascend"
+        VITE_API_URL: "/ascend/api"
     ports:
       - "8000:80"
     depends_on:
