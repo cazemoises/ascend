@@ -7,6 +7,10 @@ on:
 jobs:
   deploy:
     runs-on: [self-hosted, linux]
+    env:
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
     # Runs on the VM itself via the self-hosted runner - no inbound SSH needed.
     steps:
       - name: Checkout
