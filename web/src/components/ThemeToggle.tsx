@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-const STORAGE_KEY = 'ascend:theme'
+const STORAGE_KEY = 'theme'
 
 function IconSun() {
   return (
@@ -44,6 +44,18 @@ export function ThemeToggle() {
     }
     localStorage.setItem(STORAGE_KEY, theme)
   }, [theme])
+
+  // Reacts to the portal (or another same-origin tab) changing the shared
+  // 'theme' key — the storage event never fires in the tab that wrote it,
+  // so this only ever runs for external changes.
+  useEffect(() => {
+    function handleStorage(e: StorageEvent) {
+      if (e.key !== STORAGE_KEY) return
+      setTheme(e.newValue === 'light' ? 'light' : 'dark')
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
 
   return (
     <button
