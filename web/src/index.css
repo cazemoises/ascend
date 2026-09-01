@@ -18,28 +18,45 @@
   --text-primary: oklch(93% 0.01 80);
   --text-secondary: oklch(68% 0.015 80);
 
-  /* Primitive tokens — brand (terracota/teal) and verdict hues */
-  --accent-terracota: oklch(74% 0.02 53);
-  --accent-teal: oklch(72% 0.09 200);
-  --accent-green: oklch(70% 0.12 165);
-  --accent-amber: oklch(78% 0.13 85);
-  --accent-red: oklch(70% 0.16 25);
-  --accent-purple: oklch(72% 0.13 305);
-  --accent-teal-dim: oklch(30% 0.05 200);
-  --accent-green-dim: oklch(30% 0.06 165);
-  --accent-amber-dim: oklch(38% 0.07 85);
-  --accent-red-dim: oklch(40% 0.1 25);
-  --accent-purple-dim: oklch(34% 0.09 305);
+  /* Primitive tokens — brand e verdict hues, tokens EXATOS do Yamabiko
+     (web/src/index.css), aplicados sem reinterpretar valor nenhum:
+     --accent-terracota = --accent-base (#c1662f), --accent-green = --pass
+     (#4b7a5b), --accent-amber = --partial (#b98a2e), --accent-red = --fail
+     (#b4483a). Yamabiko não muda esses 4 entre claro/escuro (só
+     --accent-soft/--accent-text/--accent-ring mudam lá) — por isso não são
+     mais redeclarados no bloco [data-theme='light'] abaixo, igual lá.
 
-  /* Pill text ("ink") — badges pair a tinted -dim background with a
-     dedicated darker/lighter same-hue text shade, not the plain solid
-     accent swatch above (which reads washed-out at pill text sizes). */
-  --accent-teal-ink: oklch(85% 0.05 200);
-  --accent-green-ink: oklch(85% 0.08 165);
-  --accent-amber-ink: oklch(88% 0.09 85);
-  --accent-red-ink: oklch(88% 0.1 25);
-  --accent-purple-ink: oklch(85% 0.1 305);
-  --blue-ink: oklch(80% 0.04 250);
+     --accent-teal e --accent-purple não têm equivalente no Yamabiko
+     ("dificuldade" e "erro de execução" são conceitos que ele nunca teve) —
+     são EXTENSÕES da paleta, não substituições: mesma fórmula de
+     saturação/luminosidade (~45%/43% em HSL, a mesma família dos 4 tokens
+     acima), só variando o matiz pra abrir 2 hues novos que não colidem com
+     nenhum dos existentes (teal ~190°, roxo ~280°, contra green 140°/
+     amber 40°/red 7°). Mesmo tratamento pro --blue (usado como "info/
+     pendente", também sem par no Yamabiko) — hue ~215°, igualmente extensão. */
+  --accent-terracota: #c1662f;
+  --accent-teal: #3c8f9f;
+  --accent-green: #4b7a5b;
+  --accent-amber: #b98a2e;
+  --accent-red: #b4483a;
+  --accent-purple: #7e3c9f;
+  --accent-teal-dim: color-mix(in srgb, var(--accent-teal) 18%, var(--panel));
+  --accent-green-dim: color-mix(in srgb, var(--accent-green) 18%, var(--panel));
+  --accent-amber-dim: color-mix(in srgb, var(--accent-amber) 18%, var(--panel));
+  --accent-red-dim: color-mix(in srgb, var(--accent-red) 18%, var(--panel));
+  --accent-purple-dim: color-mix(in srgb, var(--accent-purple) 18%, var(--panel));
+
+  /* Pill text ("ink") — no esquema OKLCH antigo, um tom dedicado (mais claro
+     no escuro, mais escuro no claro) diferente do swatch sólido. Com hex
+     fixo (mesmo valor nos 2 temas, igual --pass/--partial/--fail no
+     Yamabiko), o "ink" passa a ser o próprio tom base — já legível em cima
+     do "-dim" (que sim reage ao tema, via --panel no color-mix acima). */
+  --accent-teal-ink: var(--accent-teal);
+  --accent-green-ink: var(--accent-green);
+  --accent-amber-ink: var(--accent-amber);
+  --accent-red-ink: var(--accent-red);
+  --accent-purple-ink: var(--accent-purple);
+  --blue-ink: var(--blue);
 
   --font-display: 'Space Grotesk', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
@@ -104,12 +121,18 @@
      primary brand/CTA color reaches for --accent-terracota directly, or
      the --grad-cta/--grad-accent aliases below. */
   --green: var(--accent-green);
-  --green-hover: oklch(70% 0.02 53);
+  /* Mesma fórmula do --accent-text do Yamabiko (color-mix do accent com
+     white/black — só que ali é aplicada ao --accent-base, aqui ao
+     --accent-terracota que agora tem o mesmo valor). 60% white é o lado
+     escuro (ver bloco :root); o lado claro redeclara com 75% black abaixo. */
+  --green-hover: color-mix(in srgb, var(--accent-terracota) 60%, white);
   --green-soft: var(--accent-green-dim);
-  --on-green: var(--bg-base);
+  /* = --accent-on do Yamabiko (#faf8f5) — mesmo fundo de botão
+     (--accent-terracota agora = --accent-base), mesmo texto por cima. */
+  --on-green: #faf8f5;
 
-  --blue: oklch(70% 0.04 250);
-  --blue-soft: oklch(30% 0.04 250);
+  --blue: #3c659f;
+  --blue-soft: color-mix(in srgb, var(--blue) 18%, var(--panel));
   --amber: var(--accent-amber);
   --amber-soft: var(--accent-amber-dim);
   --red: var(--accent-red);
@@ -159,24 +182,12 @@
   --text-primary: oklch(23% 0.02 50);
   --text-secondary: oklch(48% 0.02 50);
 
-  --accent-terracota: oklch(54% 0.02 53);
-  --accent-teal: oklch(52% 0.09 200);
-  --accent-green: oklch(58% 0.12 165);
-  --accent-amber: oklch(68% 0.13 85);
-  --accent-red: oklch(58% 0.17 25);
-  --accent-purple: oklch(54% 0.13 305);
-  --accent-teal-dim: oklch(90% 0.03 200);
-  --accent-green-dim: oklch(92% 0.04 165);
-  --accent-amber-dim: oklch(93% 0.045 85);
-  --accent-red-dim: oklch(93% 0.05 25);
-  --accent-purple-dim: oklch(92% 0.035 305);
-
-  --accent-teal-ink: oklch(30% 0.05 200);
-  --accent-green-ink: oklch(32% 0.08 165);
-  --accent-amber-ink: oklch(38% 0.08 85);
-  --accent-red-ink: oklch(35% 0.1 25);
-  --accent-purple-ink: oklch(32% 0.09 305);
-  --blue-ink: oklch(34% 0.05 250);
+  /* --accent-terracota/teal/green/amber/red/purple, seus -dim/-ink, e
+     --blue* NÃO são redeclarados aqui de propósito: são hex fixos (ver
+     :root acima) — Yamabiko não varia --accent-base/--pass/--partial/
+     --fail entre claro/escuro, e as extensões (teal/purple/blue) seguem o
+     mesmo tratamento. -dim já reage ao tema sozinho, via --panel dentro do
+     color-mix. */
 
   --inset: var(--bg-surface-alt);
   --border-strong: var(--border-hairline);
@@ -219,11 +230,10 @@
      description/--group-bg's history above for that original check). */
   --nested-bg: var(--panel);
 
-  --green-hover: oklch(50% 0.02 53);
-  --on-green: var(--bg-base);
-
-  --blue: oklch(54% 0.05 250);
-  --blue-soft: oklch(92% 0.02 250);
+  /* Lado claro da mesma fórmula --accent-text do Yamabiko: 75% black em
+     vez dos 60% white do escuro (ver :root). --on-green e --blue* não são
+     redeclarados — mesmo hex fixo nos dois temas, ver comentário acima. */
+  --green-hover: color-mix(in srgb, var(--accent-terracota) 75%, black);
 }
 
 * {
