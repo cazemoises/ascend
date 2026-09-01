@@ -27,7 +27,7 @@
 
   /* Primitive tokens — brand e verdict hues, tokens EXATOS do Yamabiko
      (web/src/index.css), aplicados sem reinterpretar valor nenhum:
-     --accent-terracota = --accent-base (#c1662f), --accent-green = --pass
+     --accent-terracota = --accent-base (#4b4a99), --accent-green = --pass
      (#4b7a5b), --accent-amber = --partial (#b98a2e), --accent-red = --fail
      (#b4483a). Yamabiko não muda esses 4 entre claro/escuro (só
      --accent-soft/--accent-text/--accent-ring mudam lá) — por isso não são
@@ -41,7 +41,7 @@
      nenhum dos existentes (teal ~190°, roxo ~280°, contra green 140°/
      amber 40°/red 7°). Mesmo tratamento pro --blue (usado como "info/
      pendente", também sem par no Yamabiko) — hue ~215°, igualmente extensão. */
-  --accent-terracota: #c1662f;
+  --accent-terracota: #4b4a99;
   --accent-teal: #3c8f9f;
   --accent-green: #4b7a5b;
   --accent-amber: #b98a2e;
