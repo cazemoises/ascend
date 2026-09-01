@@ -56,28 +56,6 @@
   --code-ink: oklch(93% 0.01 80);
   --code-muted: oklch(45% 0.02 280);
 
-  /* Sidebar chrome is always dark, same idea as the code surfaces above —
-     theme-invariant so its own text doesn't invert to near-black when the
-     app theme flips to light while the sidebar itself stays dark. */
-  --sidebar-bg: oklch(19% 0.018 280);
-  --sidebar-surface-alt: oklch(28% 0.024 280);
-  --sidebar-border: oklch(34% 0.02 280);
-  --sidebar-ink: oklch(93% 0.01 80);
-  --sidebar-muted: oklch(68% 0.015 80);
-  /* Accent colors used inside the sidebar need their own theme-invariant
-     copies too — --accent-terracota/--amber/--red/--red-soft all flip to
-     light-theme-tuned values (meant for text/fills on a light background)
-     when data-theme=light, which read badly against a chrome that never
-     stops being dark: --red-soft in particular goes from a muted dark-red
-     fill (40% L) to a pale pink one (93% L), so the logout hover state was
-     rendering a bright pink patch on the still-dark sidebar. Pinned to
-     today's dark-theme accent values, same as the --sidebar-* tokens
-     above. */
-  --sidebar-accent: oklch(74% 0.02 53);
-  --sidebar-teacher: oklch(78% 0.13 85);
-  --sidebar-danger: oklch(70% 0.16 25);
-  --sidebar-danger-soft: oklch(40% 0.1 25);
-
   /* Elevation ladder: base → surface → alt surface (all solid, no alpha) */
   --canvas: var(--bg-base);
   --panel: var(--bg-surface);
@@ -147,7 +125,6 @@
   --radius-s: 8px;
   --radius-l: 20px;
   --radius-pill: 999px;
-  --sidebar-w: 220px;
 
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -409,7 +386,7 @@ pre {
    the rest via flex: 1 and scroll internally if their content is taller
    than that (see the rule below). overflow-y is a last-resort fallback
    for the same reason as .page-shell--workspace's — normally never
-   engages. Reverted below 920px, matching the sidebar's own breakpoint. */
+   engages. Reverted below 920px, the app's general mobile breakpoint. */
 .page-shell--submission {
   height: 100vh;
   display: flex;
@@ -558,211 +535,64 @@ pre {
 
 /* ===================== Sidebar ===================== */
 
-.sidebar {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  align-self: flex-start;
-  height: 100vh;
-  width: var(--sidebar-w);
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  padding: 18px 12px;
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
-  /* Fully opaque, not color-mix'd with transparent: .sidebar sits beside
-     .app-main as a flex sibling (see AppLayout.tsx), never layered over
-     scrolling content, so the backdrop-filter blur this replaced had
-     nothing textured to blur — its only real effect was letting the flat
-     page canvas color bleed through the remaining alpha. Harmless in dark
-     theme (canvas is dark too, so the blend still read as ~dark), but in
-     light theme blending 72% dark sidebar-bg with 28% of a ~97%-L canvas
-     landed around 41% L — a washed-out, medium-gray sidebar instead of
-     the always-dark chrome --sidebar-bg is meant to guarantee (same
-     invariant-token intent as 0b2824a, just not carried into this rule
-     at the time). */
-  background: var(--sidebar-bg);
-}
-
-.sidebar__brand {
+/* Sidebar própria removida (Ascend embutido no Portal, ver
+   PORTAL_SHELL_PROTOCOL.md no repo do portal) — só sobra este toolbar
+   flutuante pras duas coisas que não são shell nem identidade de conta:
+   "Ver como aluno" (funcional, ver AppLayout.tsx) e o toggle de som
+   (preferência do app). Tokens gerais (--border/--muted/--accent-terracota),
+   não os --sidebar-* (removidos com o resto da sidebar) — este toolbar
+   flutua sobre o conteúdo, que já reage ao tema normalmente, ao contrário
+   da chrome de sidebar que era sempre escura de propósito. */
+.app-toolbar {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 20;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px 20px;
-  color: var(--sidebar-ink);
-  font-family: var(--display);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-/* Rotated bicolor diamond (see BrandMark.tsx) — replaces the interim "▲"
-   placeholder glyph. Kept the same warm-glow spirit as the old text-shadow,
-   via drop-shadow (text-shadow doesn't apply to SVG). */
-.brand-mark {
-  flex-shrink: 0;
-  filter: drop-shadow(0 0 8px oklch(74% 0.02 53 / 0.45));
-}
-
-.sidebar__nav {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sidebar__link {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px 10px 10px;
-  border-left: 2px solid transparent;
-  border-radius: var(--radius-s);
-  color: var(--sidebar-ink);
-  opacity: 0.6;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  transition: all 0.2s ease;
-}
-
-.sidebar__link svg {
-  flex-shrink: 0;
-}
-
-.sidebar__link:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.sidebar__link--active {
-  color: var(--sidebar-accent);
-  opacity: 1;
-  background: var(--sidebar-surface-alt);
-  border-left-color: var(--sidebar-accent);
-}
-
-.sidebar__footer {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
   gap: 8px;
-  padding-top: 14px;
-  border-top: 1px solid var(--sidebar-border);
 }
 
-.sidebar__user {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 12px;
-  min-width: 0;
-}
-
-.sidebar__user-email {
-  font-size: 0.76rem;
-  color: var(--sidebar-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sidebar__role {
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-weight: 600;
-  color: var(--sidebar-muted);
-}
-
-.sidebar__role--teacher {
-  color: var(--sidebar-teacher);
-}
-
-.sidebar__view-as-toggle {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 0 12px;
+.app-toolbar__view-as {
   padding: 6px 10px;
-  border: 1px solid var(--sidebar-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--sidebar-muted);
+  background: var(--panel);
+  color: var(--muted);
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  text-align: left;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.sidebar__view-as-toggle:hover {
-  color: var(--sidebar-accent);
-  border-color: var(--sidebar-accent);
+.app-toolbar__view-as:hover {
+  color: var(--accent-terracota);
+  border-color: var(--accent-terracota);
 }
 
-/* Small square icon buttons for footer utilities (theme, sound) — grouped
-   in a row rather than each getting the wider .sidebar__view-as-toggle
-   treatment, since they're single-glyph toggles, not labeled actions. */
-.sidebar__utility-row {
-  display: flex;
-  gap: 8px;
-  margin: 0 12px;
-}
-
-/* Same icon-button convention already established by .list-item__icon-btn
-   (reorder ↑/↓ in the list editor) and .challenge-row__edit — border,
-   size and hover physics all reused verbatim rather than inventing a new
-   button style. */
-.sidebar__icon-toggle {
+/* Mesma convenção de botão-ícone já usada em .list-item__icon-btn/
+   .challenge-row__edit (e antes, .sidebar__icon-toggle). */
+.app-toolbar__icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
   flex-shrink: 0;
-  border: 1px solid var(--sidebar-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--sidebar-muted);
+  background: var(--panel);
+  color: var(--muted);
   cursor: pointer;
   transition: border-color 150ms ease, color 150ms ease;
 }
 
-.sidebar__icon-toggle:hover {
-  border-color: var(--sidebar-accent);
-  color: var(--sidebar-accent);
-}
-
-.sidebar__logout {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px 10px 10px;
-  border: none;
-  border-left: 2px solid transparent;
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--sidebar-ink);
-  opacity: 0.6;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.sidebar__logout:hover {
-  opacity: 1;
-  color: var(--sidebar-danger);
-  background: var(--sidebar-danger-soft);
+.app-toolbar__icon-btn:hover {
+  border-color: var(--accent-terracota);
+  color: var(--accent-terracota);
 }
 
 /* ===================== Verdict readouts ===================== */
@@ -3611,80 +3441,14 @@ pre {
   min-width: 0;
 }
 
-/* ===================== Sidebar responsive ===================== */
-
-.mobile-topbar {
-  display: none;
-}
-
-.sidebar-overlay {
-  display: none;
-}
-
 @media (max-width: 920px) {
-  .mobile-topbar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 10;
-    height: 52px;
-    padding: 0 16px;
-    background: var(--bg-surface);
-    border-bottom: 1px solid var(--border-hairline);
-  }
-
-  .mobile-topbar__menu-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px;
-    border: none;
-    background: transparent;
-    color: var(--text);
-    cursor: pointer;
-  }
-
-  .mobile-topbar__brand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--font-mono);
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    color: var(--title);
-  }
-
-  .sidebar-overlay {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 10;
-    background: rgba(0, 0, 0, 0.5);
-  }
-
-  .app-shell {
-    flex-direction: column;
-    padding-top: 52px;
-  }
-
-  .sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 11;
-    width: min(80vw, 280px);
-    height: 100vh;
-    transform: translateX(-100%);
-    transition: transform 0.25s ease;
-    border-right: 1px solid var(--border-hairline);
-  }
-
-  .sidebar--open {
-    transform: translateX(0);
+  /* Toolbar flutuante volta pra baixo à direita em telas estreitas — o
+     Portal já ocupa o topo com seu próprio hamburger/topbar nesse
+     breakpoint, então o canto superior direito não é mais um espaço
+     seguro pro app de conteúdo usar. */
+  .app-toolbar {
+    top: auto;
+    bottom: 16px;
   }
 
   .page-shell--submission {
@@ -3745,8 +3509,7 @@ pre {
     animation: none;
   }
 
-  .audit-caret,
-  .sidebar {
+  .audit-caret {
     transition: none;
   }
 
@@ -3767,8 +3530,7 @@ pre {
   .challenge-submit:active:not(:disabled),
   .auth-form button:hover:not(:disabled),
   .auth-form button:active:not(:disabled),
-  .back-link:hover,
-  .sidebar__link:hover {
+  .back-link:hover {
     transform: none;
   }
 }

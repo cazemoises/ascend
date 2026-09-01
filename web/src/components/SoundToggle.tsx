@@ -28,7 +28,7 @@ export function SoundToggle() {
   return (
     <button
       type="button"
-      className="sidebar__icon-toggle"
+      className="app-toolbar__icon-btn"
       onClick={() =>
         setMuted((prev) => {
           const next = !prev
