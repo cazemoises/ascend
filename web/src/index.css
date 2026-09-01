@@ -10,13 +10,20 @@
 :root {
   color-scheme: dark;
 
-  /* Primitive tokens — neutrals (deep blue-violet, never pure black) */
-  --bg-base: oklch(19% 0.018 280);
-  --bg-surface: oklch(24% 0.02 280);
-  --bg-surface-alt: oklch(28% 0.024 280);
-  --border-hairline: oklch(34% 0.02 280);
-  --text-primary: oklch(93% 0.01 80);
-  --text-secondary: oklch(68% 0.015 80);
+  /* Primitive tokens — neutrals, tokens EXATOS do Yamabiko (web/src/
+     index.css, bloco :root[data-theme="dark"]): --bg-base = --bg
+     (#1b1815), --bg-surface = --bg-card (#242019), --bg-surface-alt =
+     --bg-sunken (#18150f, mesmo papel — recesso/inset, ver .volume-meter
+     lá), --border-hairline = --border (#38322a), --text-primary = --text
+     (#f2ece4), --text-secondary = --text-secondary (#a79e92, mesmo nome
+     nos dois arquivos). Substitui o marrom-azulado (oklch hue 280) próprio
+     do Ascend pelo marrom-escuro quente característico do Yamabiko. */
+  --bg-base: #1b1815;
+  --bg-surface: #242019;
+  --bg-surface-alt: #18150f;
+  --border-hairline: #38322a;
+  --text-primary: #f2ece4;
+  --text-secondary: #a79e92;
 
   /* Primitive tokens — brand e verdict hues, tokens EXATOS do Yamabiko
      (web/src/index.css), aplicados sem reinterpretar valor nenhum:
@@ -175,12 +182,14 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --bg-base: oklch(97% 0.015 75);
-  --bg-surface: oklch(99% 0.006 75);
-  --bg-surface-alt: oklch(93% 0.02 75);
-  --border-hairline: oklch(87% 0.015 70);
-  --text-primary: oklch(23% 0.02 50);
-  --text-secondary: oklch(48% 0.02 50);
+  /* Tokens EXATOS do Yamabiko, bloco :root claro (mesmo raciocínio do
+     comentário em :root acima). */
+  --bg-base: #faf8f5;
+  --bg-surface: #ffffff;
+  --bg-surface-alt: #f1eee9;
+  --border-hairline: #e7e2da;
+  --text-primary: #23201b;
+  --text-secondary: #6f6a62;
 
   /* --accent-terracota/teal/green/amber/red/purple, seus -dim/-ink, e
      --blue* NÃO são redeclarados aqui de propósito: são hex fixos (ver
