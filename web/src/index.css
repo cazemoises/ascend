@@ -229,7 +229,7 @@
      directly on, every nested-scoped border reverted to the plain
      var(--border) a top-level collection already uses (see the removed-
      override comments further down). */
-  --group-bg: oklch(88% 0.035 230);
+  --group-bg: rgba(231, 240, 245, 1);
   /* Solid --panel, same as a top-level (ungrouped) collection's own
      background — not transparent. A first attempt at this move left it
      transparent so the group's tint would show straight through, but
