@@ -329,7 +329,7 @@ function ChallengeCard({
           </button>
         ) : null}
         <Link className="challenge-submit" to={`/challenges/${challenge.id}`}>
-          Resolver desafio
+          resolver desafio
         </Link>
       </div>
     </article>
@@ -885,14 +885,14 @@ export function ChallengeList() {
                 onClick={closeStudio}
                 disabled={saving}
               >
-                Cancelar
+                cancelar
               </button>
               <button type="submit" className="challenge-submit" disabled={saving}>
                 {saving
-                  ? 'Salvando...'
+                  ? 'salvando...'
                   : editingChallengeId !== null
-                    ? 'Salvar alterações'
-                    : 'Publicar desafio'}
+                    ? 'salvar alterações'
+                    : 'publicar desafio'}
               </button>
             </div>
           </header>
@@ -1225,7 +1225,7 @@ export function ChallengeList() {
     <main className="page-shell">
       <section className="hero">
         <p className="eyebrow">Ascend</p>
-        <h1>Desafios disponíveis</h1>
+        <h1>desafios disponíveis</h1>
         <p className="muted">Escolha um desafio, escreva sua solução e submeta para avaliação.</p>
       </section>
 
@@ -1284,7 +1284,7 @@ export function ChallengeList() {
 
         {searchQuery !== '' || difficultyFilter.size > 0 || languageFilter.size > 0 ? (
           <button type="button" className="btn-secondary btn-ghost" onClick={clearFilters}>
-            Limpar filtros
+            limpar filtros
           </button>
         ) : null}
       </div>
@@ -1298,7 +1298,7 @@ export function ChallengeList() {
               className="btn-secondary"
               onClick={() => setManagingCollections((prev) => !prev)}
             >
-              {managingCollections ? 'Fechar coleções' : 'Gerenciar coleções'}
+              {managingCollections ? 'fechar coleções' : 'gerenciar coleções'}
             </button>
             <button
               type="button"
@@ -1308,7 +1308,7 @@ export function ChallengeList() {
                 setCreating(true)
               }}
             >
-              Criar desafio
+              criar desafio
             </button>
           </div>
         </div>

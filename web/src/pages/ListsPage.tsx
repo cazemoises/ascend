@@ -77,7 +77,7 @@ function ListCard({ list, current = false }: { list: ProblemList; current?: bool
         ) : null}
       </div>
       <Link className="challenge-submit" to={`/listas/${list.id}`}>
-        Ver lista
+        ver lista
       </Link>
     </article>
   )
@@ -128,7 +128,7 @@ export function ListsPage() {
     <main className="page-shell lists-page">
       <section className="hero">
         <p className="eyebrow">Ascend</p>
-        <h1>Listas semanais</h1>
+        <h1>listas semanais</h1>
         <p className="muted">
           Conteúdo publicado pelo professor — sem correção automática, o progresso é
           autodeclarado.
@@ -150,7 +150,7 @@ export function ListsPage() {
               className="btn-secondary btn-ghost"
               onClick={() => setSearchQuery('')}
             >
-              Limpar filtros
+              limpar filtros
             </button>
           ) : null}
         </div>
@@ -160,7 +160,7 @@ export function ListsPage() {
         <div className="action-bar">
           <span className="action-bar__label">Área do professor</span>
           <Link className="challenge-submit" to="/listas/nova">
-            Nova lista
+            nova lista
           </Link>
         </div>
       ) : null}

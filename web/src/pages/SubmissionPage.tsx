@@ -174,7 +174,7 @@ export function SubmissionPage() {
   return (
     <main className="page-shell page-shell--submission">
       <Link className="back-link" to={`/challenges/${id}`}>
-        ← Voltar ao desafio
+        ← voltar ao desafio
       </Link>
 
       {loading ? <p className="status-message">Carregando submissão...</p> : null}
@@ -191,7 +191,7 @@ export function SubmissionPage() {
       {submission && submission.status !== 'pending' ? (
         <>
           <p className="eyebrow">Submissão</p>
-          <h1>Resultado</h1>
+          <h1>resultado</h1>
 
           <section className="panel submission-panel">
             <div className={`submission-verdict-hero submission-verdict-hero--${submission.status}`}>
@@ -295,11 +295,11 @@ export function SubmissionPage() {
                   <div className="submission-next-action">
                     {nextChallengeId ? (
                       <Link className="challenge-submit" to={`/challenges/${nextChallengeId}`}>
-                        Próximo desafio →
+                        próximo desafio →
                       </Link>
                     ) : nextChallengeId === null ? (
-                      <button type="button" className="challenge-submit" disabled title="Não há mais desafios">
-                        Não há mais desafios
+                      <button type="button" className="challenge-submit" disabled title="não há mais desafios">
+                        não há mais desafios
                       </button>
                     ) : null}
                   </div>

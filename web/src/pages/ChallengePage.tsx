@@ -286,7 +286,7 @@ export function ChallengePage() {
   return (
     <main className="page-shell page-shell--workspace">
       <Link className="back-link" to="/">
-        ← Voltar aos desafios
+        ← voltar aos desafios
       </Link>
 
       {loading ? <p className="status-message">Carregando desafio...</p> : null}
@@ -592,7 +592,7 @@ export function ChallengePage() {
                   : 'Sua solução roda em um sandbox isolado contra todos os casos de teste.'}
               </p>
               <button type="submit" className="challenge-submit" disabled={submitting}>
-                {submitting ? 'Enviando...' : 'Enviar solução'}
+                {submitting ? 'enviando...' : 'enviar solução'}
               </button>
             </div>
           </form>

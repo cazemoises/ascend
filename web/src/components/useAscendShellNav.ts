@@ -40,10 +40,10 @@ interface NavItemDef {
 // isRealTeacher, mesma regra de acesso de antes).
 function buildNavItems(isAuthenticated: boolean, isTeacher: boolean): NavItemDef[] {
   const items: NavItemDef[] = []
-  if (!isOnlyLists) items.push({ id: 'challenges', label: 'Desafios', path: '/', icon: ICON_CHALLENGES })
-  items.push({ id: 'lists', label: 'Listas', path: '/listas', icon: ICON_LISTS })
-  if (isAuthenticated && !isOnlyLists) items.push({ id: 'history', label: 'Histórico', path: '/submissions', icon: ICON_HISTORY })
-  if (isTeacher) items.push({ id: 'progress', label: 'Progresso', path: '/progresso', icon: ICON_STUDENTS })
+  if (!isOnlyLists) items.push({ id: 'challenges', label: 'desafios', path: '/', icon: ICON_CHALLENGES })
+  items.push({ id: 'lists', label: 'listas', path: '/listas', icon: ICON_LISTS })
+  if (isAuthenticated && !isOnlyLists) items.push({ id: 'history', label: 'histórico', path: '/submissions', icon: ICON_HISTORY })
+  if (isTeacher) items.push({ id: 'progress', label: 'progresso', path: '/progresso', icon: ICON_STUDENTS })
   return items
 }
 

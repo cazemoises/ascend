@@ -7,6 +7,9 @@
    Flat, border-defined surfaces; near-no drop shadow.
    ===================================================================== */
 
+/* Fonte de verdade: ../../../portal/design/tokens.json (v1, 2026-09-01) — não
+   editar valor aqui sem atualizar lá primeiro. Ver DESIGN_TOKENS.md pro
+   racional de cada token. */
 :root {
   color-scheme: dark;
 
@@ -18,12 +21,12 @@
      (#f2ece4), --text-secondary = --text-secondary (#a79e92, mesmo nome
      nos dois arquivos). Substitui o marrom-azulado (oklch hue 280) próprio
      do Ascend pelo marrom-escuro quente característico do Yamabiko. */
-  --bg-base: #1b1815;
-  --bg-surface: #242019;
-  --bg-surface-alt: #18150f;
-  --border-hairline: #38322a;
-  --text-primary: #f2ece4;
-  --text-secondary: #a79e92;
+  --bg-base: #14151b;
+  --bg-surface: #1c1e26;
+  --bg-surface-alt: #101116;
+  --border-hairline: #2c2f3a;
+  --text-primary: #eceef3;
+  --text-secondary: #a2a7ba;
 
   /* Primitive tokens — brand e verdict hues, tokens EXATOS do Yamabiko
      (web/src/index.css), aplicados sem reinterpretar valor nenhum:
@@ -151,9 +154,9 @@
   --grad-cta: var(--accent-terracota);
   --grad-accent: var(--accent-terracota);
 
-  --radius: 16px;
+  --radius: 10px;
   --radius-s: 8px;
-  --radius-l: 20px;
+  --radius-l: 14px;
   --radius-pill: 999px;
 
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
@@ -184,12 +187,12 @@
 
   /* Tokens EXATOS do Yamabiko, bloco :root claro (mesmo raciocínio do
      comentário em :root acima). */
-  --bg-base: #faf8f5;
+  --bg-base: #f6f7fa;
   --bg-surface: #ffffff;
-  --bg-surface-alt: #f1eee9;
-  --border-hairline: #e7e2da;
-  --text-primary: #23201b;
-  --text-secondary: #6f6a62;
+  --bg-surface-alt: #eef0f5;
+  --border-hairline: #dfe3ea;
+  --text-primary: #1a1c23;
+  --text-secondary: #5b6072;
 
   /* --accent-terracota/teal/green/amber/red/purple, seus -dim/-ink, e
      --blue* NÃO são redeclarados aqui de propósito: são hex fixos (ver

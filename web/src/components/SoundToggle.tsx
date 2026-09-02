@@ -37,7 +37,7 @@ export function SoundToggle() {
         })
       }
       aria-label={muted ? 'Ativar som' : 'Silenciar som'}
-      title={muted ? 'Som desativado' : 'Som ativado'}
+      title={muted ? 'som desativado' : 'som ativado'}
     >
       {muted ? <IconSpeakerMuted /> : <IconSpeaker />}
     </button>

@@ -341,10 +341,10 @@ export function ListFormPage() {
               onClick={() => navigate(-1)}
               disabled={saving}
             >
-              Cancelar
+              cancelar
             </button>
             <button type="submit" className="challenge-submit" disabled={saving}>
-              {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Criar lista'}
+              {saving ? 'salvando...' : editing ? 'salvar alterações' : 'criar lista'}
             </button>
           </div>
         </header>

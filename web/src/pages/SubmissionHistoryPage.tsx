@@ -74,7 +74,7 @@ export function SubmissionHistoryPage() {
     <main className="page-shell">
       <section className="hero">
         <p className="eyebrow">Ascend</p>
-        <h1>Minhas submissões</h1>
+        <h1>minhas submissões</h1>
         <p className="muted">
           Histórico das suas soluções, da mais recente para a mais antiga. Clique em um veredito
           para auditar o código, o desempenho e os logs daquela tentativa.
@@ -212,7 +212,7 @@ export function SubmissionHistoryPage() {
             setPageCursor(nextCursor)
           }}
         >
-          Carregar mais
+          carregar mais
         </button>
       ) : null}
     </main>

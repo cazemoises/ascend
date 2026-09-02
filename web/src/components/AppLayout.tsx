@@ -29,7 +29,7 @@ export function AppLayout() {
             className="app-toolbar__view-as"
             onClick={() => setViewingAsStudent(!viewingAsStudent)}
           >
-            {viewingAsStudent ? 'Ver como professor' : 'Ver como aluno'}
+            {viewingAsStudent ? 'ver como professor' : 'ver como aluno'}
           </button>
         ) : null}
         <SoundToggle />

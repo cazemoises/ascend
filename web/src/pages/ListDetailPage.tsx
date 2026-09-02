@@ -178,7 +178,7 @@ export function ListDetailPage() {
   return (
     <main className="page-shell">
       <Link className="back-link" to="/listas">
-        ← Voltar às listas
+        ← voltar às listas
       </Link>
 
       {loading ? <p className="status-message">Carregando lista...</p> : null}
@@ -213,14 +213,14 @@ export function ListDetailPage() {
                 <div className="list-detail__actions">
                   {!detail.published ? (
                     <button type="button" className="challenge-submit" onClick={() => void handlePublish()}>
-                      Publicar
+                      publicar
                     </button>
                   ) : null}
                   <Link className="btn-secondary" to={`/listas/${detail.id}/editar`}>
-                    Editar lista
+                    editar lista
                   </Link>
                   <button type="button" className="btn-secondary" onClick={() => void handleDeleteList()}>
-                    Excluir lista
+                    excluir lista
                   </button>
                 </div>
               ) : null}
@@ -281,7 +281,7 @@ export function ListDetailPage() {
                               className="challenge-submit"
                               to={`/challenges/${item.linked_challenge_id}`}
                             >
-                              Resolver desafio: {item.challenge_title ?? 'desafio'}
+                              resolver desafio: {item.challenge_title ?? 'desafio'}
                             </Link>
                             {item.completed ? (
                               <span className="verdict verdict--accepted">CONCLUÍDO</span>

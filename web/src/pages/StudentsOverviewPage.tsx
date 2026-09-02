@@ -115,7 +115,7 @@ export function StudentsOverviewPage() {
     <main className="page-shell">
       <section className="hero">
         <p className="eyebrow">Área do professor</p>
-        <h1>Progresso</h1>
+        <h1>progresso</h1>
         <p className="muted">Todos os alunos que já interagiram com desafios ou listas.</p>
       </section>
 
