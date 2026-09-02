@@ -205,14 +205,18 @@
   --border-strong: var(--border-hairline);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
 
-  /* One more step in the same cream family as --bg-base -> --bg-surface-alt
-     above, not a jump to the --code-* (always-dark) palette — a subtle tint
-     reads as "the group is one level deeper than the page" without
-     clashing against the rest of the light theme. Same hue (75) as the
-     rest of the ladder; chroma bumped past the plain --bg-surface-alt step
-     so the tint still reads as a deliberate warm step rather than
-     vanishing into the parent panel despite the two sitting close in raw
-     lightness (88% here vs. --bg-surface-alt's 93%).
+  /* One more step in the same cold gray-blue family as --bg-base ->
+     --bg-surface-alt above, not a jump to the --code-* (always-dark)
+     palette — a subtle tint reads as "the group is one level deeper than
+     the page" without clashing against the rest of the light theme. Hue
+     230 to match the rest of the ladder post-migration (this was left at
+     the pre-migration cream hue, 75, when --bg-base/--bg-surface-alt
+     moved to the cold palette — missed because it's derived via oklch()
+     instead of one of the hex vars those two use, so it didn't show up in
+     a grep for the old hex values). Chroma bumped past the plain
+     --bg-surface-alt step so the tint still reads as a deliberate step
+     rather than vanishing into the parent panel despite the two sitting
+     close in raw lightness (88% here vs. --bg-surface-alt's 93%).
 
      Only ever painted where nothing sits directly on it: the nested
      collection below (--nested-bg) is its own solid --panel, not
@@ -225,7 +229,7 @@
      directly on, every nested-scoped border reverted to the plain
      var(--border) a top-level collection already uses (see the removed-
      override comments further down). */
-  --group-bg: oklch(88% 0.035 75);
+  --group-bg: oklch(88% 0.035 230);
   /* Solid --panel, same as a top-level (ungrouped) collection's own
      background — not transparent. A first attempt at this move left it
      transparent so the group's tint would show straight through, but
@@ -792,10 +796,15 @@ pre {
    too tight for this project's description lengths (often a full
    sentence), forcing awkward mid-word wraps even with the line-clamp
    below. 320px still gets multiple columns on wide screens, just fewer
-   of them, each with real room to breathe. */
+   of them, each with real room to breathe. Wrapped in min(320px, 100%)
+   so the floor never exceeds the container itself — on narrow mobile
+   viewports (nested group/collection padding can leave well under
+   320px available), the track shrinks to fill the container as a
+   single fluid column instead of forcing the grid, its cards, and the
+   "resolver desafio" button wider than the screen. */
 .challenge-feed {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -1817,7 +1826,15 @@ pre {
   margin-bottom: 16px;
   padding: 14px 20px;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--amber);
+  /* Was var(--amber) — that token is the genuine warning/verdict semantic
+     (medium difficulty, time_limit_exceeded) and stayed deliberately warm
+     through the cold-palette migration (see DESIGN_TOKENS.md). This bar
+     isn't a warning though, it's a teacher/admin-area marker, so it was
+     only ever borrowing --amber as the nearest "stands out" color pre-
+     migration. Moved to the brand accent instead, matching how every
+     other highlighted state in this file (e.g. .filter-pill--active)
+     already reaches for --accent-terracota. */
+  border-left: 3px solid var(--accent-terracota);
   border-radius: var(--radius);
   background: var(--panel);
   box-shadow: var(--shadow-card);
@@ -1829,7 +1846,7 @@ pre {
   gap: 10px;
   font-size: 0.74rem;
   font-weight: 700;
-  color: var(--amber);
+  color: var(--accent-terracota);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
