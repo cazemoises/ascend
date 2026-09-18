@@ -11,6 +11,7 @@ import { ListsPage } from './pages/ListsPage'
 import { StudentsOverviewPage } from './pages/StudentsOverviewPage'
 import { SubmissionHistoryPage } from './pages/SubmissionHistoryPage'
 import { SubmissionPage } from './pages/SubmissionPage'
+import { LiveSessionsPage } from './pages/LiveSessionsPage'
 
 const isOnlyLists = import.meta.env.VITE_ONLY_LISTS_MODE === 'true'
 console.log('VITE_ONLY_LISTS_MODE:', isOnlyLists)
@@ -62,6 +63,8 @@ function App() {
                 </RequireTeacher>
               }
             />
+            <Route path="/sessoes" element={<RequireAuth><LiveSessionsPage /></RequireAuth>} />
+            <Route path="/sessoes/:id" element={<RequireAuth><LiveSessionsPage /></RequireAuth>} />
 
             {/* Rotas de Judge/Desafios (Desativadas se isOnlyLists = true) */}
             {!isOnlyLists && (

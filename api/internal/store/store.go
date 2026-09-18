@@ -174,6 +174,7 @@ type Submission struct {
 	MemoryLimitMb int       `json:"memory_limit_mb"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+	LiveSessionID *string   `json:"live_session_id"`
 }
 
 type CreateSubmissionRequest struct {
@@ -183,7 +184,8 @@ type CreateSubmissionRequest struct {
 	SourceCode  string
 	// IsTestRun is derived server-side from the caller's JWT role — never
 	// trust this from client input.
-	IsTestRun bool
+	IsTestRun     bool
+	LiveSessionID *string
 }
 
 type Store struct {
@@ -567,10 +569,10 @@ func (s *Store) CreateSubmission(ctx context.Context, req CreateSubmissionReques
 
 	var sub Submission
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO submissions (challenge_id, user_id, language, source_code, is_test_run)
-		 VALUES ($1, NULLIF($2, '')::uuid, $3, $4, $5)
+		`INSERT INTO submissions (challenge_id, user_id, language, source_code, is_test_run, live_session_id)
+		 VALUES ($1, NULLIF($2, '')::uuid, $3, $4, $5, NULLIF($6, '')::uuid)
 		 RETURNING id, challenge_id, language, source_code, status, created_at, updated_at`,
-		req.ChallengeID, req.UserID, req.Language, req.SourceCode, req.IsTestRun,
+		req.ChallengeID, req.UserID, req.Language, req.SourceCode, req.IsTestRun, req.LiveSessionID,
 	).Scan(&sub.ID, &sub.ChallengeID, &sub.Language, &sub.SourceCode,
 		&sub.Status, &sub.CreatedAt, &sub.UpdatedAt)
 	if err != nil {
@@ -604,7 +606,7 @@ func (s *Store) GetSubmission(ctx context.Context, id string) (Submission, error
 		        s.failed_input, s.failed_is_sample,
 		        s.passed_count, s.total_test_cases,
 		        c.time_limit_ms, c.memory_limit_mb,
-		        s.created_at, s.updated_at
+		        s.created_at, s.updated_at, s.live_session_id
 		 FROM submissions s
 		 JOIN challenges c ON c.id = s.challenge_id
 		 WHERE s.id = $1`, id)
@@ -614,13 +616,19 @@ func (s *Store) GetSubmission(ctx context.Context, id string) (Submission, error
 		&sub.FailedInput, &sub.FailedIsSample,
 		&sub.PassedCount, &sub.TotalTestCases,
 		&sub.TimeLimitMs, &sub.MemoryLimitMb,
-		&sub.CreatedAt, &sub.UpdatedAt); err != nil {
+		&sub.CreatedAt, &sub.UpdatedAt, &sub.LiveSessionID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Submission{}, ErrNotFound
 		}
 		return Submission{}, err
 	}
 	return sub, nil
+}
+
+func (s *Store) OwnsSubmission(ctx context.Context, id, userID string) (bool, error) {
+	var owned bool
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM submissions WHERE id=$1 AND user_id=$2)`, id, userID).Scan(&owned)
+	return owned, err
 }
 
 // ChallengeStats aggregates accepted-run timing for one challenge, plus the

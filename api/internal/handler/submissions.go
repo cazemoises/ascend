@@ -27,8 +27,9 @@ var validLanguages = map[string]bool{
 }
 
 type createSubmissionBody struct {
-	Language   string `json:"language"`
-	SourceCode string `json:"source_code"`
+	Language      string  `json:"language"`
+	SourceCode    string  `json:"source_code"`
+	LiveSessionID *string `json:"live_session_id"`
 }
 
 // CreateSubmission is registered by the router behind JWT auth, unlike the
@@ -59,6 +60,12 @@ func (h *ChallengesHandler) CreateSubmission(w http.ResponseWriter, r *http.Requ
 	}
 
 	challengeID := chi.URLParam(r, "id")
+	if body.LiveSessionID != nil && *body.LiveSessionID != "" {
+		if err := h.store.ValidateLiveSubmission(r.Context(), *body.LiveSessionID, claims.UserID, challengeID); err != nil {
+			writeError(w, http.StatusUnprocessableEntity, "live session is not active or does not include this challenge")
+			return
+		}
+	}
 	sub, err := h.store.CreateSubmission(r.Context(), store.CreateSubmissionRequest{
 		ChallengeID: challengeID,
 		UserID:      claims.UserID,
@@ -67,7 +74,8 @@ func (h *ChallengesHandler) CreateSubmission(w http.ResponseWriter, r *http.Requ
 		// Derived server-side from the verified JWT role — never trust this
 		// from the request body, since a teacher testing their own challenge
 		// shouldn't contaminate student-facing aggregate stats.
-		IsTestRun: claims.Role == "teacher",
+		IsTestRun:     claims.Role == "teacher",
+		LiveSessionID: body.LiveSessionID,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -159,6 +167,11 @@ func (h *ChallengesHandler) ListMySubmissions(w http.ResponseWriter, r *http.Req
 }
 
 func (h *ChallengesHandler) GetSubmission(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.FromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
 	id := chi.URLParam(r, "id")
 	sub, err := h.store.GetSubmission(r.Context(), id)
 	if err != nil {
@@ -168,6 +181,15 @@ func (h *ChallengesHandler) GetSubmission(w http.ResponseWriter, r *http.Request
 		}
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
+	}
+	if claims.Role != "teacher" {
+		// Students can only retrieve their own source/results. The ownership
+		// check stays in the store query path for compatibility with old rows.
+		owned, err := h.store.OwnsSubmission(r.Context(), id, claims.UserID)
+		if err != nil || !owned {
+			writeError(w, http.StatusForbidden, "submission belongs to another user")
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, sub)
 }

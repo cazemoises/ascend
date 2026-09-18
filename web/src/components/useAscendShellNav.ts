@@ -26,6 +26,7 @@ const ICON_HISTORY =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
 const ICON_STUDENTS =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
+const ICON_LIVE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg>'
 
 interface NavItemDef {
   id: string
@@ -42,6 +43,7 @@ function buildNavItems(isAuthenticated: boolean, isTeacher: boolean): NavItemDef
   const items: NavItemDef[] = []
   if (!isOnlyLists) items.push({ id: 'challenges', label: 'desafios', path: '/', icon: ICON_CHALLENGES })
   items.push({ id: 'lists', label: 'listas', path: '/listas', icon: ICON_LISTS })
+  if (isAuthenticated) items.push({ id: 'live', label: 'sessões ao vivo', path: '/sessoes', icon: ICON_LIVE })
   if (isAuthenticated && !isOnlyLists) items.push({ id: 'history', label: 'histórico', path: '/submissions', icon: ICON_HISTORY })
   if (isTeacher) items.push({ id: 'progress', label: 'progresso', path: '/progresso', icon: ICON_STUDENTS })
   return items

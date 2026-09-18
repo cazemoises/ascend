@@ -138,6 +138,7 @@ const FILE_NAMES: Record<SubmissionLanguage, string> = {
 
 export function ChallengePage() {
   const { id } = useParams<{ id: string }>()
+  const liveSessionId = new URLSearchParams(window.location.search).get('liveSessionId') ?? undefined
   const navigate = useNavigate()
   const { isTeacher } = useAuth()
 
@@ -250,10 +251,11 @@ export function ChallengePage() {
       const payload: CreateSubmissionRequest = {
         language,
         source_code: sourceCode,
+        ...(liveSessionId ? { live_session_id: liveSessionId } : {}),
       }
 
       const response = await createSubmission(id, payload)
-      navigate(`/challenges/${id}/submissions/${response.submission_id}`)
+      navigate(`/challenges/${id}/submissions/${response.submission_id}${liveSessionId ? `?liveSessionId=${liveSessionId}` : ''}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao enviar a solução')
     } finally {

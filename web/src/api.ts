@@ -146,6 +146,7 @@ export interface Submission {
 export interface CreateSubmissionRequest {
   language: SubmissionLanguage
   source_code: string
+  live_session_id?: string
 }
 
 export interface CreateSubmissionResponse {
@@ -661,3 +662,20 @@ export function completeListItem(itemId: string) {
 export function uncompleteListItem(itemId: string) {
   return requestJSON<void>(`/api/v1/list-items/${itemId}/complete`, { method: 'DELETE' })
 }
+
+export interface LiveSession {
+  id: string; problem_list_id: string; created_by: string; status: 'waiting' | 'active' | 'finished'
+  min_participants: number; started_at: string | null; finished_at: string | null; created_at: string
+  title: string; teacher_email: string; participant_count: number; joined: boolean; items: ListItem[]
+}
+export interface LiveParticipant { user_id: string; email: string; joined_at: string }
+export interface LiveSessionDetail { session: LiveSession; participants: LiveParticipant[] }
+export interface LiveCell { challenge_id: string; attempts: number; accepted: boolean }
+export interface LiveStudentProgress { user_id: string; email: string; challenges: Record<string, LiveCell>; attempts: number; accepted: number }
+export interface LiveDashboard { session: LiveSession; participants: LiveParticipant[]; students: LiveStudentProgress[]; challenge_attempts: Record<string, number>; challenge_accepted: Record<string, number> }
+export function listLiveSessions() { return requestJSON<LiveSession[]>('/api/v1/live-sessions') }
+export function getLiveSession(id: string) { return requestJSON<LiveSessionDetail>(`/api/v1/live-sessions/${id}`) }
+export function createLiveSession(problem_list_id: string, min_participants: number) { return requestJSON<LiveSession>('/api/v1/live-sessions', {method:'POST', body:JSON.stringify({problem_list_id,min_participants})}) }
+export function joinLiveSession(id: string) { return requestJSON<LiveSession>(`/api/v1/live-sessions/${id}/join`, {method:'POST'}) }
+export function finishLiveSession(id: string) { return requestJSON<void>(`/api/v1/live-sessions/${id}/finish`, {method:'POST'}) }
+export function getLiveDashboard(id: string) { return requestJSON<LiveDashboard>(`/api/v1/live-sessions/${id}/dashboard`) }

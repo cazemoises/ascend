@@ -82,6 +82,17 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter) chi.Rout
 		r.With(auth.RequireAuthenticated).Get("/submissions", ch.ListMySubmissions)
 		r.Get("/submissions/{id}", ch.GetSubmission)
 
+		lhv := handler.NewLiveSessionsHandler(s)
+		r.Route("/live-sessions", func(r chi.Router) {
+			r.Use(auth.RequireAuthenticated)
+			r.Get("/", lhv.List)
+			r.Post("/", lhv.Create)
+			r.Get("/{id}", lhv.Get)
+			r.Post("/{id}/join", lhv.Join)
+			r.Post("/{id}/finish", lhv.Finish)
+			r.Get("/{id}/dashboard", lhv.Dashboard)
+		})
+
 		th := handler.NewTeacherHandler(s)
 		r.With(auth.RequireAuthenticated, teacherOnly).Get("/teacher/students-overview", th.StudentsOverview)
 
