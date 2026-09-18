@@ -186,15 +186,15 @@ async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`
+    const body = await response.text()
     try {
-      const payload = (await response.json()) as { error?: string }
+      const payload = JSON.parse(body) as { error?: string }
       if (payload.error) {
         message = payload.error
       }
     } catch {
-      const text = await response.text()
-      if (text) {
-        message = text
+      if (body) {
+        message = body
       }
     }
     throw new ApiError(response.status, message)
