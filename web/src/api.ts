@@ -700,3 +700,35 @@ export function startLiveSessionRound(sessionID: string, roundID: string, durati
 export function endLiveSessionRound(sessionID: string, roundID: string) { return requestJSON<LiveSessionRound>(`/api/v1/live-sessions/${sessionID}/rounds/${roundID}/end`, {method:'POST'}) }
 export function getLiveRoundStatus(sessionID: string, roundID: string) { return requestJSON<LiveRoundLiveStatus>(`/api/v1/live-sessions/${sessionID}/rounds/${roundID}/live-status`) }
 export function getCurrentLiveSessionRound(sessionID: string) { return requestJSON<LiveSessionRound | null>(`/api/v1/live-sessions/${sessionID}/current-round`) }
+
+export type LiveRoomStatus = 'open' | 'frozen'
+export type LiveRoomFrozenReason = 'time_limit' | 'all_done' | 'teacher_forced'
+export interface LiveRoomSummary {
+  list_item_id: string
+  item_title: string
+  challenge_title: string | null
+  room_id: string | null
+  status: LiveRoomStatus | null
+  present_count: number
+  // Only populated for a teacher viewer (GET .../rooms).
+  participants?: LiveParticipant[]
+}
+export interface LiveSessionRoom {
+  id: string
+  session_id: string
+  list_item_id: string
+  status: LiveRoomStatus
+  text_snapshot: string
+  snapshot_updated_at: string | null
+  frozen_at: string | null
+  frozen_reason: LiveRoomFrozenReason | null
+}
+export interface LiveRoomResult { room: LiveSessionRoom; submission: Submission | null }
+export function listLiveRooms(sessionID: string) { return requestJSON<LiveRoomSummary[]>(`/api/v1/live-sessions/${sessionID}/rooms`) }
+export function markLiveRoomDone(sessionID: string, listItemID: string) { return requestJSON<void>(`/api/v1/live-sessions/${sessionID}/rooms/${listItemID}/mark-done`, { method: 'POST' }) }
+export function forceEndLiveRoom(sessionID: string, listItemID: string) { return requestJSON<void>(`/api/v1/live-sessions/${sessionID}/rooms/${listItemID}/force-end`, { method: 'POST' }) }
+export function getLiveRoomResult(sessionID: string, listItemID: string) { return requestJSON<LiveRoomResult>(`/api/v1/live-sessions/${sessionID}/rooms/${listItemID}/result`) }
+export function liveRoomWebsocketURL(sessionID: string, listItemID: string): string {
+  const base = API_BASE_URL ? API_BASE_URL.replace(/^http/, 'ws') : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
+  return `${base}/api/v1/live-sessions/${sessionID}/rooms/${listItemID}/ws`
+}

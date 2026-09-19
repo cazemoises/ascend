@@ -68,7 +68,7 @@ func TestLiveSessionPreview_DoesNotExposeClassroomDataBeforeJoin(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = db.ExecContext(ctx, `DELETE FROM live_sessions WHERE id = $1`, session.ID) })
 
-	h := NewLiveSessionsHandler(s)
+	h := NewLiveSessionsHandler(s, nil, nil)
 	r := chi.NewRouter()
 	r.Get("/live-sessions/{id}", h.Get)
 
@@ -133,7 +133,7 @@ func TestCreateLiveSession_ListWithoutLinkedChallenge_Returns422(t *testing.T) {
 		t.Fatalf("CreateListItem: %v", err)
 	}
 
-	h := NewLiveSessionsHandler(s)
+	h := NewLiveSessionsHandler(s, nil, nil)
 	r := chi.NewRouter()
 	r.Post("/live-sessions", h.Create)
 
@@ -193,7 +193,7 @@ func TestLiveSessionJoin_RejectsTeacherPreview(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = db.ExecContext(ctx, `DELETE FROM live_sessions WHERE id = $1`, session.ID) })
 
-	h := NewLiveSessionsHandler(s)
+	h := NewLiveSessionsHandler(s, nil, nil)
 	r := chi.NewRouter()
 	r.Post("/live-sessions/{id}/join", h.Join)
 	req := httptest.NewRequest(http.MethodPost, "/live-sessions/"+session.ID+"/join", nil)

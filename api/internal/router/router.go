@@ -19,7 +19,7 @@ var allowedOrigins = map[string]struct{}{
 	"http://localhost:5174": {},
 }
 
-func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter, hubs ...*handler.LiveHub) chi.Router {
+func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter, hub *handler.LiveHub, roomHub *handler.RoomHub) chi.Router {
 	r := chi.NewRouter()
 	r.Use(cors)
 	r.Use(middleware.RequestID)
@@ -82,7 +82,7 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter, hubs ...
 		r.With(auth.RequireAuthenticated).Get("/submissions", ch.ListMySubmissions)
 		r.Get("/submissions/{id}", ch.GetSubmission)
 
-		lhv := handler.NewLiveSessionsHandler(s, hubs...)
+		lhv := handler.NewLiveSessionsHandler(s, hub, roomHub)
 		r.Route("/live-sessions", func(r chi.Router) {
 			r.Use(auth.RequireAuthenticated)
 			r.Get("/", lhv.List)
@@ -97,6 +97,11 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter, hubs ...
 			r.Get("/{id}/rounds/{round_id}/live-status", lhv.LiveRoundStatus)
 			r.Get("/{id}/current-round", lhv.CurrentRound)
 			r.Get("/{id}/events", lhv.Events)
+			r.Get("/{id}/rooms", lhv.ListRooms)
+			r.Get("/{id}/rooms/{list_item_id}/ws", lhv.RoomWS)
+			r.Post("/{id}/rooms/{list_item_id}/mark-done", lhv.MarkRoomDone)
+			r.Post("/{id}/rooms/{list_item_id}/force-end", lhv.ForceEndRoom)
+			r.Get("/{id}/rooms/{list_item_id}/result", lhv.RoomResult)
 		})
 
 		th := handler.NewTeacherHandler(s)

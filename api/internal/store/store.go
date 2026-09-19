@@ -186,6 +186,7 @@ type CreateSubmissionRequest struct {
 	// trust this from client input.
 	IsTestRun     bool
 	LiveSessionID *string
+	LiveRoomID    *string
 }
 
 type Store struct {
@@ -569,10 +570,10 @@ func (s *Store) CreateSubmission(ctx context.Context, req CreateSubmissionReques
 
 	var sub Submission
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO submissions (challenge_id, user_id, language, source_code, is_test_run, live_session_id)
-		 VALUES ($1, NULLIF($2, '')::uuid, $3, $4, $5, NULLIF($6, '')::uuid)
+		`INSERT INTO submissions (challenge_id, user_id, language, source_code, is_test_run, live_session_id, live_room_id)
+		 VALUES ($1, NULLIF($2, '')::uuid, $3, $4, $5, NULLIF($6, '')::uuid, NULLIF($7, '')::uuid)
 		 RETURNING id, challenge_id, language, source_code, status, created_at, updated_at`,
-		req.ChallengeID, req.UserID, req.Language, req.SourceCode, req.IsTestRun, req.LiveSessionID,
+		req.ChallengeID, req.UserID, req.Language, req.SourceCode, req.IsTestRun, req.LiveSessionID, req.LiveRoomID,
 	).Scan(&sub.ID, &sub.ChallengeID, &sub.Language, &sub.SourceCode,
 		&sub.Status, &sub.CreatedAt, &sub.UpdatedAt)
 	if err != nil {

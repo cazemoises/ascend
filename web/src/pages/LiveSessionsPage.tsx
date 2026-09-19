@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
-import { API_BASE_URL, createLiveSession, createLiveSessionRounds, endLiveSessionRound, finishLiveSession, getCurrentLiveSessionRound, getLiveDashboard, getLiveRoundStatus, getLiveSession, joinLiveSession, listLiveSessions, listProblemLists, startLiveSessionRound, type LiveDashboard, type LiveRoundLiveStatus, type LiveSession, type LiveSessionDetail, type LiveSessionRound, type ProblemList } from '../api'
+import { API_BASE_URL, createLiveSession, createLiveSessionRounds, endLiveSessionRound, finishLiveSession, getCurrentLiveSessionRound, getLiveDashboard, getLiveRoundStatus, getLiveSession, joinLiveSession, listLiveRooms, listLiveSessions, listProblemLists, startLiveSessionRound, type LiveDashboard, type LiveRoomSummary, type LiveRoundLiveStatus, type LiveSession, type LiveSessionDetail, type LiveSessionRound, type ProblemList } from '../api'
 import { useAuth } from '../auth/useAuth'
 
 const POLL_MS = 2000
@@ -114,6 +114,7 @@ export function LiveSessionsPage() {
       <label>Modo<select value={mode} onChange={(event) => setMode(event.target.value as LiveSession['mode'])}>
         <option value="individual">Individual (ritmo livre)</option>
         <option value="timed_challenge">Desafio cronometrado</option>
+        <option value="collaborative">Colaborativo (edição em grupo)</option>
       </select></label>
       <label>Mínimo de participantes<input type="number" min="1" value={minimum} onChange={(event) => setMinimum(Math.max(1, Number(event.target.value) || 1))} /></label>
       <button className="challenge-submit" disabled={!listID || !lists.find((list) => list.id === listID)?.live_session_eligible || actionPending}>{actionPending ? 'criando...' : 'criar sessão'}</button>
@@ -146,6 +147,8 @@ export function LiveSessionsPage() {
     </div></section>
     {session.mode === 'timed_challenge' ? (
       isOwner ? <TimedTeacherPanel sessionID={session.id} items={session.items} /> : <TimedStudentPanel sessionID={session.id} items={session.items} />
+    ) : session.mode === 'collaborative' && canSeeExercises ? (
+      <CollaborativeRoomsPanel sessionID={session.id} isOwner={isOwner} />
     ) : isOwner && dashboard ? <Dashboard dashboard={dashboard} /> : null}
   </main>
 }
@@ -250,6 +253,54 @@ function TimedStudentPanel({ sessionID, items }: { sessionID: string; items: Liv
   return <section className="panel submission-panel"><div className="submission-panel__body"><h2>{roundTitle(round, items)}</h2><p className="muted">{isActive ? `Tempo restante: ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}` : 'Esta rodada foi encerrada.'}</p>
     {item?.linked_challenge_id ? <Link className="challenge-submit" to={`/challenges/${item.linked_challenge_id}?liveSessionId=${sessionID}`}>{isActive ? 'resolver desafio' : 'ver desafio'}</Link> : <p className="status-message status-error">Este item não possui desafio vinculado.</p>}
   </div></section>
+}
+
+function roomStatusText(status: LiveRoomSummary['status']): string {
+  return status === 'frozen' ? 'encerrada' : status === 'open' ? 'em andamento' : 'não iniciada'
+}
+
+function CollaborativeRoomsPanel({ sessionID, isOwner }: { sessionID: string; isOwner: boolean }) {
+  const [rooms, setRooms] = useState<LiveRoomSummary[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    let timer: number | undefined
+    const poll = async () => {
+      try {
+        const next = await listLiveRooms(sessionID)
+        if (!cancelled) setRooms(next)
+      } catch (cause) {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Falha ao carregar salas')
+      }
+      if (!cancelled) timer = window.setTimeout(() => void poll(), POLL_MS)
+    }
+    void poll()
+    return () => { cancelled = true; if (timer !== undefined) window.clearTimeout(timer) }
+  }, [sessionID])
+
+  return <section className="history-section"><h2 className="section-title">Salas colaborativas</h2>
+    {error ? <p className="status-message status-error">{error}</p> : null}
+    <div className="list-items">{rooms.map((room) => (
+      <article className="list-item" key={room.list_item_id}>
+        <div className="list-item__head">
+          <div>
+            <strong>{room.item_title}</strong>
+            <p className="muted">
+              {roomStatusText(room.status)} · {room.present_count} presente(s)
+              {isOwner && room.participants && room.participants.length > 0
+                ? ` · ${room.participants.map((p) => p.email).join(', ')}`
+                : ''}
+            </p>
+          </div>
+          <Link className="challenge-submit" to={`/sessoes/${sessionID}/salas/${room.list_item_id}`}>
+            {room.status === 'frozen' ? 'ver resultado' : 'entrar'}
+          </Link>
+        </div>
+      </article>
+    ))}</div>
+    {rooms.length === 0 ? <p className="muted">Nenhum desafio disponível nesta lista.</p> : null}
+  </section>
 }
 
 function Dashboard({ dashboard }: { dashboard: LiveDashboard }) {

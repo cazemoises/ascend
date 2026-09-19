@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 
 import { AuthProvider } from './auth/AuthContext'
 import { RequireAuth, RequireTeacher } from './auth/RequireAuth'
@@ -11,10 +11,20 @@ import { ListsPage } from './pages/ListsPage'
 import { StudentsOverviewPage } from './pages/StudentsOverviewPage'
 import { SubmissionHistoryPage } from './pages/SubmissionHistoryPage'
 import { SubmissionPage } from './pages/SubmissionPage'
+import { LiveRoomPage } from './pages/LiveRoomPage'
 import { LiveSessionsPage } from './pages/LiveSessionsPage'
 
 const isOnlyLists = import.meta.env.VITE_ONLY_LISTS_MODE === 'true'
 console.log('VITE_ONLY_LISTS_MODE:', isOnlyLists)
+
+// React Router keeps the same LiveRoomPage instance alive across a
+// room-to-room navigation (only :id/:itemId change, not the matched
+// element) — this key forces a full remount instead, so each room gets its
+// own websocket/Y.Doc lifecycle rather than reusing a stale one.
+function LiveRoomPageWithKey() {
+  const { id, itemId } = useParams<{ id: string; itemId: string }>()
+  return <LiveRoomPage key={`${id}-${itemId}`} />
+}
 
 function App() {
   return (
@@ -65,6 +75,7 @@ function App() {
             />
             <Route path="/sessoes" element={<RequireAuth><LiveSessionsPage /></RequireAuth>} />
             <Route path="/sessoes/:id" element={<RequireAuth><LiveSessionsPage /></RequireAuth>} />
+            <Route path="/sessoes/:id/salas/:itemId" element={<RequireAuth><LiveRoomPageWithKey /></RequireAuth>} />
 
             {/* Rotas de Judge/Desafios (Desativadas se isOnlyLists = true) */}
             {!isOnlyLists && (

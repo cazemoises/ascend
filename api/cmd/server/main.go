@@ -110,6 +110,8 @@ func main() {
 	s := store.New(db, rdb)
 	hub := handler.NewLiveHub()
 	go hub.Run(context.Background(), rdb)
+	roomHub := handler.NewRoomHub()
+	go roomHub.Run(context.Background(), rdb)
 
 	devFakeEmail := os.Getenv("DEV_FAKE_EMAIL")
 	if devFakeEmail != "" {
@@ -127,7 +129,7 @@ func main() {
 		addr = "0.0.0.0:8080"
 	}
 
-	r := router.New(s, pa, rl, hub)
+	r := router.New(s, pa, rl, hub, roomHub)
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: r,

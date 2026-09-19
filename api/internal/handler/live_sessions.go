@@ -4,29 +4,32 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/caze/ascend/api/internal/auth"
-	"github.com/caze/ascend/api/internal/store"
-	"github.com/go-chi/chi/v5"
-	"github.com/gorilla/websocket"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/gorilla/websocket"
+
+	"github.com/caze/ascend/api/internal/auth"
+	"github.com/caze/ascend/api/internal/store"
 )
 
 type LiveSessionsHandler struct {
-	store *store.Store
-	hub   *LiveHub
+	store   *store.Store
+	hub     *LiveHub
+	roomHub *RoomHub
 }
 
-func NewLiveSessionsHandler(s *store.Store, hubs ...*LiveHub) *LiveSessionsHandler {
-	var hub *LiveHub
-	if len(hubs) > 0 {
-		hub = hubs[0]
-	}
+func NewLiveSessionsHandler(s *store.Store, hub *LiveHub, roomHub *RoomHub) *LiveSessionsHandler {
 	if hub == nil {
 		hub = NewLiveHub()
 	}
-	return &LiveSessionsHandler{store: s, hub: hub}
+	if roomHub == nil {
+		roomHub = NewRoomHub()
+	}
+	return &LiveSessionsHandler{store: s, hub: hub, roomHub: roomHub}
 }
 func liveClaims(w http.ResponseWriter, r *http.Request) (auth.Claims, bool) {
 	c, ok := auth.FromContext(r.Context())
@@ -294,7 +297,8 @@ func (h *LiveSessionsHandler) Finish(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 403, "insufficient permissions")
 		return
 	}
-	err := h.store.FinishLiveSession(r.Context(), chi.URLParam(r, "id"), c.UserID)
+	id := chi.URLParam(r, "id")
+	err := h.store.FinishLiveSession(r.Context(), id, c.UserID)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, 404, "session not found or already finished")
 		return
@@ -302,6 +306,13 @@ func (h *LiveSessionsHandler) Finish(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, 500, "internal server error")
 		return
+	}
+	rooms, err := h.store.FreezeOpenLiveRoomsForSession(r.Context(), id, "time_limit")
+	if err != nil {
+		slog.Error("freeze live rooms on session finish", "session_id", id, "err", err)
+	}
+	for _, room := range rooms {
+		h.finishFrozenRoom(r.Context(), room, id)
 	}
 	w.WriteHeader(204)
 }
