@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 
-import { getSubmission, listChallenges, type Challenge, type Submission } from '../api'
+import { getLiveSession, getSubmission, listChallenges, type Challenge, type Submission } from '../api'
 import { ExecutionTrail } from '../components/ExecutionTrail'
 import { TelemetryChip } from '../components/TelemetryChip'
 import { VerdictBadge } from '../components/VerdictBadge'
@@ -61,6 +61,7 @@ function IconTestCount() {
 
 export function SubmissionPage() {
   const { id, subId } = useParams<{ id: string; subId: string }>()
+  const liveSessionId = new URLSearchParams(window.location.search).get('liveSessionId')
   const timeoutRef = useRef<number | null>(null)
 
   const [submission, setSubmission] = useState<Submission | null>(null)
@@ -151,7 +152,11 @@ export function SubmissionPage() {
     let active = true
     if (!id) return
 
-    listChallenges()
+    const challenges = liveSessionId
+      ? getLiveSession(liveSessionId).then((data) => data.session.items.map((item) => ({ id: item.linked_challenge_id ?? '', title: item.title } as Challenge)))
+      : listChallenges()
+
+    challenges
       .then((data) => {
         if (!active) return
         const ordered = orderForNextChallenge(data)
@@ -165,7 +170,7 @@ export function SubmissionPage() {
     return () => {
       active = false
     }
-  }, [id])
+  }, [id, liveSessionId])
 
   if (!id || !subId) {
     return <Navigate to="/" replace />
@@ -173,7 +178,7 @@ export function SubmissionPage() {
 
   return (
     <main className="page-shell page-shell--submission">
-      <Link className="back-link" to={`/challenges/${id}`}>
+      <Link className="back-link" to={liveSessionId ? `/sessoes/${liveSessionId}` : `/challenges/${id}`}>
         ← voltar ao desafio
       </Link>
 
@@ -294,7 +299,7 @@ export function SubmissionPage() {
                   <p className="submission-section-label">Ações</p>
                   <div className="submission-next-action">
                     {nextChallengeId ? (
-                      <Link className="challenge-submit" to={`/challenges/${nextChallengeId}`}>
+                      <Link className="challenge-submit" to={`/challenges/${nextChallengeId}${liveSessionId ? `?liveSessionId=${liveSessionId}` : ''}`}>
                         próximo desafio →
                       </Link>
                     ) : nextChallengeId === null ? (

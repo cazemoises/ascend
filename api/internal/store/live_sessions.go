@@ -79,7 +79,7 @@ func (s *Store) ListLiveSessions(ctx context.Context, viewerID string, teacher b
 func (s *Store) listLiveSessions(ctx context.Context, viewerID string, teacher bool) ([]LiveSession, error) {
 	q := `SELECT ` + liveColumns + `, EXISTS(SELECT 1 FROM live_session_participants p WHERE p.session_id=s.id AND p.user_id=$1) FROM live_sessions s JOIN problem_lists l ON l.id=s.problem_list_id JOIN users u ON u.id=s.created_by WHERE s.status <> 'finished'`
 	if teacher {
-		q += ` OR s.created_by=$1`
+		q += ` AND s.created_by=$1`
 	}
 	q += ` ORDER BY s.created_at DESC`
 	rows, err := s.db.QueryContext(ctx, q, viewerID)
@@ -198,10 +198,13 @@ func (s *Store) ValidateLiveSubmission(ctx context.Context, session, user, chall
 	}
 	return nil
 }
-func (s *Store) LiveDashboard(ctx context.Context, id, viewer string) (LiveDashboard, error) {
-	x, ps, err := s.GetLiveSession(ctx, id, viewer)
+func (s *Store) LiveDashboard(ctx context.Context, id, teacherID string) (LiveDashboard, error) {
+	x, ps, err := s.GetLiveSession(ctx, id, teacherID)
 	if err != nil {
 		return LiveDashboard{}, err
+	}
+	if x.CreatedBy != teacherID {
+		return LiveDashboard{}, ErrNotFound
 	}
 	d := LiveDashboard{Session: x, Participants: ps, Students: []LiveStudentProgress{}, ChallengeAttempts: map[string]int{}, ChallengeAccepted: map[string]int{}}
 	by := map[string]*LiveStudentProgress{}

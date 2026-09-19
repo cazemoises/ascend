@@ -74,7 +74,7 @@ func (h *ChallengesHandler) CreateSubmission(w http.ResponseWriter, r *http.Requ
 		// Derived server-side from the verified JWT role — never trust this
 		// from the request body, since a teacher testing their own challenge
 		// shouldn't contaminate student-facing aggregate stats.
-		IsTestRun:     claims.Role == "teacher",
+		IsTestRun:     claims.RealRole == "teacher",
 		LiveSessionID: body.LiveSessionID,
 	})
 	if err != nil {

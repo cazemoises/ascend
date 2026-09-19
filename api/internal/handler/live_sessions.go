@@ -47,6 +47,10 @@ func (h *LiveSessionsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "internal server error")
 		return
 	}
+	if !x.Joined && x.CreatedBy != c.UserID {
+		x.Items = []store.ListItem{}
+		ps = []store.LiveParticipant{}
+	}
 	writeJSON(w, 200, map[string]any{"session": x, "participants": ps})
 }
 func (h *LiveSessionsHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +90,7 @@ func (h *LiveSessionsHandler) Join(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if c.Role == "teacher" {
+	if c.RealRole == "teacher" {
 		writeError(w, 403, "teachers cannot join live sessions")
 		return
 	}
@@ -130,6 +134,10 @@ func (h *LiveSessionsHandler) Dashboard(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	if c.RealRole != "teacher" {
+		writeError(w, 403, "insufficient permissions")
+		return
+	}
 	d, err := h.store.LiveDashboard(r.Context(), chi.URLParam(r, "id"), c.UserID)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, 404, "session not found")
@@ -139,7 +147,7 @@ func (h *LiveSessionsHandler) Dashboard(w http.ResponseWriter, r *http.Request) 
 		writeError(w, 500, "internal server error")
 		return
 	}
-	if c.Role != "teacher" || d.Session.CreatedBy != c.UserID {
+	if d.Session.CreatedBy != c.UserID {
 		writeError(w, 403, "insufficient permissions")
 		return
 	}

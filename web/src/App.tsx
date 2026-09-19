@@ -19,7 +19,7 @@ console.log('VITE_ONLY_LISTS_MODE:', isOnlyLists)
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Routes>
           <Route element={<AppLayout />}>
             {/* Redirecionamento da raiz dependendo do modo */}

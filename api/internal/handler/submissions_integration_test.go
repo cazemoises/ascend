@@ -77,17 +77,19 @@ func TestCreateSubmission_IsTestRunDerivedFromRole(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		role     string
+		realRole string
 		wantTest bool
 	}{
-		{"teacher submission is a test run", "teacher", true},
-		{"student submission is a real run", "student", false},
+		{"teacher submission is a test run", "teacher", "teacher", true},
+		{"student submission is a real run", "student", "student", false},
+		{"teacher preview remains a test run", "student", "teacher", true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			body := `{"language":"go","source_code":"package main\nfunc main() {}"}`
 			req := httptest.NewRequest(http.MethodPost,
 				"/challenges/"+ch.ID+"/submissions", bytes.NewBufferString(body))
 			req.Header.Set("Content-Type", "application/json")
-			req = req.WithContext(auth.NewContext(req.Context(), auth.Claims{UserID: user.ID, Email: user.Email, Role: tt.role}))
+			req = req.WithContext(auth.NewContext(req.Context(), auth.Claims{UserID: user.ID, Email: user.Email, Role: tt.role, RealRole: tt.realRole}))
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 

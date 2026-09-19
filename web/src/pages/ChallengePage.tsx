@@ -198,15 +198,17 @@ export function ChallengePage() {
         // re-type work "Voltar ao desafio" would otherwise have discarded.
         // 404 (never submitted) is the common case, not an error — the
         // starter_code default set above stays in place.
-        try {
+        if (!liveSessionId) {
+          try {
           const last = await getLastSubmission(id)
           if (active) {
             setLanguage(last.language)
             setCodeByLanguage((prev) => ({ ...prev, [last.language]: last.source_code }))
           }
-        } catch {
+          } catch {
           // No previous submission, or a transient fetch error — either
           // way, keep the starter_code default.
+          }
         }
       } catch (err) {
         if (active) {
@@ -224,7 +226,7 @@ export function ChallengePage() {
     return () => {
       active = false
     }
-  }, [id])
+  }, [id, liveSessionId])
 
   useEffect(() => {
     if (!id) return

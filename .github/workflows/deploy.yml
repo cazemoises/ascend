@@ -49,6 +49,13 @@ jobs:
           docker compose logs web
           exit 1
 
+      - name: Smoke mounted Ascend routes
+        run: |
+          curl -fsS http://localhost:8000/ascend/ >/dev/null
+          curl -fsS http://localhost:8000/ascend/sessoes >/dev/null
+          status="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/ascend/api/v1/auth/me)"
+          test "$status" = "401"
+
       - name: Check judge is up
         run: |
           for i in $(seq 1 15); do
