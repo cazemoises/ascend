@@ -19,6 +19,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/caze/ascend/api/internal/handler"
 	appmw "github.com/caze/ascend/api/internal/middleware"
 	"github.com/caze/ascend/api/internal/router"
 	"github.com/caze/ascend/api/internal/store"
@@ -107,6 +108,8 @@ func main() {
 	slog.Info("connected to Redis")
 
 	s := store.New(db, rdb)
+	hub := handler.NewLiveHub()
+	go hub.Run(context.Background(), rdb)
 
 	devFakeEmail := os.Getenv("DEV_FAKE_EMAIL")
 	if devFakeEmail != "" {
@@ -124,7 +127,7 @@ func main() {
 		addr = "0.0.0.0:8080"
 	}
 
-	r := router.New(s, pa, rl)
+	r := router.New(s, pa, rl, hub)
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: r,

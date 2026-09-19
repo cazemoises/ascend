@@ -526,6 +526,14 @@ export interface ProblemList {
   // exclusive: a list is never both.
   is_current?: boolean
   is_upcoming?: boolean
+  // Only present on the GET /lists collection response. Count of this
+  // list's items with a linked_challenge_id set. A Live Session can only be
+  // created from a list with at least one such item (the backend rejects
+  // creation otherwise with 422 "problem list needs at least one linked
+  // challenge") — live_session_eligible is that same check (count > 0),
+  // precomputed so the UI doesn't have to duplicate the rule.
+  linked_challenge_count?: number
+  live_session_eligible?: boolean
 }
 
 export interface ListItem {
@@ -665,6 +673,7 @@ export function uncompleteListItem(itemId: string) {
 
 export interface LiveSession {
   id: string; problem_list_id: string; created_by: string; status: 'waiting' | 'active' | 'finished'
+  mode: 'individual' | 'timed_challenge' | 'collaborative'
   min_participants: number; started_at: string | null; finished_at: string | null; created_at: string
   title: string; teacher_email: string; participant_count: number; joined: boolean; items: ListItem[]
 }
@@ -673,9 +682,21 @@ export interface LiveSessionDetail { session: LiveSession; participants: LivePar
 export interface LiveCell { challenge_id: string; attempts: number; accepted: boolean }
 export interface LiveStudentProgress { user_id: string; email: string; challenges: Record<string, LiveCell>; attempts: number; accepted: number }
 export interface LiveDashboard { session: LiveSession; participants: LiveParticipant[]; students: LiveStudentProgress[]; challenge_attempts: Record<string, number>; challenge_accepted: Record<string, number> }
+export interface LiveSessionRound {
+  id: string; session_id: string; list_item_id: string; duration_seconds: number
+  started_at: string | null; ended_at: string | null; status: 'pending' | 'active' | 'ended'; sequence: number
+}
+export type LiveRoundSubmissionStatus = 'not_started' | 'submitted_pending' | 'passed' | 'failed'
+export interface LiveRoundStudentStatus { user_id: string; email: string; status: LiveRoundSubmissionStatus }
+export interface LiveRoundLiveStatus { round: LiveSessionRound; students: LiveRoundStudentStatus[] }
 export function listLiveSessions() { return requestJSON<LiveSession[]>('/api/v1/live-sessions') }
 export function getLiveSession(id: string) { return requestJSON<LiveSessionDetail>(`/api/v1/live-sessions/${id}`) }
-export function createLiveSession(problem_list_id: string, min_participants: number) { return requestJSON<LiveSession>('/api/v1/live-sessions', {method:'POST', body:JSON.stringify({problem_list_id,min_participants})}) }
+export function createLiveSession(problem_list_id: string, min_participants: number, mode: LiveSession['mode'] = 'individual') { return requestJSON<LiveSession>('/api/v1/live-sessions', {method:'POST', body:JSON.stringify({problem_list_id,min_participants,mode})}) }
 export function joinLiveSession(id: string) { return requestJSON<LiveSession>(`/api/v1/live-sessions/${id}/join`, {method:'POST'}) }
 export function finishLiveSession(id: string) { return requestJSON<void>(`/api/v1/live-sessions/${id}/finish`, {method:'POST'}) }
 export function getLiveDashboard(id: string) { return requestJSON<LiveDashboard>(`/api/v1/live-sessions/${id}/dashboard`) }
+export function createLiveSessionRounds(id: string) { return requestJSON<LiveSessionRound[]>(`/api/v1/live-sessions/${id}/rounds`, {method:'POST'}) }
+export function startLiveSessionRound(sessionID: string, roundID: string, duration_seconds: number) { return requestJSON<LiveSessionRound>(`/api/v1/live-sessions/${sessionID}/rounds/${roundID}/start`, {method:'POST', body:JSON.stringify({duration_seconds})}) }
+export function endLiveSessionRound(sessionID: string, roundID: string) { return requestJSON<LiveSessionRound>(`/api/v1/live-sessions/${sessionID}/rounds/${roundID}/end`, {method:'POST'}) }
+export function getLiveRoundStatus(sessionID: string, roundID: string) { return requestJSON<LiveRoundLiveStatus>(`/api/v1/live-sessions/${sessionID}/rounds/${roundID}/live-status`) }
+export function getCurrentLiveSessionRound(sessionID: string) { return requestJSON<LiveSessionRound | null>(`/api/v1/live-sessions/${sessionID}/current-round`) }

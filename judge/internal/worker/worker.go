@@ -20,10 +20,12 @@ type SubmissionJob struct {
 }
 
 type submissionRecord struct {
-	ID          string
-	ChallengeID string
-	Language    string
-	SourceCode  string
+	ID            string
+	ChallengeID   string
+	Language      string
+	SourceCode    string
+	UserID        sql.NullString
+	LiveSessionID sql.NullString
 }
 
 type challengeRecord struct {
@@ -92,6 +94,7 @@ func (q *redisQueue) pop(ctx context.Context) (string, error) {
 
 type Worker struct {
 	queue    queue
+	redis    *redis.Client
 	db       *sql.DB
 	executor DockerExecutor
 	logger   *slog.Logger
@@ -100,6 +103,7 @@ type Worker struct {
 func New(client *redis.Client, db *sql.DB, executor DockerExecutor, logger *slog.Logger) *Worker {
 	return &Worker{
 		queue:    &redisQueue{client: client, key: "submissions"},
+		redis:    client,
 		db:       db,
 		executor: executor,
 		logger:   logger,
@@ -181,6 +185,16 @@ func (w *Worker) processSubmission(ctx context.Context, job SubmissionJob) error
 
 	if err := w.updateSubmissionResult(ctx, submission.ID, res); err != nil {
 		return fmt.Errorf("update submission %s status: %w", submission.ID, err)
+	}
+	if submission.LiveSessionID.Valid && submission.UserID.Valid && w.redis != nil {
+		var roundID string
+		err := w.db.QueryRowContext(ctx, `SELECT r.id FROM live_session_rounds r JOIN list_items li ON li.id=r.list_item_id WHERE r.session_id=$1 AND r.status='active' AND li.linked_challenge_id=$2`, submission.LiveSessionID.String, submission.ChallengeID).Scan(&roundID)
+		if err == nil {
+			payload, _ := json.Marshal(map[string]any{"session_id": submission.LiveSessionID.String, "type": "submission_update", "data": map[string]string{"round_id": roundID, "user_id": submission.UserID.String, "status": res.status}})
+			if err := w.redis.Publish(ctx, "live_session_events", payload).Err(); err != nil {
+				w.logger.Warn("publish live submission update", "err", err)
+			}
+		}
 	}
 
 	return nil
@@ -311,10 +325,10 @@ func sortedLines(s string) string {
 
 func (w *Worker) fetchSubmission(ctx context.Context, id string) (submissionRecord, error) {
 	row := w.db.QueryRowContext(ctx,
-		`SELECT id, challenge_id, language, source_code FROM submissions WHERE id = $1`, id)
+		`SELECT id, challenge_id, language, source_code, user_id, live_session_id FROM submissions WHERE id = $1`, id)
 
 	var submission submissionRecord
-	if err := row.Scan(&submission.ID, &submission.ChallengeID, &submission.Language, &submission.SourceCode); err != nil {
+	if err := row.Scan(&submission.ID, &submission.ChallengeID, &submission.Language, &submission.SourceCode, &submission.UserID, &submission.LiveSessionID); err != nil {
 		return submissionRecord{}, fmt.Errorf("scan submission %s: %w", id, err)
 	}
 	return submission, nil

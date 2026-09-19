@@ -178,3 +178,87 @@ func TestListLists_MultipleOverlappingCurrentWeeks(t *testing.T) {
 		t.Errorf("expected both overlapping lists to be is_current=true, got A=%v B=%v", gotA, gotB)
 	}
 }
+
+// TestListLists_ExposesLiveSessionEligibility covers the UX fix for the
+// reported 422: GET /lists must tell the caller, per list, whether it has
+// any item with a linked_challenge_id set — the same condition
+// CreateLiveSession requires (store.live_sessions.go) before it will create
+// a session. This is what lets the live-session creation UI disable
+// ineligible lists instead of only failing after submit.
+func TestListLists_ExposesLiveSessionEligibility(t *testing.T) {
+	db := openHandlerTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+
+	teacher, err := s.CreateUser(ctx, "lists-eligibility-integ@example.com", "unused-hash")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	t.Cleanup(func() { db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, teacher.ID) })
+
+	challenge, err := s.CreateChallenge(ctx, store.CreateChallengeRequest{
+		Slug: "lists-eligibility-challenge", Title: "Eligibility Challenge", Difficulty: "easy",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallenge: %v", err)
+	}
+	t.Cleanup(func() { _ = s.DeleteChallenge(ctx, challenge.ID) })
+
+	linked, err := s.CreateProblemList(ctx, store.CreateProblemListRequest{TeacherID: teacher.ID, Title: "Linked List"})
+	if err != nil {
+		t.Fatalf("CreateProblemList linked: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, linked.ID, teacher.ID) })
+	if _, err := s.CreateListItem(ctx, linked.ID, teacher.ID, store.CreateListItemRequest{
+		Title: "Item", Difficulty: "easy", LinkedChallengeID: &challenge.ID,
+	}); err != nil {
+		t.Fatalf("CreateListItem linked: %v", err)
+	}
+
+	unlinked, err := s.CreateProblemList(ctx, store.CreateProblemListRequest{TeacherID: teacher.ID, Title: "Unlinked List"})
+	if err != nil {
+		t.Fatalf("CreateProblemList unlinked: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, unlinked.ID, teacher.ID) })
+	if _, err := s.CreateListItem(ctx, unlinked.ID, teacher.ID, store.CreateListItemRequest{
+		Title: "Item", Difficulty: "easy", Body: "self-graded",
+	}); err != nil {
+		t.Fatalf("CreateListItem unlinked: %v", err)
+	}
+
+	r := newListsIntegrationRouter(s)
+	req := httptest.NewRequest(http.MethodGet, "/lists", nil)
+	req = req.WithContext(auth.NewContext(req.Context(), auth.Claims{UserID: teacher.ID, Email: teacher.Email, Role: "teacher"}))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /lists: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp []struct {
+		ID                   string `json:"id"`
+		LinkedChallengeCount int    `json:"linked_challenge_count"`
+		LiveSessionEligible  bool   `json:"live_session_eligible"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	countByID := map[string]int{}
+	eligibleByID := map[string]bool{}
+	seen := map[string]bool{}
+	for _, item := range resp {
+		countByID[item.ID] = item.LinkedChallengeCount
+		eligibleByID[item.ID] = item.LiveSessionEligible
+		seen[item.ID] = true
+	}
+
+	if !seen[linked.ID] || countByID[linked.ID] != 1 || !eligibleByID[linked.ID] {
+		t.Errorf("linked list: expected count=1 eligible=true, got count=%d eligible=%v (seen=%v)",
+			countByID[linked.ID], eligibleByID[linked.ID], seen[linked.ID])
+	}
+	if !seen[unlinked.ID] || countByID[unlinked.ID] != 0 || eligibleByID[unlinked.ID] {
+		t.Errorf("unlinked list: expected count=0 eligible=false, got count=%d eligible=%v (seen=%v)",
+			countByID[unlinked.ID], eligibleByID[unlinked.ID], seen[unlinked.ID])
+	}
+}

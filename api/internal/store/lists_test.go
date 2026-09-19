@@ -110,6 +110,60 @@ func TestCreateListItem_NotOwner_NotFound(t *testing.T) {
 	}
 }
 
+// TestLinkedChallengeCounts covers the count CreateLiveSession relies on
+// (list_items.linked_challenge_id IS NOT NULL, per list) to reject a
+// problem list with no judge-executable items: a list with one linked item
+// counts 1, a list with only self-graded items counts 0 (and is simply
+// absent from the map), and a nonexistent list ID never surfaces in the
+// result.
+func TestLinkedChallengeCounts(t *testing.T) {
+	db := openTestDB(t)
+	s := store.New(db, nil)
+	ctx := context.Background()
+	teacher := createTestUser(t, s, db, ctx, "lists-linked-counts-teacher@example.com")
+
+	challenge, err := s.CreateChallenge(ctx, store.CreateChallengeRequest{
+		Slug: "linked-counts-challenge", Title: "Linked Counts Challenge", Difficulty: "easy",
+	})
+	if err != nil {
+		t.Fatalf("CreateChallenge: %v", err)
+	}
+	t.Cleanup(func() { _ = s.DeleteChallenge(ctx, challenge.ID) })
+
+	linked, err := s.CreateProblemList(ctx, store.CreateProblemListRequest{TeacherID: teacher.ID, Title: "Linked"})
+	if err != nil {
+		t.Fatalf("CreateProblemList linked: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, linked.ID, teacher.ID) })
+	if _, err := s.CreateListItem(ctx, linked.ID, teacher.ID, store.CreateListItemRequest{
+		Title: "Item", Difficulty: "easy", LinkedChallengeID: &challenge.ID,
+	}); err != nil {
+		t.Fatalf("CreateListItem linked: %v", err)
+	}
+
+	unlinked, err := s.CreateProblemList(ctx, store.CreateProblemListRequest{TeacherID: teacher.ID, Title: "Unlinked"})
+	if err != nil {
+		t.Fatalf("CreateProblemList unlinked: %v", err)
+	}
+	t.Cleanup(func() { s.DeleteProblemList(ctx, unlinked.ID, teacher.ID) })
+	if _, err := s.CreateListItem(ctx, unlinked.ID, teacher.ID, store.CreateListItemRequest{
+		Title: "Item", Difficulty: "easy", Body: "self-graded",
+	}); err != nil {
+		t.Fatalf("CreateListItem unlinked: %v", err)
+	}
+
+	counts, err := s.LinkedChallengeCounts(ctx, []string{linked.ID, unlinked.ID, "00000000-0000-0000-0000-000000000000"})
+	if err != nil {
+		t.Fatalf("LinkedChallengeCounts: %v", err)
+	}
+	if counts[linked.ID] != 1 {
+		t.Errorf("linked list count = %d, want 1", counts[linked.ID])
+	}
+	if _, ok := counts[unlinked.ID]; ok && counts[unlinked.ID] != 0 {
+		t.Errorf("unlinked list count = %d, want 0 or absent", counts[unlinked.ID])
+	}
+}
+
 func TestImportProblemList_HappyPath(t *testing.T) {
 	db := openTestDB(t)
 	s := store.New(db, nil)

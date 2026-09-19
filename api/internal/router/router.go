@@ -19,7 +19,7 @@ var allowedOrigins = map[string]struct{}{
 	"http://localhost:5174": {},
 }
 
-func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter) chi.Router {
+func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter, hubs ...*handler.LiveHub) chi.Router {
 	r := chi.NewRouter()
 	r.Use(cors)
 	r.Use(middleware.RequestID)
@@ -82,7 +82,7 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter) chi.Rout
 		r.With(auth.RequireAuthenticated).Get("/submissions", ch.ListMySubmissions)
 		r.Get("/submissions/{id}", ch.GetSubmission)
 
-		lhv := handler.NewLiveSessionsHandler(s)
+		lhv := handler.NewLiveSessionsHandler(s, hubs...)
 		r.Route("/live-sessions", func(r chi.Router) {
 			r.Use(auth.RequireAuthenticated)
 			r.Get("/", lhv.List)
@@ -91,6 +91,12 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter) chi.Rout
 			r.Post("/{id}/join", lhv.Join)
 			r.Post("/{id}/finish", lhv.Finish)
 			r.Get("/{id}/dashboard", lhv.Dashboard)
+			r.Post("/{id}/rounds", lhv.CreateRounds)
+			r.Post("/{id}/rounds/{round_id}/start", lhv.StartRound)
+			r.Post("/{id}/rounds/{round_id}/end", lhv.EndRound)
+			r.Get("/{id}/rounds/{round_id}/live-status", lhv.LiveRoundStatus)
+			r.Get("/{id}/current-round", lhv.CurrentRound)
+			r.Get("/{id}/events", lhv.Events)
 		})
 
 		th := handler.NewTeacherHandler(s)

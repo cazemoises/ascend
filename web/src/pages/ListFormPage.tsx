@@ -505,6 +505,20 @@ export function ListFormPage() {
             Cada item é um exercício sem correção automática — regra, assinaturas e integração vão
             no corpo em markdown.
           </p>
+          <p className="studio__panel-hint">
+            {items.some((item) => item.linked_challenge_id !== '') ? (
+              <>
+                {items.filter((item) => item.linked_challenge_id !== '').length} item(ns) vinculado(s)
+                a um desafio — esta lista pode ser usada em uma Live Session.
+              </>
+            ) : (
+              <>
+                Nenhum item está vinculado a um desafio ainda — listas assim não podem ser usadas
+                para criar uma Live Session, pois o acompanhamento ao vivo depende de submissões ao
+                judge. Vincule pelo menos um item a um desafio abaixo para habilitar essa lista.
+              </>
+            )}
+          </p>
 
           <div className="tc-list">
             {items.map((item, index) => (

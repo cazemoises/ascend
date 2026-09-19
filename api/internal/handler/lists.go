@@ -79,13 +79,21 @@ func isUpcomingWeek(start *time.Time, now time.Time) bool {
 	return start.UTC().After(todayDate)
 }
 
-// problemListResponse adds the is_current/is_upcoming flags to a list
-// payload — derived from week_start/week_end and the current time, never
-// persisted.
+// problemListResponse adds fields derived at read time to a list payload,
+// never persisted on problem_lists itself:
+//   - is_current/is_upcoming, from week_start/week_end against now
+//   - linked_challenge_count/live_session_eligible, from list_items — the
+//     same "at least one linked item" rule CreateLiveSession enforces
+//     server-side (422 "problem list needs at least one linked challenge"
+//     otherwise). Exposed here so the live-session creation UI can disable
+//     or hide ineligible lists instead of letting the teacher hit that error
+//     after already filling out the form.
 type problemListResponse struct {
 	store.ProblemList
-	IsCurrent  bool `json:"is_current"`
-	IsUpcoming bool `json:"is_upcoming"`
+	IsCurrent            bool `json:"is_current"`
+	IsUpcoming           bool `json:"is_upcoming"`
+	LinkedChallengeCount int  `json:"linked_challenge_count"`
+	LiveSessionEligible  bool `json:"live_session_eligible"`
 }
 
 // Create handles POST /api/v1/lists (teacher only). New lists always start
@@ -225,13 +233,25 @@ func (h *ListsHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
+	ids := make([]string, len(lists))
+	for i, l := range lists {
+		ids[i] = l.ID
+	}
+	linkedCounts, err := h.store.LinkedChallengeCounts(r.Context(), ids)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
 	now := time.Now()
 	resp := make([]problemListResponse, 0, len(lists))
 	for _, l := range lists {
+		count := linkedCounts[l.ID]
 		resp = append(resp, problemListResponse{
-			ProblemList: l,
-			IsCurrent:   isCurrentWeek(l.WeekStart, l.WeekEnd, now),
-			IsUpcoming:  isUpcomingWeek(l.WeekStart, now),
+			ProblemList:          l,
+			IsCurrent:            isCurrentWeek(l.WeekStart, l.WeekEnd, now),
+			IsUpcoming:           isUpcomingWeek(l.WeekStart, now),
+			LinkedChallengeCount: count,
+			LiveSessionEligible:  count > 0,
 		})
 	}
 	writeJSON(w, http.StatusOK, resp)

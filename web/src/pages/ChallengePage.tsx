@@ -9,7 +9,9 @@ import {
   DIFFICULTY_LABELS,
   getChallenge,
   getChallengeStats,
+  getCurrentLiveSessionRound,
   getLastSubmission,
+  getLiveSession,
   listChallengeSubmissions,
   type Challenge,
   type ChallengeStats,
@@ -155,6 +157,7 @@ export function ChallengePage() {
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<boolean>(false)
+  const [timedRoundLocked, setTimedRoundLocked] = useState(false)
   const [submissions, setSubmissions] = useState<SubmissionSummary[]>([])
   const [stats, setStats] = useState<ChallengeStats | null>(null)
   // Métricas/Submissões live in a collapsible panel below the editor instead
@@ -238,11 +241,37 @@ export function ChallengePage() {
       .catch(() => {})
   }, [id])
 
+  useEffect(() => {
+    if (!liveSessionId || !id) {
+      queueMicrotask(() => setTimedRoundLocked(false))
+      return
+    }
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const [round, session] = await Promise.all([getCurrentLiveSessionRound(liveSessionId), getLiveSession(liveSessionId)])
+        const item = round ? session.session.items.find((candidate) => candidate.id === round.list_item_id) : undefined
+        const endsAt = round?.started_at ? new Date(round.started_at).getTime() + round.duration_seconds * 1000 : 0
+        const allowed = round?.status === 'active' && item?.linked_challenge_id === id && Date.now() < endsAt
+        if (!cancelled) setTimedRoundLocked(!allowed)
+      } catch {
+        if (!cancelled) setTimedRoundLocked(false)
+      }
+    }
+    void refresh()
+    const timer = window.setInterval(() => void refresh(), 1000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [id, liveSessionId])
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (!id) {
       setError('Desafio não encontrado')
+      return
+    }
+    if (timedRoundLocked) {
+      setError('Esta rodada não está aberta para submissões')
       return
     }
 
@@ -405,7 +434,7 @@ export function ChallengePage() {
                   minimap: { enabled: false },
                   automaticLayout: true,
                   padding: { top: 12 },
-                  readOnly: submitting,
+                  readOnly: submitting || timedRoundLocked,
                   // Explicit rather than relying on Monaco's own defaults —
                   // investigated (node_modules/monaco-editor's own
                   // editorConfigurationSchema.js) and confirmed both already
@@ -590,12 +619,13 @@ export function ChallengePage() {
             </div>
 
             <div className="editor-actions">
+              {timedRoundLocked ? <p className="status-message status-error">A rodada cronometrada está encerrada ou outro desafio está ativo.</p> : null}
               <p className="editor-actions__hint">
                 {challenge.language === 'sql'
                   ? 'Sua query roda em um sandbox isolado contra todos os casos de teste.'
                   : 'Sua solução roda em um sandbox isolado contra todos os casos de teste.'}
               </p>
-              <button type="submit" className="challenge-submit" disabled={submitting}>
+              <button type="submit" className="challenge-submit" disabled={submitting || timedRoundLocked}>
                 {submitting ? 'enviando...' : 'enviar solução'}
               </button>
             </div>

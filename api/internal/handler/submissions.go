@@ -89,6 +89,13 @@ func (h *ChallengesHandler) CreateSubmission(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
+	if body.LiveSessionID != nil && *body.LiveSessionID != "" {
+		if err := h.store.PublishLiveSubmissionUpdate(r.Context(), *body.LiveSessionID, claims.UserID, challengeID, "submitted_pending"); err != nil {
+			// The submission is durable and queued; a transient live UI event must
+			// never turn that accepted submission into an HTTP failure.
+			// The dashboard's polling fallback will still observe it.
+		}
+	}
 
 	writeJSON(w, http.StatusAccepted, map[string]string{"submission_id": sub.ID})
 }

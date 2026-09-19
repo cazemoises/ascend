@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type ProblemList struct {
@@ -166,6 +168,36 @@ func (s *Store) ListProblemListsForViewer(ctx context.Context, viewerID, role st
 		lists = append(lists, pl)
 	}
 	return lists, rows.Err()
+}
+
+// LinkedChallengeCounts returns, for each given list ID, how many of its
+// items have a non-null linked_challenge_id — the same condition
+// CreateLiveSession requires to be >= 1 before it will create a session for
+// that list. A list absent from the returned map has zero linked items.
+func (s *Store) LinkedChallengeCounts(ctx context.Context, listIDs []string) (map[string]int, error) {
+	counts := make(map[string]int, len(listIDs))
+	if len(listIDs) == 0 {
+		return counts, nil
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT list_id, count(*) FROM list_items
+		 WHERE list_id = ANY($1) AND linked_challenge_id IS NOT NULL
+		 GROUP BY list_id`,
+		pq.Array(listIDs))
+	if err != nil {
+		return nil, fmt.Errorf("linked challenge counts: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id string
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		counts[id] = n
+	}
+	return counts, rows.Err()
 }
 
 // GetProblemListDetail returns a list and its items ordered by ordinal. A
