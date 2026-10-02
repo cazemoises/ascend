@@ -175,12 +175,12 @@ func (s *Store) MarkLiveRoomDone(ctx context.Context, roomID, userID string) (bo
 }
 
 func (s *Store) SaveLiveRoomDocSnapshot(ctx context.Context, roomID string, doc []byte) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE live_session_rooms SET doc_snapshot=$2, snapshot_updated_at=now() WHERE id=$1 AND status='open'`, roomID, doc)
+	_, err := s.db.ExecContext(ctx, `UPDATE live_session_rooms SET doc_snapshot=$2, doc_baseline=$2, snapshot_updated_at=now() WHERE id=$1 AND status='open' AND doc_version=0`, roomID, doc)
 	return err
 }
 
 func (s *Store) SaveLiveRoomTextSnapshot(ctx context.Context, roomID, text string) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE live_session_rooms SET text_snapshot=$2, snapshot_updated_at=now() WHERE id=$1 AND status='open'`, roomID, text)
+	_, err := s.db.ExecContext(ctx, `UPDATE live_session_rooms SET text_snapshot=$2, snapshot_updated_at=now() WHERE id=$1 AND status='open' AND doc_version=0`, roomID, text)
 	return err
 }
 

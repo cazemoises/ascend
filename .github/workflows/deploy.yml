@@ -69,6 +69,17 @@ jobs:
           docker compose logs judge
           exit 1
 
+      - name: Smoke collaborative Yjs convergence on deployed stack
+        # Disposable users/list/session are created and cleaned by the test.
+        # Exercises the deployed API through nginx's actual /ascend/ mount.
+        run: |
+          docker build -f docker/live-room-tests.Dockerfile -t ascend-live-room-tests .
+          docker run --rm --network ascend_default \
+            -e DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable" \
+            -e REDIS_URL=redis://redis:6379 \
+            -e LIVE_ROOM_DEPLOYED_URL=http://web/ascend/api/v1 \
+            ascend-live-room-tests
+
       - name: Prune old images
         # Avoid unbounded disk growth from repeated --build deploys on a
         # long-lived VM (this box only has ~76G free on /).

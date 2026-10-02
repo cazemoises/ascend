@@ -1,0 +1,10 @@
+.git
+.env
+**/node_modules
+web/dist
+web/build
+**/*.log
+tmp
+coverage
+*.tar
+*.tar.gz

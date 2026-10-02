@@ -2,10 +2,12 @@ package handler
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
@@ -17,10 +19,18 @@ import (
 // server treats every payload as opaque past this leading byte — it never
 // parses the Yjs encoding.
 const (
-	roomFrameFullState byte = 2 // hydration: server->client on connect, client->server debounced persistence
-	roomFrameUpdate    byte = 3 // incremental Yjs update, relayed to every other client in the room
-	roomFrameText      byte = 4 // debounced plain-text snapshot, stored for judge input / fallback review
+	roomFrameFullState byte = 2 // client->server versioned binary + text snapshot cache
+	roomFrameUpdate    byte = 3 // client->server Yjs update; server->client uint64 version + update
+	roomFrameReady     byte = 5 // journal replay frontier; uint64 big endian
 )
+
+func roomVersionFrame(tag byte, version uint64, payload []byte) []byte {
+	frame := make([]byte, 9+len(payload))
+	frame[0] = tag
+	binary.BigEndian.PutUint64(frame[1:9], version)
+	copy(frame[9:], payload)
+	return frame
+}
 
 func (h *LiveSessionsHandler) ListRooms(w http.ResponseWriter, r *http.Request) {
 	c, ok := liveClaims(w, r)
@@ -59,9 +69,9 @@ func (h *LiveSessionsHandler) ListRooms(w http.ResponseWriter, r *http.Request) 
 }
 
 // RoomWS is the Yjs relay socket for one collaborative room. A real teacher
-// (RealRole=="teacher", ViewAs or not) connects read-only: it neither counts
-// toward presence nor is allowed to write updates, mirroring the RealRole
-// guard already used for Join/CurrentRound.
+// (RealRole=="teacher", ViewAs or not) can edit the shared document but does
+// not count toward room presence, mirroring the RealRole guard already used
+// for Join/CurrentRound.
 func (h *LiveSessionsHandler) RoomWS(w http.ResponseWriter, r *http.Request) {
 	c, ok := liveClaims(w, r)
 	if !ok {
@@ -88,10 +98,6 @@ func (h *LiveSessionsHandler) RoomWS(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "internal server error")
 		return
 	}
-	if room.Status != "open" {
-		writeError(w, 409, "room is frozen")
-		return
-	}
 
 	conn, err := liveUpgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -99,8 +105,7 @@ func (h *LiveSessionsHandler) RoomWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = conn.Close() }()
 
-	readOnly := c.RealRole == "teacher"
-	if !readOnly {
+	if c.RealRole != "teacher" && room.Status == "open" {
 		participantID, err := h.store.JoinLiveRoom(context.Background(), room.ID, c.UserID)
 		if err != nil {
 			return
@@ -108,28 +113,133 @@ func (h *LiveSessionsHandler) RoomWS(w http.ResponseWriter, r *http.Request) {
 		defer func() { _ = h.store.LeaveLiveRoom(context.Background(), participantID) }()
 	}
 
-	h.roomHub.add(room.ID, conn)
+	writer := h.roomHub.add(room.ID, conn)
 	defer h.roomHub.remove(room.ID, conn)
-
-	if doc, err := h.store.GetLiveRoomDocSnapshot(r.Context(), room.ID); err == nil && len(doc) > 0 {
-		_ = conn.WriteMessage(websocket.BinaryMessage, append([]byte{roomFrameFullState}, doc...))
+	conn.SetReadLimit(16 << 20)
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	// Register before reading: concurrent broadcasts may be duplicated or arrive
+	// before their dependencies, which Yjs handles. Replay supplies every update.
+	replay := func(after int64) (int64, error) {
+		updates, err := h.store.ReadLiveRoomUpdates(ctx, room.ID, after)
+		if err != nil {
+			return after, err
+		}
+		for _, update := range updates {
+			if len(update.Payload) > 0 {
+				if err := writer.write(roomVersionFrame(roomFrameUpdate, update.Version, update.Payload)); err != nil {
+					return after, err
+				}
+			}
+			after = int64(update.Version)
+		}
+		if after < 0 {
+			after = 0
+		}
+		return after, writer.write(roomVersionFrame(roomFrameReady, uint64(after), nil))
 	}
+	after, err := replay(-1)
+	if err != nil {
+		slog.Error("hydrate live room", "room_id", room.ID, "err", err)
+		return
+	}
+	closeIfFrozen := func() (bool, error) {
+		current, err := h.store.GetLiveRoom(ctx, room.ID)
+		if err != nil {
+			return false, err
+		}
+		if current.Status == "open" {
+			return false, nil
+		}
+		// Includes a final replay before close, even when Redis close was missed.
+		_, err = replay(after)
+		if err != nil {
+			return false, err
+		}
+		_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(4000, "room frozen"), time.Now().Add(2*time.Second))
+		return true, nil
+	}
+	if frozen, err := closeIfFrozen(); err != nil || frozen {
+		return
+	}
+	// Redis pubsub is a latency optimization, not a durable delivery guarantee.
+	// Catch up from the journal even after dropped/reordered Redis events.
+	replayDone := make(chan struct{})
+	go func() {
+		defer close(replayDone)
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-writer.frozen:
+				_, err := closeIfFrozen()
+				if err != nil {
+					slog.Error("final live room replay", "room_id", room.ID, "err", err)
+				}
+				_ = conn.Close()
+				return
+			case <-ticker.C:
+				next, err := replay(after)
+				if err != nil {
+					slog.Error("replay live room", "room_id", room.ID, "err", err)
+					_ = conn.Close()
+					return
+				}
+				after = next
+				if frozen, err := closeIfFrozen(); err != nil || frozen {
+					_ = conn.Close()
+					return
+				}
+			}
+		}
+	}()
+	defer func() { cancel(); <-replayDone }()
 
 	for {
 		mt, data, err := conn.ReadMessage()
 		if err != nil {
 			return
 		}
-		if mt != websocket.BinaryMessage || len(data) < 1 || readOnly {
+		if mt != websocket.BinaryMessage || len(data) < 1 {
 			continue
 		}
 		switch data[0] {
 		case roomFrameUpdate:
-			_ = h.store.PublishLiveRoomFrame(context.Background(), room.ID, data)
+			if len(data) < 2 {
+				continue
+			}
+			version, err := h.store.AppendLiveRoomUpdate(ctx, room.ID, data[1:])
+			if err != nil {
+				if errors.Is(err, store.ErrConflict) {
+					writer.freeze()
+					<-replayDone
+					return
+				}
+				slog.Error("persist live room update", "room_id", room.ID, "err", err)
+				return
+			}
+			payload := roomVersionFrame(roomFrameUpdate, version, data[1:])
+			h.roomHub.Broadcast(room.ID, payload)
+			if err := h.store.PublishLiveRoomFrame(ctx, room.ID, payload); err != nil {
+				slog.Error("publish live room update", "room_id", room.ID, "err", err)
+			}
 		case roomFrameFullState:
-			_ = h.store.SaveLiveRoomDocSnapshot(context.Background(), room.ID, data[1:])
-		case roomFrameText:
-			_ = h.store.SaveLiveRoomTextSnapshot(context.Background(), room.ID, string(data[1:]))
+			// One versioned frame saves binary and text snapshots atomically. The
+			// legacy unversioned full/text frames cannot overwrite this cache.
+			if len(data) < 13 {
+				continue
+			}
+			version := binary.BigEndian.Uint64(data[1:9])
+			docLen := uint64(binary.BigEndian.Uint32(data[9:13]))
+			if docLen > uint64(len(data)-13) {
+				continue
+			}
+			if _, err := h.store.SaveLiveRoomSnapshot(ctx, room.ID, version, data[13:13+docLen], string(data[13+docLen:])); err != nil {
+				slog.Error("save live room snapshot", "room_id", room.ID, "err", err)
+				return
+			}
 		}
 	}
 }

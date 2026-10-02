@@ -18,18 +18,37 @@ import (
 // decoding the CRDT protocol is entirely the frontend's job.
 type RoomHub struct {
 	mu      sync.RWMutex
-	clients map[string]map[*websocket.Conn]struct{}
+	clients map[string]map[*websocket.Conn]*roomWriter
 }
 
-func NewRoomHub() *RoomHub { return &RoomHub{clients: map[string]map[*websocket.Conn]struct{}{}} }
+// Every data writer, including hydration and journal catch-up, shares this lock.
+type roomWriter struct {
+	conn       *websocket.Conn
+	mu         sync.Mutex
+	frozen     chan struct{}
+	freezeOnce sync.Once
+}
 
-func (h *RoomHub) add(room string, c *websocket.Conn) {
+func (w *roomWriter) freeze() { w.freezeOnce.Do(func() { close(w.frozen) }) }
+
+func (w *roomWriter) write(payload []byte) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	_ = w.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	return w.conn.WriteMessage(websocket.BinaryMessage, payload)
+}
+
+func NewRoomHub() *RoomHub { return &RoomHub{clients: map[string]map[*websocket.Conn]*roomWriter{}} }
+
+func (h *RoomHub) add(room string, c *websocket.Conn) *roomWriter {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.clients[room] == nil {
-		h.clients[room] = map[*websocket.Conn]struct{}{}
+		h.clients[room] = map[*websocket.Conn]*roomWriter{}
 	}
-	h.clients[room][c] = struct{}{}
+	writer := &roomWriter{conn: c, frozen: make(chan struct{})}
+	h.clients[room][c] = writer
+	return writer
 }
 
 func (h *RoomHub) remove(room string, c *websocket.Conn) {
@@ -46,33 +65,26 @@ func (h *RoomHub) remove(room string, c *websocket.Conn) {
 // (once the origin instance's Run loop echoes its own publish) is harmless.
 func (h *RoomHub) Broadcast(room string, payload []byte) {
 	h.mu.RLock()
-	cs := make([]*websocket.Conn, 0, len(h.clients[room]))
-	for c := range h.clients[room] {
-		cs = append(cs, c)
+	cs := make([]*roomWriter, 0, len(h.clients[room]))
+	for _, writer := range h.clients[room] {
+		cs = append(cs, writer)
 	}
 	h.mu.RUnlock()
 	for _, c := range cs {
-		if err := c.WriteMessage(websocket.BinaryMessage, payload); err != nil {
-			h.remove(room, c)
-			_ = c.Close()
+		if err := c.write(payload); err != nil {
+			h.remove(room, c.conn)
+			_ = c.conn.Close()
 		}
 	}
 }
 
-// Close force-disconnects every locally-connected client of room. Called
-// directly (for immediate local effect) whenever this instance freezes a
-// room, and again from Run when another instance's freeze is relayed here.
+// Close requests final journal replay before sending the frozen close code.
+// A close notification can overtake a committed update on another instance.
 func (h *RoomHub) Close(room string) {
-	h.mu.Lock()
-	cs := make([]*websocket.Conn, 0, len(h.clients[room]))
-	for c := range h.clients[room] {
-		cs = append(cs, c)
-	}
-	delete(h.clients, room)
-	h.mu.Unlock()
-	for _, c := range cs {
-		_ = c.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(4000, "room frozen"), time.Now().Add(2*time.Second))
-		_ = c.Close()
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for _, writer := range h.clients[room] {
+		writer.freeze()
 	}
 }
 

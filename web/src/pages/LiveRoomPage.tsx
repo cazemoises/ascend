@@ -20,26 +20,7 @@ import { useAuth } from '../auth/useAuth'
 import { VerdictBadge } from '../components/VerdictBadge'
 import { registerAscendSnippets } from '../lib/monacoSnippets'
 import { defineAscendMonacoTheme } from '../lib/monacoTheme'
-
-// Frame tags for the collaborative-room websocket protocol — must match
-// api/internal/handler/live_rooms.go's roomFrame* constants exactly. The
-// server never decodes these past the leading byte, so any mismatch here
-// silently breaks sync instead of erroring.
-const ROOM_FRAME_FULL_STATE = 2 // hydration + debounced persistence of the whole Yjs doc
-const ROOM_FRAME_UPDATE = 3 // incremental Yjs update, relayed in real time
-const ROOM_FRAME_TEXT = 4 // debounced plain-text snapshot (judge input / fallback review)
-const FROZEN_CLOSE_CODE = 4000
-const SNAPSHOT_DEBOUNCE_MS = 5000
-
-// WebSocket.send's BufferSource overload wants an ArrayBuffer-backed view,
-// not the generic ArrayBufferLike Uint8Array yjs/TS otherwise infers here —
-// allocating through `new ArrayBuffer(...)` explicitly keeps that type.
-function frame(tag: number, payload: Uint8Array): Uint8Array<ArrayBuffer> {
-  const out = new Uint8Array(new ArrayBuffer(payload.length + 1))
-  out[0] = tag
-  out.set(payload, 1)
-  return out
-}
+import { connectLiveRoom } from '../lib/liveRoomConnection'
 
 export function LiveRoomPage() {
   const { id: sessionID, itemId: listItemID } = useParams<{ id: string; itemId: string }>()
@@ -76,47 +57,17 @@ export function LiveRoomPage() {
     let cancelled = false
     const ydoc = new Y.Doc()
     ydocRef.current = ydoc
-    const ytext = ydoc.getText('code')
-    const socket = new WebSocket(liveRoomWebsocketURL(sessionID, listItemID))
-    socket.binaryType = 'arraybuffer'
-    let debounceTimer: number | undefined
-
-    socket.onopen = () => {
-      if (cancelled) return
-      setConnected(true)
-      debounceTimer = window.setInterval(() => {
-        if (socket.readyState !== WebSocket.OPEN) return
-        socket.send(frame(ROOM_FRAME_FULL_STATE, Y.encodeStateAsUpdate(ydoc)))
-        socket.send(frame(ROOM_FRAME_TEXT, new TextEncoder().encode(ytext.toString())))
-      }, SNAPSHOT_DEBOUNCE_MS)
-    }
-    socket.onmessage = (event) => {
-      if (cancelled || !(event.data instanceof ArrayBuffer)) return
-      const data = new Uint8Array(event.data)
-      if (data.length < 1) return
-      Y.applyUpdate(ydoc, data.slice(1), 'remote')
-    }
-    socket.onclose = (event) => {
-      if (cancelled) return
-      setConnected(false)
-      if (event.code === FROZEN_CLOSE_CODE) {
+    const connection = connectLiveRoom(ydoc, liveRoomWebsocketURL(sessionID, listItemID),
+      (value) => { if (!cancelled) setConnected(value) },
+      () => {
+        if (cancelled) return
         setFrozen(true)
         void getLiveRoomResult(sessionID, listItemID).then(setResult).catch(() => {})
-      }
-    }
-    ydoc.on('update', (update: Uint8Array, origin: unknown) => {
-      if (origin === 'remote' || socket.readyState !== WebSocket.OPEN) return
-      socket.send(frame(ROOM_FRAME_UPDATE, update))
-    })
+      })
 
     return () => {
       cancelled = true
-      if (debounceTimer !== undefined) window.clearInterval(debounceTimer)
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(frame(ROOM_FRAME_FULL_STATE, Y.encodeStateAsUpdate(ydoc)))
-        socket.send(frame(ROOM_FRAME_TEXT, new TextEncoder().encode(ytext.toString())))
-      }
-      socket.close()
+      connection.close()
       bindingRef.current?.destroy()
       bindingRef.current = null
       ydoc.destroy()
@@ -156,7 +107,7 @@ export function LiveRoomPage() {
   const item = session?.session.items.find((candidate) => candidate.id === listItemID)
   const isOwner = isRealTeacher && session?.session.created_by === user?.id
   const summary = rooms.find((r) => r.list_item_id === listItemID)
-  const readOnly = isRealTeacher || frozen
+  const readOnly = frozen
 
   return <main className="page-shell">
     <Link className="back-link" to={`/sessoes/${sessionID}`}>← {session?.session.title ?? 'sessão'}</Link>
@@ -166,7 +117,6 @@ export function LiveRoomPage() {
       <p className="muted">
         {frozen ? 'Sala encerrada' : connected ? 'conectado' : 'conectando...'}
         {summary ? ` · ${summary.present_count} presente(s)` : ''}
-        {isRealTeacher ? ' · modo leitura (professor)' : ''}
       </p>
       {!isRealTeacher && !frozen ? (
         <button className="challenge-submit" disabled={pending || markedDone} onClick={() => void markDone()}>
@@ -184,6 +134,7 @@ export function LiveRoomPage() {
       <div className="editor-toolbar"><span className="editor-toolbar__title">Editor compartilhado</span></div>
       <div className="editor-host">
         <Editor
+          key={`${sessionID}:${listItemID}`}
           height="100%"
           theme="ascend"
           beforeMount={(monaco) => { defineAscendMonacoTheme(monaco); registerAscendSnippets(monaco) }}
