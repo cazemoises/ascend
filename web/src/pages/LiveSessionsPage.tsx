@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
-import { API_BASE_URL, createLiveSession, createLiveSessionRounds, endLiveSessionRound, finishLiveSession, getCurrentLiveSessionRound, getLiveDashboard, getLiveRoundStatus, getLiveSession, joinLiveSession, listLiveRooms, listLiveSessions, listProblemLists, startLiveSessionRound, type LiveDashboard, type LiveRoomSummary, type LiveRoundLiveStatus, type LiveSession, type LiveSessionDetail, type LiveSessionRound, type ProblemList } from '../api'
+import { ApiError, API_BASE_URL, createLiveSession, createLiveSessionRounds, endLiveSessionRound, finishLiveSession, getCurrentLiveSessionRound, getLiveDashboard, getLiveRoundStatus, getLiveSession, getLiveSessionResults, joinLiveSession, listLiveRooms, listLiveSessions, listProblemLists, startLiveSessionRound, type LiveDashboard, type LiveRoomSummary, type LiveRoundLiveStatus, type LiveSession, type LiveSessionDetail, type LiveSessionRound, type LiveSessionResults, type ProblemList } from '../api'
 import { useAuth } from '../auth/useAuth'
+import { VerdictBadge } from '../components/VerdictBadge'
 
 const POLL_MS = 2000
 
@@ -13,6 +14,8 @@ function statusText(status: LiveSession['status']): string {
 export function LiveSessionsPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const showingHistory = searchParams.get('status') === 'finished'
   const { isTeacher, user } = useAuth()
   const [sessions, setSessions] = useState<LiveSession[]>([])
   const [lists, setLists] = useState<ProblemList[]>([])
@@ -20,6 +23,8 @@ export function LiveSessionsPage() {
   const [minimum, setMinimum] = useState(3)
   const [mode, setMode] = useState<LiveSession['mode']>('individual')
   const [detail, setDetail] = useState<LiveSessionDetail | null>(null)
+  const resultScope = `${id ?? ''}:${user?.id ?? ''}:${isTeacher}`
+  const [results, setResults] = useState<{ data: LiveSessionResults; scope: string } | null>(null)
   const [dashboard, setDashboard] = useState<LiveDashboard | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionPending, setActionPending] = useState(false)
@@ -32,12 +37,19 @@ export function LiveSessionsPage() {
         const nextDetail = await getLiveSession(id)
         setDetail(nextDetail)
         const isOwner = isTeacher && nextDetail.session.created_by === user?.id
+        if (nextDetail.session.status === 'finished' && (isOwner || nextDetail.session.joined)) {
+          const nextResults = await getLiveSessionResults(id)
+          setResults({ data: nextResults, scope: resultScope })
+          setDashboard(null)
+          return nextResults.pending_submissions > 0 || nextResults.preparing_results > 0
+        }
+        setResults(null)
         if (isOwner && nextDetail.session.status !== 'finished') setDashboard(await getLiveDashboard(id))
         else setDashboard(null)
 		return nextDetail.session.status !== 'finished'
       } else {
-        setSessions(await listLiveSessions())
-        if (isTeacher) {
+        setSessions(await listLiveSessions(showingHistory ? 'finished' : 'open'))
+        if (isTeacher && !showingHistory) {
           const ownLists = (await listProblemLists()).filter((item) => item.teacher_id === user?.id)
           setLists(ownLists)
           const firstEligible = ownLists.find((list) => list.live_session_eligible)
@@ -46,15 +58,15 @@ export function LiveSessionsPage() {
             return currentStillEligible ? current : firstEligible?.id ?? ''
           })
         }
-		return true
+		return !showingHistory
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Falha ao carregar sessões')
-		return true
+      return !(cause instanceof ApiError && [401, 403, 404].includes(cause.status))
     } finally {
       setLoading(false)
     }
-  }, [id, isTeacher, user])
+  }, [id, isTeacher, user, showingHistory, resultScope])
 
   useEffect(() => {
     let cancelled = false
@@ -97,7 +109,7 @@ export function LiveSessionsPage() {
   if (!id) return <main className="page-shell">
     <section className="hero"><p className="eyebrow">Atividade em grupo</p><h1>sessões ao vivo</h1><p className="muted">Entre em uma atividade ou conduza sua turma.</p></section>
     {error ? <p className="status-message status-error">{error}</p> : null}
-    {isTeacher ? <section className="panel submission-panel"><div className="submission-panel__body"><h2>Nova sessão</h2><form onSubmit={create}>
+    {isTeacher && !showingHistory ? <section className="panel submission-panel"><div className="submission-panel__body"><h2>Nova sessão</h2><form onSubmit={create}>
       <label>Lista<select value={listID} onChange={(event) => setListID(event.target.value)} required>
         {lists.length === 0 ? <option value="">Nenhuma lista criada ainda</option> : null}
         {lists.map((list) => (
@@ -119,14 +131,18 @@ export function LiveSessionsPage() {
       <label>Mínimo de participantes<input type="number" min="1" value={minimum} onChange={(event) => setMinimum(Math.max(1, Number(event.target.value) || 1))} /></label>
       <button className="challenge-submit" disabled={!listID || !lists.find((list) => list.id === listID)?.live_session_eligible || actionPending}>{actionPending ? 'criando...' : 'criar sessão'}</button>
     </form></div></section> : null}
-    <section className="history-section"><h2 className="section-title">{isTeacher ? 'Suas sessões abertas' : 'Disponíveis'}</h2>
+    <nav aria-label="Filtrar sessões">
+      <button className="btn-secondary" aria-pressed={!showingHistory} onClick={() => setSearchParams({})}>Sessões abertas</button>
+      <button className="btn-secondary" aria-pressed={showingHistory} onClick={() => setSearchParams({ status: 'finished' })}>Histórico</button>
+    </nav>
+    <section className="history-section"><h2 className="section-title">{showingHistory ? 'Seu histórico de sessões' : isTeacher ? 'Suas sessões abertas' : 'Disponíveis'}</h2>
       {loading ? <p className="muted">Carregando sessões...</p> : null}
-      {sessions.map((session) => <article className="list-item" key={session.id}><div className="list-item__head"><div><strong>{session.title}</strong><p className="muted">Professor: {session.teacher_email} · {statusText(session.status)} · {session.participant_count}/{session.min_participants}</p></div><Link className="challenge-submit" to={`/sessoes/${session.id}`}>abrir</Link></div></article>)}
-      {!loading && sessions.length === 0 ? <p className="muted">Nenhuma sessão aberta.</p> : null}
+      {sessions.filter((session) => showingHistory ? session.status === 'finished' : session.status !== 'finished').map((session) => <article className="list-item" key={session.id}><div className="list-item__head"><div><strong>{session.title}</strong><p className="muted">Professor: {session.teacher_email} · {statusText(session.status)} · {session.participant_count}/{session.min_participants}{session.finished_at ? ` · Encerrada em ${new Date(session.finished_at).toLocaleString('pt-BR')}` : ''}</p></div><Link className="challenge-submit" to={`/sessoes/${session.id}`}>abrir</Link></div></article>)}
+      {!loading && sessions.length === 0 ? <p className="muted">{showingHistory ? 'Nenhuma sessão encerrada no seu histórico.' : 'Nenhuma sessão aberta.'}</p> : null}
     </section>
   </main>
 
-  if (loading && !detail) return <main className="page-shell"><p>Carregando sessão...</p></main>
+  if ((loading && !detail) || (detail && detail.session.id !== id)) return <main className="page-shell"><p className={error ? 'status-message status-error' : undefined}>{error ?? 'Carregando sessão...'}</p></main>
   if (!detail) return <main className="page-shell"><p className="status-message status-error">{error ?? 'Sessão não encontrada.'}</p></main>
 
   const session = detail.session
@@ -134,18 +150,20 @@ export function LiveSessionsPage() {
   const canJoin = !isTeacher && !session.joined && session.status !== 'finished'
   const canSeeExercises = session.joined || isOwner
   return <main className="page-shell">
-    <Link className="back-link" to="/sessoes">← sessões ao vivo</Link>
+    <Link className="back-link" to={session.status === 'finished' ? '/sessoes?status=finished' : '/sessoes'}>← sessões ao vivo</Link>
     <section className="hero"><p className="eyebrow">Atividade em grupo</p><h1>{session.title}</h1><p className="muted">{statusText(session.status)} · {session.participant_count}/{session.min_participants} participantes</p>
       {canJoin ? <button className="challenge-submit" onClick={() => void join()} disabled={actionPending}>{actionPending ? 'entrando...' : 'entrar na sessão'}</button> : null}
       {isOwner && session.status !== 'finished' ? <button className="btn-secondary" onClick={() => void finish()} disabled={actionPending}>{actionPending ? 'encerrando...' : 'encerrar sessão'}</button> : null}
     </section>
     {error ? <p className="status-message status-error">{error}</p> : null}
-    <section className="panel submission-panel"><div className="submission-panel__body"><h2>{session.status === 'waiting' ? 'Lobby' : 'Desafios'}</h2>
+    {session.status !== 'finished' ? <section className="panel submission-panel"><div className="submission-panel__body"><h2>{session.status === 'waiting' ? 'Lobby' : 'Desafios'}</h2>
       {!canSeeExercises ? <p className="muted">Entre na sessão para acessar os desafios e acompanhar a turma.</p> : null}
       {canSeeExercises && session.status === 'waiting' ? <><p className="muted">A atividade começará automaticamente quando atingir o mínimo.</p><ul>{detail.participants.map((participant) => <li key={participant.user_id}>{participant.email}</li>)}</ul></> : null}
-      {canSeeExercises && session.status !== 'waiting' ? <div className="list-items">{session.items.map((item, index) => <article className="list-item" key={item.id}><div className="list-item__head"><span>{index + 1}. {item.title}</span><Link className="challenge-submit" to={`/challenges/${item.linked_challenge_id}?liveSessionId=${session.id}`}>{session.status === 'finished' ? 'ver desafio' : 'resolver'}</Link></div></article>)}</div> : null}
-    </div></section>
-    {session.mode === 'timed_challenge' ? (
+      {canSeeExercises && session.status !== 'waiting' ? <div className="list-items">{session.items.map((item, index) => <article className="list-item" key={item.id}><div className="list-item__head"><span>{index + 1}. {item.title}</span><Link className="challenge-submit" to={`/challenges/${item.linked_challenge_id}?liveSessionId=${session.id}`}>resolver</Link></div></article>)}</div> : null}
+    </div></section> : null}
+    {session.status === 'finished' ? (
+      results?.scope === resultScope ? <ArchivedResults results={results.data} isOwner={isOwner} /> : <p className="muted">{error ? 'Não foi possível carregar os resultados.' : canSeeExercises ? 'Carregando resultados...' : 'Resultados disponíveis apenas para o mentor e participantes.'}</p>
+    ) : session.mode === 'timed_challenge' ? (
       isOwner ? <TimedTeacherPanel sessionID={session.id} items={session.items} /> : <TimedStudentPanel sessionID={session.id} items={session.items} />
     ) : session.mode === 'collaborative' && canSeeExercises ? (
       <CollaborativeRoomsPanel sessionID={session.id} isOwner={isOwner} />
@@ -306,4 +324,48 @@ function CollaborativeRoomsPanel({ sessionID, isOwner }: { sessionID: string; is
 function Dashboard({ dashboard }: { dashboard: LiveDashboard }) {
   const items = dashboard.session.items
   return <section className="history-section"><h2 className="section-title">Acompanhamento ao vivo</h2><div className="table-wrap"><table><thead><tr><th>Aluno</th><th>Total</th><th>Aceitos</th>{items.map((item, index) => <th key={item.id}>C{index + 1}</th>)}</tr></thead><tbody>{dashboard.students.map((student) => <tr key={student.user_id}><td>{student.email}</td><td>{student.attempts}</td><td>{student.accepted}</td>{items.map((item) => { const challenge = student.challenges[item.linked_challenge_id ?? '']; return <td key={item.id}>{!challenge ? '—' : challenge.accepted ? `✓ (${challenge.attempts})` : `✗ (${challenge.attempts})`}</td> })}</tr>)}</tbody></table></div><p className="muted">Por desafio: {items.map((item, index) => `C${index + 1}: ${dashboard.challenge_accepted[item.linked_challenge_id ?? ''] ?? 0} aceitos / ${dashboard.challenge_attempts[item.linked_challenge_id ?? ''] ?? 0} tentativas`).join(' · ')}</p></section>
+}
+
+function ArchivedResults({ results, isOwner }: { results: LiveSessionResults; isOwner: boolean }) {
+  const session = results.session
+  return <section className="history-section">
+    <h2 className="section-title">Resultados da sessão</h2>
+    <p className="muted">Sessão encerrada em {session.finished_at ? new Date(session.finished_at).toLocaleString('pt-BR') : 'data não registrada'}. Consulta somente de leitura.</p>
+    {results.preparing_results > 0 ? <p role="status">Preparando {results.preparing_results} resultado(s) coletivo(s). A consulta será atualizada automaticamente.</p> : null}
+    {results.pending_submissions > 0 ? <p role="status">{results.pending_submissions} avaliações em processamento. Os resultados serão atualizados automaticamente.</p> : null}
+    {session.mode === 'collaborative' ? <>
+      <h3>Resultados coletivos</h3>
+      <p className="muted">O resultado é do grupo e não representa uma avaliação individual de cada participante.</p>
+      {results.rooms.map((room) => <article className="list-item" key={room.list_item_id}>
+        <strong>{room.title}</strong>
+        <p>{room.verdict ? <VerdictBadge status={room.verdict} /> : room.status === null ? 'Sala não iniciada' : 'Sem avaliação registrada'}</p>
+        {room.passed_count !== null && room.total_test_cases !== null ? <p>{room.passed_count} de {room.total_test_cases} testes passaram</p> : null}
+      </article>)}
+    </> : null}
+    <>
+      <h3>{session.mode === 'collaborative' ? 'Tentativas individuais (separadas do resultado coletivo)' : isOwner ? 'Progresso individual dos participantes' : 'Seu progresso nesta sessão'}</h3>
+      <div className="datagrid"><table>
+        <thead><tr><th scope="col">Aluno</th><th scope="col">Tentativas</th><th scope="col">Desafios resolvidos</th></tr></thead>
+        <tbody>{results.students.map((student) => <tr key={student.user_id}><th scope="row">{student.email}</th><td>{student.attempts}</td><td>{student.accepted}</td></tr>)}</tbody>
+      </table></div>
+      {results.students.map((student) => <div key={student.user_id} className="student-card__section">
+        <h4>{student.email}</h4>
+        {session.items.map((item) => {
+          const progress = student.challenges[item.linked_challenge_id ?? '']
+          return <p key={item.id}>{item.title}: {progress ? `${progress.accepted ? 'resolvido' : 'sem aceitação'} · ${progress.attempts} tentativa(s)` : 'sem tentativas'}</p>
+        })}
+      </div>)}
+    </>
+    {results.rounds.length > 0 ? <>
+      <h3>Rodadas</h3>
+      <ul>{results.rounds.map((round) => <li key={round.id}>
+        {roundTitle(round, session.items)} · {round.status === 'ended' ? 'encerrada' : round.status === 'active' ? 'interrompida pelo encerramento da sessão' : 'não iniciada'}
+        {round.started_at ? ` · início: ${new Date(round.started_at).toLocaleString('pt-BR')}` : ''}
+        {round.ended_at ? ` · fim: ${new Date(round.ended_at).toLocaleString('pt-BR')}` : ''}
+      </li>)}</ul>
+    </> : null}
+    <h3>Continuar praticando</h3>
+    <p className="muted">Novas tentativas fora da sessão não alteram este relatório. Títulos e enunciados refletem a versão atual da lista.</p>
+    <ul>{session.items.map((item) => <li key={item.id}><Link to={`/challenges/${item.linked_challenge_id}`}>{item.title}</Link></li>)}</ul>
+  </section>
 }

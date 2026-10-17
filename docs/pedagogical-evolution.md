@@ -3,7 +3,11 @@
 ## Etapa 1: indicadores no progresso dos alunos
 
 Implementada e validada em 17/10/2026. Commit de implementação: `528e49e`.
-PR: https://github.com/cazemoises/ascend/pull/1 (aguardando checks e pipeline).
+PR: https://github.com/cazemoises/ascend/pull/1, mesclado como `14636f4`.
+Publicado pela pipeline https://github.com/cazemoises/ascend/actions/runs/39046697343.
+CI passou no HEAD `82eec09` antes do merge. Deploy e validação de `main`
+passaram; o log de pós-deploy confirmou `TestPedagogicalDashboardDeployed`
+e convergência Yjs (entrada tardia, reconexão e quatro documentos).
 
 A rota existente `GET /api/v1/teacher/students-overview`, restrita a professores,
 passa a incluir:
@@ -66,12 +70,53 @@ Commit, push, PR e merge desta tarefa foram autorizados em 17/10/2026.
 A publicação continua exclusivamente pela pipeline oficial, após os checks
 do HEAD do PR. O journal da sessão pertence ao worker.
 
+## Etapa 2: histórico e resultados das sessões
+
+Implementação validada localmente, aguardando PR e publicação.
+
+- `GET /api/v1/live-sessions?status=finished`: somente sessões próprias do
+  mentor ou sessões em que o aluno participou. O padrão mantém as sessões
+  abertas; `status=open` é explícito e outros valores retornam 400.
+- `GET /api/v1/live-sessions/{id}/results`: exige sessão encerrada e acesso
+  como mentor proprietário efetivo ou participante. Sessão aberta retorna
+  409 ao proprietário; visitante recebe 401 e estranho recebe 404.
+- Mentor recebe tentativas individuais de todos os participantes; aluno
+  recebe apenas suas próprias tentativas. Test runs e submissões fora da
+  sessão ficam excluídos. Resumos não retornam código, snapshots ou testes.
+- Resultados coletivos aparecem separadamente, com veredito e contagem de
+  testes. Uma sala nunca iniciada é exibida sem criar registros. Não se
+  atribui aceitação coletiva a cada aluno. Corrigida também a consulta do
+  dashboard existente para excluir submissões de sala sem autor individual.
+- Aba Histórico na tela de sessões e relatório para os três modos. A tela
+  encerrada não monta painéis ativos, abre sockets ou configura rodadas.
+  Rodadas ainda ativas no registro são descritas como interrompidas, sem
+  expirar ou reescrever os dados. Links de prática não levam `liveSessionId`.
+- Avaliações pendentes mantêm atualização do relatório até o judge concluir.
+  `preparing_results` cobre o intervalo entre encerramento, congelamento e
+  criação da submissão coletiva; salas congeladas vazias não geram espera.
+  Falha persistente na preparação exige intervenção do mentor/operador, sem
+  tentar reavaliar ou corrigir dados através da consulta histórica.
+  Troca de identidade/papel não reaproveita resultados de outro contexto.
+
+Sem migration; usa os registros persistidos. Títulos, itens e enunciados
+refletem a versão atual da lista, sem snapshot curricular histórico. Listagem
+sem paginação por enquanto, como a listagem aberta existente.
+
+Validação: `TestLiveSessionHistory` passou com PostgreSQL privado e detector
+`-race` nos três modos e contra API local real via `LIVE_ROOM_DEPLOYED_URL`.
+Cobre visibilidade da lista, isolamento por aluno, erros de acesso, pendentes,
+resultado coletivo e igualdade dos registros de salas, rodadas e journal
+antes/depois das leituras. O contrato integra o check de PR e o smoke oficial
+após deploy, com fixtures únicas e limpeza. Chromium conferiu os três modos,
+acesso de mentor/aluno, links de prática, sala não iniciada e rodada
+interrompida. Monitoramento da navegação confirmou zero escritas na API e
+zero sockets de sessão ao consultar o arquivo. Navegação para UUID inexistente
+mostra erro em vez de carregamento permanente. Fixtures locais descartadas
+em ordem de FK; a API preserva listas referenciadas por sessões (409).
+
 ## Próximas entregas e dependências
 
-1. Histórico de sessões: listagem explícita de sessões encerradas, restrita ao
-   proprietário/participante, com relatório final somente de leitura. Hoje a
-   consulta exclui encerradas; os dados e o dashboard já existem. Não montar
-   controles de rodadas ao consultar histórico. Independente desta etapa.
+1. Concluir validação e publicação da etapa 2 antes de iniciar exercícios novos.
 2. Exercícios objetivos: múltipla escolha e resposta curta, com modelo de
    respostas/versões e tentativas persistidas antes de expor correção automática.
    Separar respostas corretas dos dados públicos; reutilizar papéis e listas.

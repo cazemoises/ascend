@@ -43,7 +43,18 @@ func (h *LiveSessionsHandler) List(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	xs, err := h.store.ListLiveSessions(r.Context(), c.UserID, c.Role == "teacher")
+	status := r.URL.Query().Get("status")
+	if status != "" && status != "open" && status != "finished" {
+		writeError(w, http.StatusBadRequest, "status must be open or finished")
+		return
+	}
+	var xs []store.LiveSession
+	var err error
+	if status == "finished" {
+		xs, err = h.store.ListFinishedLiveSessions(r.Context(), c.UserID, c.Role == "teacher")
+	} else {
+		xs, err = h.store.ListLiveSessions(r.Context(), c.UserID, c.Role == "teacher")
+	}
 	if err != nil {
 		writeError(w, 500, "internal server error")
 		return

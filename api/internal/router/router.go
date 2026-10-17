@@ -91,6 +91,7 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter, hub *han
 			r.Post("/{id}/join", lhv.Join)
 			r.Post("/{id}/finish", lhv.Finish)
 			r.Get("/{id}/dashboard", lhv.Dashboard)
+			r.Get("/{id}/results", lhv.Results)
 			r.Post("/{id}/rounds", lhv.CreateRounds)
 			r.Post("/{id}/rounds/{round_id}/start", lhv.StartRound)
 			r.Post("/{id}/rounds/{round_id}/end", lhv.EndRound)

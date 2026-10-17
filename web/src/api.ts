@@ -695,7 +695,16 @@ export interface LiveSessionRound {
 export type LiveRoundSubmissionStatus = 'not_started' | 'submitted_pending' | 'passed' | 'failed'
 export interface LiveRoundStudentStatus { user_id: string; email: string; status: LiveRoundSubmissionStatus }
 export interface LiveRoundLiveStatus { round: LiveSessionRound; students: LiveRoundStudentStatus[] }
-export function listLiveSessions() { return requestJSON<LiveSession[]>('/api/v1/live-sessions') }
+export interface LiveRoomOutcome {
+  list_item_id: string; title: string; status: LiveRoomStatus | null; verdict: string | null
+  passed_count: number | null; total_test_cases: number | null
+}
+export interface LiveSessionResults {
+  session: LiveSession; students: LiveStudentProgress[]; rounds: LiveSessionRound[]
+  rooms: LiveRoomOutcome[]; pending_submissions: number; preparing_results: number
+}
+export function listLiveSessions(status: 'open' | 'finished' = 'open') { return requestJSON<LiveSession[]>(`/api/v1/live-sessions?status=${status}`) }
+export function getLiveSessionResults(id: string) { return requestJSON<LiveSessionResults>(`/api/v1/live-sessions/${id}/results`) }
 export function getLiveSession(id: string) { return requestJSON<LiveSessionDetail>(`/api/v1/live-sessions/${id}`) }
 export function createLiveSession(problem_list_id: string, min_participants: number, mode: LiveSession['mode'] = 'individual') { return requestJSON<LiveSession>('/api/v1/live-sessions', {method:'POST', body:JSON.stringify({problem_list_id,min_participants,mode})}) }
 export function joinLiveSession(id: string) { return requestJSON<LiveSession>(`/api/v1/live-sessions/${id}/join`, {method:'POST'}) }
