@@ -86,6 +86,7 @@ function ChallengeAccordion({ challenge }: { challenge: StudentChallengeSummary 
 export function StudentsOverviewPage() {
   const [students, setStudents] = useState<StudentOverview[]>([])
   const [loading, setLoading] = useState(true)
+  const [onlyDifficulties, setOnlyDifficulties] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -126,13 +127,42 @@ export function StudentsOverviewPage() {
         <p className="status-message">Nenhum aluno interagiu com desafios ou listas ainda.</p>
       ) : null}
 
+      <label className="telemetry-chip">
+        <input type="checkbox" checked={onlyDifficulties} onChange={(event) => setOnlyDifficulties(event.target.checked)} />
+        Mostrar apenas alunos com dificuldades recorrentes
+      </label>
+      <p className="muted">Dificuldade recorrente: desafio ainda não resolvido com pelo menos 3 respostas incorretas, erros de execução ou limites de tempo excedidos. Envios pendentes não contam como erro.</p>
+      {onlyDifficulties && !loading && !error && !students.some((student) => student.stats.recurring_difficulties > 0) ? (
+        <p className="status-message">Nenhum aluno com dificuldades recorrentes.</p>
+      ) : null}
       <div className="student-roster">
-        {students.map((student) => (
+        {students.filter((student) => !onlyDifficulties || student.stats.recurring_difficulties > 0).map((student) => (
           <article key={student.student_id} className="panel student-card">
             <h2 className="student-card__email">{student.email}</h2>
             <span className="telemetry-chip">
               <span className="telemetry-chip__item">{studentSummaryText(student.stats)}</span>
             </span>
+
+            <div className="student-card__section">
+              <h3 className="section-title">Acompanhamento pedagógico</h3>
+              <p>{student.stats.unresolved_challenges} desafios ainda não resolvidos · {student.stats.recurring_difficulties} com dificuldades recorrentes</p>
+              <p className="muted">Histórico de erros: {student.stats.wrong_answer_count} respostas incorretas · {student.stats.runtime_error_count} erros de execução · {student.stats.timeout_count} limites de tempo excedidos</p>
+              {student.challenges.filter((challenge) => challenge.accepted_count === 0 && challenge.wrong_answer_count + challenge.runtime_error_count + challenge.timeout_count >= 3).map((challenge) => (
+                <p key={challenge.challenge_id}><Link to={`/challenges/${challenge.challenge_id}`}>{challenge.challenge_title}</Link> — {challenge.wrong_answer_count} respostas incorretas, {challenge.runtime_error_count} erros de execução, {challenge.timeout_count} limites de tempo excedidos</p>
+              ))}
+              <h3 className="section-title">Evolução semanal</h3>
+              <p className="muted">Semanas com atividade, iniciadas na segunda-feira (UTC). Cada desafio conta como resolvido apenas na primeira aceitação.</p>
+              {student.weekly_progress.length === 0 ? <p className="muted">Nenhum envio para acompanhar ainda.</p> : (
+                <div className="datagrid">
+                <table aria-label={`Evolução semanal de ${student.email}`}>
+                  <thead><tr><th scope="col">Semana de</th><th scope="col">Tentativas</th><th scope="col">Novos desafios resolvidos</th></tr></thead>
+                  <tbody>{student.weekly_progress.map((week) => (
+                    <tr key={week.week_start}><th scope="row">{week.week_start.split('-').reverse().join('/')}</th><td>{week.attempts}</td><td>{week.newly_solved}</td></tr>
+                  ))}</tbody>
+                </table>
+                </div>
+              )}
+            </div>
 
             <div className="student-card__section">
               <h3 className="section-title">Desafios</h3>

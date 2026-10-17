@@ -86,6 +86,20 @@ func TestTeacherStudentsOverview_ChallengeStatsAndChronologicalOrder(t *testing.
 	if len(cs.Attempts) != 3 {
 		t.Fatalf("len(Attempts) = %d, want 3", len(cs.Attempts))
 	}
+	if row.Stats.UnresolvedChallenges != 0 || row.Stats.RecurringDifficulties != 0 {
+		t.Errorf("resolved challenge flagged as difficulty: %+v", row.Stats)
+	}
+	if row.Stats.WrongAnswerCount != 1 || row.Stats.RuntimeErrorCount != 1 {
+		t.Errorf("incorrect failure totals: %+v", row.Stats)
+	}
+	attempts, newlySolved := 0, 0
+	for _, week := range row.WeeklyProgress {
+		attempts += week.Attempts
+		newlySolved += week.NewlySolved
+	}
+	if attempts != 3 || newlySolved != 1 {
+		t.Errorf("weekly totals = %d/%d, want 3/1", attempts, newlySolved)
+	}
 	wantOrder := []string{"wrong_answer", "runtime_error", "accepted"}
 	for i, want := range wantOrder {
 		if cs.Attempts[i].Verdict != want {
