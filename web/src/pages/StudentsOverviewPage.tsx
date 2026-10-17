@@ -22,9 +22,10 @@ function plural(count: number, singular: string, pluralForm: string): string {
   return count === 1 ? singular : pluralForm
 }
 
-function studentSummaryText(stats: StudentStats): string {
+function studentSummaryText(stats: StudentStats, assessments: StudentOverview['assessment_stats']): string {
   const parts = [
-    `${stats.total_submissions} ${plural(stats.total_submissions, 'tentativa', 'tentativas')}`,
+    `${stats.total_submissions} envios de código`,
+    `${assessments.attempts} respostas em exercícios objetivos`,
     `${stats.challenges_accepted} ${plural(stats.challenges_accepted, 'desafio resolvido', 'desafios resolvidos')} de ${stats.challenges_attempted} ${plural(stats.challenges_attempted, 'tentado', 'tentados')}`,
   ]
   if (stats.avg_attempts_to_solve !== null) {
@@ -131,16 +132,16 @@ export function StudentsOverviewPage() {
         <input type="checkbox" checked={onlyDifficulties} onChange={(event) => setOnlyDifficulties(event.target.checked)} />
         Mostrar apenas alunos com dificuldades recorrentes
       </label>
-      <p className="muted">Dificuldade recorrente: desafio ainda não resolvido com pelo menos 3 respostas incorretas, erros de execução ou limites de tempo excedidos. Envios pendentes não contam como erro.</p>
-      {onlyDifficulties && !loading && !error && !students.some((student) => student.stats.recurring_difficulties > 0) ? (
+      <p className="muted">Dificuldade recorrente: desafio ainda não resolvido com pelo menos 3 respostas incorretas, erros de execução ou limites de tempo excedidos. Envios pendentes não contam como erro. Exercícios objetivos entram no filtro após três respostas não aceitas na versão atual, sem acerto.</p>
+      {onlyDifficulties && !loading && !error && !students.some((student) => student.stats.recurring_difficulties + student.assessment_stats.recurring_difficulties > 0) ? (
         <p className="status-message">Nenhum aluno com dificuldades recorrentes.</p>
       ) : null}
       <div className="student-roster">
-        {students.filter((student) => !onlyDifficulties || student.stats.recurring_difficulties > 0).map((student) => (
+        {students.filter((student) => !onlyDifficulties || student.stats.recurring_difficulties + student.assessment_stats.recurring_difficulties > 0).map((student) => (
           <article key={student.student_id} className="panel student-card">
             <h2 className="student-card__email">{student.email}</h2>
             <span className="telemetry-chip">
-              <span className="telemetry-chip__item">{studentSummaryText(student.stats)}</span>
+              <span className="telemetry-chip__item">{studentSummaryText(student.stats, student.assessment_stats)}</span>
             </span>
 
             <div className="student-card__section">
@@ -175,6 +176,12 @@ export function StudentsOverviewPage() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="student-card__section">
+              <h3 className="section-title">Múltipla escolha e resposta curta</h3>
+              <p>{student.assessment_stats.attempts} respostas enviadas · {student.assessment_stats.accepted_attempts} aceitas no histórico</p>
+              <p className="muted">Versões atuais: {student.assessment_stats.items_solved} exercícios resolvidos · {student.assessment_stats.recurring_difficulties} com dificuldades recorrentes</p>
             </div>
 
             <div className="student-card__section">

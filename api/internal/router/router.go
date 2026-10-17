@@ -109,6 +109,7 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter, hub *han
 		r.With(auth.RequireAuthenticated, teacherOnly).Get("/teacher/students-overview", th.StudentsOverview)
 
 		lh := handler.NewListsHandler(s)
+		ah := handler.NewAssessmentsHandler(s)
 		r.Route("/lists", func(r chi.Router) {
 			// Public: anyone can browse published lists, no accounts
 			// required. An authenticated teacher additionally sees their own
@@ -127,6 +128,11 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter, hub *han
 			})
 		})
 		r.Route("/list-items", func(r chi.Router) {
+			r.Get("/{id}/assessment", ah.Get)
+			r.With(auth.RequireAuthenticated, teacherOnly).Get("/{id}/assessment/authoring", ah.Authoring)
+			r.With(auth.RequireAuthenticated, teacherOnly).Post("/{id}/assessment", ah.Save)
+			r.With(auth.RequireAuthenticated, rl.Handler).Post("/{id}/answers", ah.Answer)
+			r.With(auth.RequireAuthenticated).Get("/{id}/answers", ah.Attempts)
 			r.Group(func(r chi.Router) {
 				r.Use(auth.RequireAuthenticated, teacherOnly)
 				r.Patch("/{id}", lh.UpdateItem)

@@ -15,6 +15,7 @@ import {
   type ProblemListDetail,
 } from '../api'
 import { useAuth } from '../auth/useAuth'
+import { AssessmentCard } from '../components/AssessmentCard'
 import { WeekChip } from '../components/WeekChip'
 
 const DIFFICULTY_LABELS: Record<string, string> = {
@@ -216,6 +217,7 @@ export function ListDetailPage() {
                       publicar
                     </button>
                   ) : null}
+                  <Link className="btn-secondary" to={`/listas/${detail.id}/avaliacoes`}>correção automática</Link>
                   <Link className="btn-secondary" to={`/listas/${detail.id}/editar`}>
                     editar lista
                   </Link>
@@ -238,7 +240,7 @@ export function ListDetailPage() {
                   return (
                     <article className="list-item" key={item.id}>
                       <div className="list-item__head">
-                        {isAuthenticated && !isTeacher && !item.linked_challenge_id ? (
+                        {isAuthenticated && !isTeacher && !item.linked_challenge_id && !item.assessment_revision_id ? (
                           <button
                             type="button"
                             className={
@@ -273,6 +275,7 @@ export function ListDetailPage() {
                         <span className={`list-badge list-badge--${item.difficulty}`}>
                           {DIFFICULTY_LABELS[item.difficulty] ?? item.difficulty}
                         </span>
+                        {item.assessment_revision_id ? <><span className="list-badge">CORREÇÃO AUTOMÁTICA</span>{item.completed ? <span className="verdict verdict--accepted">CONCLUÍDO</span> : null}</> : null}
                         {item.is_bonus ? <span className="list-badge">BÔNUS</span> : null}
 
                         {item.linked_challenge_id ? (
@@ -326,7 +329,7 @@ export function ListDetailPage() {
 
                       {isOpen ? (
                         <div className="list-item__body markdown-content">
-                          <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{item.body}</ReactMarkdown>
+                          {item.assessment_revision_id ? <AssessmentCard key={`${item.id}:${item.assessment_revision_id}:${user?.id ?? ''}:${user?.effective_role ?? ''}`} itemID={item.id} onAccepted={() => setDetail((current) => current ? { ...current, items: current.items.map((entry) => entry.id === item.id ? { ...entry, completed: true } : entry) } : current)} /> : <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{item.body}</ReactMarkdown>}
                         </div>
                       ) : null}
                     </article>
