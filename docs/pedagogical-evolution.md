@@ -176,7 +176,14 @@ Trilhas e o vínculo de avaliações objetivas às sessões serão incrementos p
 
 ## Etapa 4: contenção da execução no Judge
 
-Implementada e validada localmente; publicação pendente.
+Publicada pelo [PR #4](https://github.com/cazemoises/ascend/pull/4),
+commit `0cfc656`, merge `5e5861f`. O check no HEAD do PR passou, incluindo
+execução real em Podman rootless. O deploy oficial
+[39050556742](https://github.com/cazemoises/ascend/actions/runs/39050556742)
+concluiu com API/web saudáveis e Judge ativo; os contratos de avaliações,
+histórico individual/temporizado/colaborativo, dashboard e Yjs passaram contra
+a aplicação publicada. O teste real dos limites do sandbox foi executado no
+ambiente rootless privado e no check de PR, sem execução manual em produção.
 
 - stdout e stderr compartilham orçamento de 64 KiB durante a execução, em vez
   de crescerem ilimitadamente antes do truncamento na persistência. Qualquer
@@ -207,7 +214,11 @@ Docker de produção; publicação permanece pela pipeline oficial.
 
 ## Próximas entregas e dependências
 
-1. Concluir publicação e smoke da etapa 4 antes de iniciar trilhas.
+1. Trilhas são a próxima entrega funcional: reutilizar listas e o contrato de
+   conclusão atual. Planejar módulos sequenciais com pré-requisito do anterior,
+   matrícula e visão do mentor; preservar o acesso independente a listas já
+   públicas. Liberação deve ser validada no endpoint da trilha, inclusive URL
+   direta; módulo vazio/sem itens obrigatórios não libera o seguinte.
 2. Exercícios objetivos: integração com sessões e paginação do histórico.
    SQL já existe: evoluir o fluxo atual, evitando um segundo executor.
 3. Trilhas: módulos sobre listas, pré-requisitos validados sem ciclos, liberação
@@ -219,7 +230,9 @@ Docker de produção; publicação permanece pela pipeline oficial.
    o endpoint atual carrega todo o histórico de tentativas.
 5. Editor/judge: validar recuperação e reconexão Yjs conforme
    `docs/live-room-sync.md`; evoluir feedback e limites em sandbox rootless
-   privado. Exercícios de APIs exigem primeiro um executor de testes HTTP
+   privado. O editor individual ainda restaura apenas o último envio: rascunho
+   não enviado por aluno/desafio/linguagem permanece pendente e não deve substituir
+   a persistência autoritativa Yjs das salas. Exercícios de APIs exigem primeiro um executor de testes HTTP
    isolado, sem acesso à rede externa, com limites de recursos e tempo. Nunca
    executar código não confiável no processo da API nem no Docker de produção.
 
