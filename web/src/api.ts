@@ -488,6 +488,11 @@ export interface StudentStats {
   challenges_attempted: number
   challenges_accepted: number
   avg_attempts_to_solve: number | null
+  unresolved_challenges: number
+  recurring_difficulties: number
+  wrong_answer_count: number
+  runtime_error_count: number
+  timeout_count: number
 }
 
 export interface StudentListCompletion {
@@ -499,6 +504,7 @@ export interface StudentListCompletion {
 export interface StudentOverview {
   student_id: string
   email: string
+  weekly_progress: { week_start: string; attempts: number; newly_solved: number }[]
   stats: StudentStats
   challenges: StudentChallengeSummary[]
   list_completions: StudentListCompletion[]

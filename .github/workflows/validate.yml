@@ -1,0 +1,58 @@
+name: Validate Ascend
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: |
+            go.sum
+            api/go.sum
+            judge/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Unit tests
+        run: go test ./cmd/... ./api/... ./judge/...
+      - name: Disposable PostgreSQL (rootless Podman)
+        run: |
+          test "$(podman info --format '{{.Host.Security.Rootless}}')" = true
+          podman run -d --name ascend-validation-db \
+            -e POSTGRES_USER=ascend_test -e POSTGRES_PASSWORD=local_disposable_only \
+            -e POSTGRES_DB=ascend_test -p 127.0.0.1:55439:5432 \
+            docker.io/library/postgres:16-alpine
+          for i in $(seq 1 30); do
+            if podman exec ascend-validation-db pg_isready -U ascend_test -d ascend_test; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Dashboard integration and permissions
+        env:
+          DATABASE_URL: postgres://ascend_test:local_disposable_only@127.0.0.1:55439/ascend_test?sslmode=disable
+        run: |
+          go run ./cmd/migrate up
+          go test -race -tags integration ./api/internal/store ./api/internal/handler ./api/internal/router -run 'TestTeacherStudentsOverview|TestStudentsOverview|TestPedagogicalDashboard'
+      - name: Frontend tests, lint and build
+        working-directory: web
+        run: |
+          npm ci
+          npm test
+          npm run lint
+          npm run build
+      - name: Remove disposable database
+        if: always()
+        run: podman rm -f ascend-validation-db || true

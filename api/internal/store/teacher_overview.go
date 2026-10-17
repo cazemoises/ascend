@@ -42,7 +42,20 @@ type StudentStats struct {
 	// the first accepted submission, averaged only over challenges the
 	// student actually solved. Nil when they haven't solved any — averaging
 	// over zero challenges is undefined, not zero.
-	AvgAttemptsToSolve *float64 `json:"avg_attempts_to_solve"`
+	AvgAttemptsToSolve    *float64 `json:"avg_attempts_to_solve"`
+	UnresolvedChallenges  int      `json:"unresolved_challenges"`
+	RecurringDifficulties int      `json:"recurring_difficulties"`
+	WrongAnswerCount      int      `json:"wrong_answer_count"`
+	RuntimeErrorCount     int      `json:"runtime_error_count"`
+	TimeoutCount          int      `json:"timeout_count"`
+}
+
+// StudentWeek groups activity by Monday in UTC. NewlySolved counts only the
+// first accepted attempt for each challenge, never repeated accepted attempts.
+type StudentWeek struct {
+	WeekStart   string `json:"week_start"`
+	Attempts    int    `json:"attempts"`
+	NewlySolved int    `json:"newly_solved"`
 }
 
 type StudentListCompletion struct {
@@ -54,11 +67,12 @@ type StudentListCompletion struct {
 // StudentOverview is one row of the teacher's flat student roster — no class
 // grouping, since Turmas no longer exists.
 type StudentOverview struct {
-	StudentID   string                    `json:"student_id"`
-	Email       string                    `json:"email"`
-	Stats       StudentStats              `json:"stats"`
-	Challenges  []StudentChallengeSummary `json:"challenges"`
-	Completions []StudentListCompletion   `json:"list_completions"`
+	StudentID      string                    `json:"student_id"`
+	Email          string                    `json:"email"`
+	Stats          StudentStats              `json:"stats"`
+	WeeklyProgress []StudentWeek             `json:"weekly_progress"`
+	Challenges     []StudentChallengeSummary `json:"challenges"`
+	Completions    []StudentListCompletion   `json:"list_completions"`
 }
 
 // TeacherStudentsOverview returns every student (role=student) who has at
@@ -91,7 +105,7 @@ func (s *Store) TeacherStudentsOverview(ctx context.Context) ([]StudentOverview,
 		JOIN challenges ch ON ch.id = sub.challenge_id
 		JOIN users u ON u.id = sub.user_id AND u.role = 'student'
 		WHERE sub.is_test_run = false
-		ORDER BY sub.user_id, sub.challenge_id, sub.created_at ASC`)
+		ORDER BY sub.user_id, sub.challenge_id, sub.created_at ASC, sub.id ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("query student submission attempts: %w", err)
 	}
@@ -169,6 +183,7 @@ func (s *Store) TeacherStudentsOverview(ctx context.Context) ([]StudentOverview,
 	for _, id := range order {
 		so := byStudent[id]
 		so.Stats = computeStudentStats(so.Challenges)
+		so.WeeklyProgress = computeWeeklyProgress(so.Challenges)
 		overview = append(overview, *so)
 	}
 	sort.Slice(overview, func(i, j int) bool { return overview[i].Email < overview[j].Email })
@@ -184,7 +199,14 @@ func computeStudentStats(challenges []StudentChallengeSummary) StudentStats {
 	var solvedAttemptsSum, solvedCount int
 	for _, cs := range challenges {
 		stats.TotalSubmissions += cs.TotalAttempts
+		stats.WrongAnswerCount += cs.WrongAnswerCount
+		stats.RuntimeErrorCount += cs.RuntimeErrorCount
+		stats.TimeoutCount += cs.TimeoutCount
 		if cs.AcceptedCount == 0 {
+			stats.UnresolvedChallenges++
+			if cs.WrongAnswerCount+cs.RuntimeErrorCount+cs.TimeoutCount >= 3 {
+				stats.RecurringDifficulties++
+			}
 			continue
 		}
 		stats.ChallengesAccepted++
@@ -201,4 +223,30 @@ func computeStudentStats(challenges []StudentChallengeSummary) StudentStats {
 		stats.AvgAttemptsToSolve = &avg
 	}
 	return stats
+}
+
+func computeWeeklyProgress(challenges []StudentChallengeSummary) []StudentWeek {
+	weeks := make(map[string]*StudentWeek)
+	for _, challenge := range challenges {
+		solved := false
+		for _, attempt := range challenge.Attempts {
+			date := attempt.CreatedAt.UTC()
+			daysSinceMonday := (int(date.Weekday()) + 6) % 7
+			key := date.AddDate(0, 0, -daysSinceMonday).Format("2006-01-02")
+			if weeks[key] == nil {
+				weeks[key] = &StudentWeek{WeekStart: key}
+			}
+			weeks[key].Attempts++
+			if attempt.Verdict == "accepted" && !solved {
+				weeks[key].NewlySolved++
+				solved = true
+			}
+		}
+	}
+	progress := make([]StudentWeek, 0, len(weeks))
+	for _, week := range weeks {
+		progress = append(progress, *week)
+	}
+	sort.Slice(progress, func(i, j int) bool { return progress[i].WeekStart < progress[j].WeekStart })
+	return progress
 }
