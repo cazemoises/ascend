@@ -41,6 +41,10 @@ jobs:
             sleep 1
           done
           exit 1
+      - name: Judge isolation and lifecycle (private rootless Podman)
+        run: |
+          podman pull docker.io/library/python:3.11-alpine
+          ASCEND_TEST_PODMAN=1 go test -tags integration ./judge/internal/worker -run '^TestExecutorPodman$'
       - name: Dashboard and history integration and permissions
         env:
           DATABASE_URL: postgres://ascend_test:local_disposable_only@127.0.0.1:55439/ascend_test?sslmode=disable
