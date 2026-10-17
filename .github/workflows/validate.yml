@@ -36,16 +36,17 @@ jobs:
             -e POSTGRES_DB=ascend_test -p 127.0.0.1:55439:5432 \
             docker.io/library/postgres:16-alpine
           for i in $(seq 1 30); do
-            if podman exec ascend-validation-db pg_isready -U ascend_test -d ascend_test; then exit 0; fi
+            # The image uses a temporary Unix-socket server during init; wait for TCP.
+            if podman exec ascend-validation-db pg_isready -h 127.0.0.1 -U ascend_test -d ascend_test; then exit 0; fi
             sleep 1
           done
           exit 1
-      - name: Dashboard integration and permissions
+      - name: Dashboard and history integration and permissions
         env:
           DATABASE_URL: postgres://ascend_test:local_disposable_only@127.0.0.1:55439/ascend_test?sslmode=disable
         run: |
           go run ./cmd/migrate up
-          go test -race -tags integration ./api/internal/store ./api/internal/handler ./api/internal/router -run 'TestTeacherStudentsOverview|TestStudentsOverview|TestPedagogicalDashboard'
+          go test -race -tags integration ./api/internal/store ./api/internal/handler ./api/internal/router -run 'TestTeacherStudentsOverview|TestStudentsOverview|TestPedagogicalDashboard|TestLiveSessionHistory'
       - name: Frontend tests, lint and build
         working-directory: web
         run: |

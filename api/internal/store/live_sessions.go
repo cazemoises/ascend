@@ -123,10 +123,21 @@ func (s *Store) CreateLiveSessionWithMode(ctx context.Context, listID, teacherID
 	return scanLive(row)
 }
 func (s *Store) ListLiveSessions(ctx context.Context, viewerID string, teacher bool) ([]LiveSession, error) {
-	return s.listLiveSessions(ctx, viewerID, teacher)
+	return s.listLiveSessions(ctx, viewerID, teacher, false)
 }
-func (s *Store) listLiveSessions(ctx context.Context, viewerID string, teacher bool) ([]LiveSession, error) {
-	q := `SELECT ` + liveColumns + `, EXISTS(SELECT 1 FROM live_session_participants p WHERE p.session_id=s.id AND p.user_id=$1) FROM live_sessions s JOIN problem_lists l ON l.id=s.problem_list_id JOIN users u ON u.id=s.created_by WHERE s.status <> 'finished'`
+func (s *Store) ListFinishedLiveSessions(ctx context.Context, viewerID string, teacher bool) ([]LiveSession, error) {
+	return s.listLiveSessions(ctx, viewerID, teacher, true)
+}
+func (s *Store) listLiveSessions(ctx context.Context, viewerID string, teacher, finished bool) ([]LiveSession, error) {
+	q := `SELECT ` + liveColumns + `, EXISTS(SELECT 1 FROM live_session_participants p WHERE p.session_id=s.id AND p.user_id=$1) FROM live_sessions s JOIN problem_lists l ON l.id=s.problem_list_id JOIN users u ON u.id=s.created_by WHERE `
+	if finished {
+		q += `s.status = 'finished'`
+		if !teacher {
+			q += ` AND EXISTS(SELECT 1 FROM live_session_participants p WHERE p.session_id=s.id AND p.user_id=$1)`
+		}
+	} else {
+		q += `s.status <> 'finished'`
+	}
 	if teacher {
 		q += ` AND s.created_by=$1`
 	}
@@ -265,7 +276,7 @@ func (s *Store) LiveDashboard(ctx context.Context, id, teacherID string) (LiveDa
 		by[p.UserID] = v
 		d.Students = append(d.Students, *v)
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT user_id,challenge_id,count(*),bool_or(status='accepted') FROM submissions WHERE live_session_id=$1 GROUP BY user_id,challenge_id`, id)
+	rows, err := s.db.QueryContext(ctx, `SELECT user_id,challenge_id,count(*),bool_or(status='accepted') FROM submissions WHERE live_session_id=$1 AND user_id IS NOT NULL AND live_room_id IS NULL AND is_test_run=false GROUP BY user_id,challenge_id`, id)
 	if err != nil {
 		return d, err
 	}

@@ -24,4 +24,4 @@ COPY --from=frontend /web/node_modules/yjs ./web/node_modules/yjs
 COPY --from=frontend /web/node_modules/lib0 ./web/node_modules/lib0
 COPY --from=frontend /web/node_modules/isomorphic.js ./web/node_modules/isomorphic.js
 COPY --from=frontend /web/node_modules/ws ./web/node_modules/ws
-ENTRYPOINT ["/bin/live-room-tests", "-test.run=TestLiveRoomYjsConvergence|TestPedagogicalDashboardDeployed", "-test.timeout=90s", "-test.v"]
+ENTRYPOINT ["/bin/live-room-tests", "-test.run=TestLiveRoomYjsConvergence|TestPedagogicalDashboardDeployed|TestLiveSessionHistory$", "-test.timeout=90s", "-test.v"]
