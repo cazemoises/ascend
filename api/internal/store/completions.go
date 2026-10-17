@@ -6,16 +6,16 @@ import (
 )
 
 // ErrLinkedItem means the item's completion is derived automatically from a
-// linked challenge (linked_challenge_id is set) — it can't be self-declared
+// linked challenge or an assessment revision — it cannot be self-declared
 // via CompleteListItem/UncompleteListItem.
-var ErrLinkedItem = errors.New("item is linked to a challenge")
+var ErrLinkedItem = errors.New("item has automatic completion")
 
-// isLinkedItem reports whether itemID has a linked_challenge_id set. Shared
+// isLinkedItem reports whether itemID has automatic grading. Shared
 // by CompleteListItem and UncompleteListItem so both reject the same way.
 func (s *Store) isLinkedItem(ctx context.Context, itemID string) (bool, error) {
 	var linked bool
 	err := s.db.QueryRowContext(ctx,
-		`SELECT EXISTS(SELECT 1 FROM list_items WHERE id = $1 AND linked_challenge_id IS NOT NULL)`,
+		`SELECT EXISTS(SELECT 1 FROM list_items WHERE id = $1 AND (linked_challenge_id IS NOT NULL OR EXISTS(SELECT 1 FROM list_assessment_revisions ar WHERE ar.list_item_id=list_items.id)))`,
 		itemID).Scan(&linked)
 	return linked, err
 }
@@ -37,7 +37,7 @@ func (s *Store) CompleteListItem(ctx context.Context, itemID, studentID string) 
 		 SELECT li.id, $2
 		 FROM list_items li
 		 JOIN problem_lists pl ON pl.id = li.list_id
-		 WHERE li.id = $1 AND pl.published = true
+		 WHERE li.id = $1 AND pl.published = true AND NOT EXISTS(SELECT 1 FROM list_assessment_revisions ar WHERE ar.list_item_id=li.id)
 		 ON CONFLICT (list_item_id, student_id) DO NOTHING`,
 		itemID, studentID)
 	if err != nil {
@@ -62,7 +62,7 @@ func (s *Store) CompleteListItem(ctx context.Context, itemID, studentID string) 
 		`SELECT EXISTS(
 		   SELECT 1 FROM list_items li
 		   JOIN problem_lists pl ON pl.id = li.list_id
-		   WHERE li.id = $1 AND pl.published = true
+		   WHERE li.id = $1 AND pl.published = true AND NOT EXISTS(SELECT 1 FROM list_assessment_revisions ar WHERE ar.list_item_id=li.id)
 		 )`, itemID).Scan(&eligible); err != nil {
 		return err
 	}

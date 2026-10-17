@@ -505,6 +505,7 @@ export interface StudentOverview {
   student_id: string
   email: string
   weekly_progress: { week_start: string; attempts: number; newly_solved: number }[]
+  assessment_stats: { attempts: number; accepted_attempts: number; items_solved: number; recurring_difficulties: number }
   stats: StudentStats
   challenges: StudentChallengeSummary[]
   list_completions: StudentListCompletion[]
@@ -543,6 +544,7 @@ export interface ProblemList {
 }
 
 export interface ListItem {
+  assessment_revision_id: string | null
   id: string
   list_id: string
   ordinal: number
@@ -747,3 +749,21 @@ export function liveRoomWebsocketURL(sessionID: string, listItemID: string): str
   const base = API_BASE_URL ? API_BASE_URL.replace(/^http/, 'ws') : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
   return `${base}/api/v1/live-sessions/${sessionID}/rooms/${listItemID}/ws`
 }
+
+export type AssessmentKind = 'multiple_choice' | 'short_answer'
+export interface Assessment {
+  id: string; list_item_id: string; revision: number; kind: AssessmentKind
+  prompt: string; options: string[]; case_sensitive: boolean; created_at: string
+}
+export interface AssessmentInput {
+  kind: AssessmentKind; prompt: string; options: string[]; accepted_answers: string[]; case_sensitive: boolean
+}
+export interface AssessmentAuthoring extends Assessment { accepted_answers: string[] }
+export interface AssessmentAttempt {
+  id: string; exercise: Assessment; answer: string; accepted: boolean; created_at: string
+}
+export function getAssessment(itemID: string) { return requestJSON<Assessment>(`/api/v1/list-items/${itemID}/assessment`) }
+export function getAssessmentAuthoring(itemID: string) { return requestJSON<AssessmentAuthoring>(`/api/v1/list-items/${itemID}/assessment/authoring`) }
+export function saveAssessment(itemID: string, input: AssessmentInput) { return requestJSON<AssessmentAuthoring>(`/api/v1/list-items/${itemID}/assessment`, { method: 'POST', body: JSON.stringify(input) }) }
+export function answerAssessment(itemID: string, revisionID: string, answer: string) { return requestJSON<AssessmentAttempt>(`/api/v1/list-items/${itemID}/answers`, { method: 'POST', body: JSON.stringify({ revision_id: revisionID, answer }) }) }
+export function getAssessmentAttempts(itemID: string) { return requestJSON<AssessmentAttempt[]>(`/api/v1/list-items/${itemID}/answers`) }

@@ -338,6 +338,10 @@ func (h *ListsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	id := chi.URLParam(r, "id")
 	if err := h.store.DeleteProblemList(r.Context(), id, claims.UserID); err != nil {
+		if errors.Is(err, store.ErrConflict) {
+			writeError(w, http.StatusConflict, "recorded activity prevents deletion")
+			return
+		}
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "list not found")
 			return
@@ -442,6 +446,10 @@ func (h *ListsHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		LinkedChallengeID: body.LinkedChallengeID,
 	})
 	if err != nil {
+		if errors.Is(err, store.ErrLinkedItem) {
+			writeError(w, http.StatusConflict, "automatic assessments cannot link a code challenge")
+			return
+		}
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "item not found")
 			return
@@ -466,6 +474,10 @@ func (h *ListsHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 	}
 	itemID := chi.URLParam(r, "id")
 	if err := h.store.DeleteListItem(r.Context(), itemID, claims.UserID); err != nil {
+		if errors.Is(err, store.ErrConflict) {
+			writeError(w, http.StatusConflict, "recorded activity prevents deletion")
+			return
+		}
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "item not found")
 			return
@@ -530,7 +542,7 @@ func (h *ListsHandler) CompleteItem(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, store.ErrLinkedItem) {
 			writeError(w, http.StatusUnprocessableEntity,
-				"este item é vinculado a um desafio — resolva o desafio para marcar conclusão automaticamente")
+				"este item tem correção automática — envie uma resposta aceita ou resolva o desafio para concluir")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal server error")
@@ -551,7 +563,7 @@ func (h *ListsHandler) UncompleteItem(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.UncompleteListItem(r.Context(), itemID, claims.UserID); err != nil {
 		if errors.Is(err, store.ErrLinkedItem) {
 			writeError(w, http.StatusUnprocessableEntity,
-				"este item é vinculado a um desafio — resolva o desafio para marcar conclusão automaticamente")
+				"este item tem correção automática — envie uma resposta aceita ou resolva o desafio para concluir")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal server error")

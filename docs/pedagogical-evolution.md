@@ -73,8 +73,10 @@ do HEAD do PR. O journal da sessão pertence ao worker.
 ## Etapa 2: histórico e resultados das sessões
 
 Implementação validada localmente: `cbb3c6a`.
-PR: https://github.com/cazemoises/ascend/pull/2. Checks e publicação são
-acompanhados no PR e nas execuções vinculadas ao commit de merge.
+PR: https://github.com/cazemoises/ascend/pull/2, mesclado como `b4766a4`
+após sucesso do check no HEAD `56cbdf3`. Publicado pela pipeline
+https://github.com/cazemoises/ascend/actions/runs/39048205334. O log confirmou
+`TestLiveSessionHistory` nos três modos, dashboard e convergência Yjs.
 O primeiro check detectou uma corrida na inicialização do banco descartável;
 a sondagem agora aguarda TCP, evitando o servidor temporário de socket Unix.
 
@@ -116,15 +118,64 @@ acesso de mentor/aluno, links de prática, sala não iniciada e rodada
 interrompida. Monitoramento da navegação confirmou zero escritas na API e
 zero sockets de sessão ao consultar o arquivo. Navegação para UUID inexistente
 mostra erro em vez de carregamento permanente. Fixtures locais descartadas
-em ordem de FK; a API preserva listas referenciadas por sessões (409).
+em ordem de FK. A limpeza via API de listas ainda referenciadas foi rejeitada;
+a etapa 3 padroniza o conflito de atividade registrada como HTTP 409.
+
+## Etapa 3: múltipla escolha e resposta curta
+
+Implementação local em validação, ainda não publicada. Migration append-only
+000028 cria revisões e tentativas; não transforma ou remove itens antigos.
+
+- Na lista, o mentor proprietário acessa **correção automática** e configura
+  perguntas de múltipla escolha (uma opção correta, 2–10 alternativas) ou
+  resposta curta (1–10 alternativas textuais aceitas). O enunciado corrigido
+  é versionado separadamente do contexto comum do item.
+- Cada alteração efetiva cria revisão imutável; salvar os mesmos dados mantém
+  a revisão. Edição comum/importação de itens existentes não redefine a
+  configuração. Gabaritos ficam em endpoint exclusivo do proprietário,
+  inclusive quando outros professores consultam uma lista publicada.
+- Aluno real responde em listas publicadas e recebe aceitação imediata.
+  Visitante pode ler perguntas publicadas; professor em ViewAs não responde.
+  A correção não executa código, regex ou IA. Desafios ligados ao judge
+  continuam no fluxo existente e não podem receber outra forma de correção.
+- Resposta curta colapsa espaços e remove espaços externos; diferenciação
+  de maiúsculas é configurável. Acentos são preservados. Múltipla escolha
+  compara a opção exatamente. Entrada e configuração têm limites de tamanho.
+- Conclusão deriva de aceitação na revisão atual; checkbox não a substitui,
+  mesmo se houver conclusão manual anterior. Versão antiga ao enviar retorna
+  409 e a interface oferece carregar a atual, preservando tentativas antigas.
+- O aluno vê suas últimas 50 tentativas, com enunciado e revisão originais;
+  não recebe gabarito ou respostas de colegas. O dashboard distingue envios
+  de código das respostas objetivas, com totais históricos, exercícios
+  resolvidos e dificuldades recorrentes na revisão atual. Conclusões atuais
+  aparecem no acompanhamento de listas.
+- Item/lista com respostas registradas não pode ser excluído (409), preservando
+  histórico. Tentativas e revisões são gravadas em transações com lock do item;
+  configuração e edição de vínculo ao judge também usam esse lock.
+
+Rotas: GET `/list-items/:id/assessment` público conforme publicação; GET
+`/assessment/authoring` e POST `/assessment` exclusivos do proprietário;
+POST e GET `/list-items/:id/answers` exclusivos do aluno real. Respostas
+compartilham o limitador existente de envios (10 por minuto por padrão).
+
+Validação local: testes unitários de normalização/validação, contrato integrado
+`TestListAssessments` com PostgreSQL e `-race`, regressões de listas, conclusões,
+permissões e dashboard, além de execução HTTP contra API real. Chromium conferiu
+criação dos dois tipos, alternativas por linha, resposta errada/correta,
+conclusão, mudança de versão, conflito e recarga, histórico preservado,
+ausência de gabarito no tráfego do aluno e indicadores do mentor. O contrato
+foi acrescentado ao check de PR e ao smoke pós-deploy.
+
+Limites desta entrega: exercícios objetivos pertencem às listas; rodadas e salas
+ao vivo continuam usando desafios do judge. Histórico do aluno mostra as 50
+últimas respostas por item, com registros completos preservados no banco.
+Trilhas e o vínculo de avaliações objetivas às sessões serão incrementos próprios.
 
 ## Próximas entregas e dependências
 
-1. Concluir validação e publicação da etapa 2 antes de iniciar exercícios novos.
-2. Exercícios objetivos: múltipla escolha e resposta curta, com modelo de
-   respostas/versões e tentativas persistidas antes de expor correção automática.
-   Separar respostas corretas dos dados públicos; reutilizar papéis e listas.
-   SQL já existe: testar e evoluir o fluxo atual, evitando um segundo executor.
+1. Concluir publicação e smoke da etapa 3 antes de iniciar trilhas.
+2. Exercícios objetivos: integração com sessões e paginação do histórico.
+   SQL já existe: evoluir o fluxo atual, evitando um segundo executor.
 3. Trilhas: módulos sobre listas, pré-requisitos validados sem ciclos, liberação
    verificada na API e progresso por aluno. Depende de um contrato de conclusão
    consistente para exercícios de código e objetivos; não basta ocultar na UI.

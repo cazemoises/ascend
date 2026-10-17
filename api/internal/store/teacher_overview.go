@@ -58,6 +58,13 @@ type StudentWeek struct {
 	NewlySolved int    `json:"newly_solved"`
 }
 
+type AssessmentStats struct {
+	Attempts              int `json:"attempts"`
+	AcceptedAttempts      int `json:"accepted_attempts"`
+	ItemsSolved           int `json:"items_solved"`
+	RecurringDifficulties int `json:"recurring_difficulties"`
+}
+
 type StudentListCompletion struct {
 	ListTitle   string    `json:"list_title"`
 	ItemTitle   string    `json:"item_title"`
@@ -67,12 +74,13 @@ type StudentListCompletion struct {
 // StudentOverview is one row of the teacher's flat student roster — no class
 // grouping, since Turmas no longer exists.
 type StudentOverview struct {
-	StudentID      string                    `json:"student_id"`
-	Email          string                    `json:"email"`
-	Stats          StudentStats              `json:"stats"`
-	WeeklyProgress []StudentWeek             `json:"weekly_progress"`
-	Challenges     []StudentChallengeSummary `json:"challenges"`
-	Completions    []StudentListCompletion   `json:"list_completions"`
+	AssessmentStats AssessmentStats           `json:"assessment_stats"`
+	StudentID       string                    `json:"student_id"`
+	Email           string                    `json:"email"`
+	Stats           StudentStats              `json:"stats"`
+	WeeklyProgress  []StudentWeek             `json:"weekly_progress"`
+	Challenges      []StudentChallengeSummary `json:"challenges"`
+	Completions     []StudentListCompletion   `json:"list_completions"`
 }
 
 // TeacherStudentsOverview returns every student (role=student) who has at
@@ -159,6 +167,7 @@ func (s *Store) TeacherStudentsOverview(ctx context.Context) ([]StudentOverview,
 		JOIN list_items li ON li.id = lic.list_item_id
 		JOIN problem_lists pl ON pl.id = li.list_id
 		JOIN users u ON u.id = lic.student_id AND u.role = 'student'
+        WHERE NOT EXISTS(SELECT 1 FROM list_assessment_revisions ar WHERE ar.list_item_id=li.id)
 		ORDER BY lic.completed_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("query student list completions: %w", err)
@@ -179,11 +188,60 @@ func (s *Store) TeacherStudentsOverview(ctx context.Context) ([]StudentOverview,
 		return nil, fmt.Errorf("iterate student list completions: %w", err)
 	}
 
+	assessmentRows, err := s.db.QueryContext(ctx, `SELECT a.student_id,u.email,ar.list_item_id,count(*),count(*) FILTER(WHERE a.accepted),
+ count(*) FILTER(WHERE a.accepted AND ar.id=(SELECT latest.id FROM list_assessment_revisions latest WHERE latest.list_item_id=ar.list_item_id ORDER BY latest.revision DESC LIMIT 1)),
+ count(*) FILTER(WHERE NOT a.accepted AND ar.id=(SELECT latest.id FROM list_assessment_revisions latest WHERE latest.list_item_id=ar.list_item_id ORDER BY latest.revision DESC LIMIT 1))
+ FROM list_assessment_attempts a JOIN list_assessment_revisions ar ON ar.id=a.revision_id JOIN users u ON u.id=a.student_id AND u.role='student'
+ GROUP BY a.student_id,u.email,ar.list_item_id`)
+	if err != nil {
+		return nil, fmt.Errorf("query assessment overview: %w", err)
+	}
+	defer assessmentRows.Close()
+	for assessmentRows.Next() {
+		var studentID, email, itemID string
+		var attempts, accepted, currentAccepted, currentFailures int
+		if err := assessmentRows.Scan(&studentID, &email, &itemID, &attempts, &accepted, &currentAccepted, &currentFailures); err != nil {
+			return nil, fmt.Errorf("scan assessment overview: %w", err)
+		}
+		stats := &get(studentID, email).AssessmentStats
+		stats.Attempts += attempts
+		stats.AcceptedAttempts += accepted
+		if currentAccepted > 0 {
+			stats.ItemsSolved++
+		} else if currentFailures >= 3 {
+			stats.RecurringDifficulties++
+		}
+	}
+	if err := assessmentRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate assessment overview: %w", err)
+	}
+	assessmentRows.Close()
+	gradedCompletions, err := s.db.QueryContext(ctx, `SELECT a.student_id,u.email,pl.title,li.title,min(a.created_at)
+ FROM list_assessment_attempts a JOIN list_assessment_revisions ar ON ar.id=a.revision_id JOIN list_items li ON li.id=ar.list_item_id JOIN problem_lists pl ON pl.id=li.list_id JOIN users u ON u.id=a.student_id AND u.role='student'
+ WHERE a.accepted AND ar.id=(SELECT latest.id FROM list_assessment_revisions latest WHERE latest.list_item_id=li.id ORDER BY latest.revision DESC LIMIT 1)
+ GROUP BY a.student_id,u.email,li.id,pl.id`)
+	if err != nil {
+		return nil, fmt.Errorf("query graded completions: %w", err)
+	}
+	defer gradedCompletions.Close()
+	for gradedCompletions.Next() {
+		var studentID, email string
+		var completion StudentListCompletion
+		if err := gradedCompletions.Scan(&studentID, &email, &completion.ListTitle, &completion.ItemTitle, &completion.CompletedAt); err != nil {
+			return nil, fmt.Errorf("scan graded completion: %w", err)
+		}
+		so := get(studentID, email)
+		so.Completions = append(so.Completions, completion)
+	}
+	if err := gradedCompletions.Err(); err != nil {
+		return nil, fmt.Errorf("iterate graded completions: %w", err)
+	}
 	overview := make([]StudentOverview, 0, len(order))
 	for _, id := range order {
 		so := byStudent[id]
 		so.Stats = computeStudentStats(so.Challenges)
 		so.WeeklyProgress = computeWeeklyProgress(so.Challenges)
+		sort.Slice(so.Completions, func(i, j int) bool { return so.Completions[i].CompletedAt.After(so.Completions[j].CompletedAt) })
 		overview = append(overview, *so)
 	}
 	sort.Slice(overview, func(i, j int) bool { return overview[i].Email < overview[j].Email })

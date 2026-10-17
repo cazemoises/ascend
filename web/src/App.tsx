@@ -5,6 +5,7 @@ import { RequireAuth, RequireTeacher } from './auth/RequireAuth'
 import { AppLayout } from './components/AppLayout'
 import { ChallengeList } from './pages/ChallengeList'
 import { ChallengePage } from './pages/ChallengePage'
+import { AssessmentAuthoringPage } from './pages/AssessmentAuthoringPage'
 import { ListDetailPage } from './pages/ListDetailPage'
 import { ListFormPage } from './pages/ListFormPage'
 import { ListsPage } from './pages/ListsPage'
@@ -62,6 +63,7 @@ function App() {
                 </RequireTeacher>
               }
             />
+            <Route path="/listas/:id/avaliacoes" element={<RequireTeacher><AssessmentAuthoringPage /></RequireTeacher>} />
             <Route path="/listas/:id" element={<ListDetailPage />} />
 
             {/* Progresso dos alunos: sempre ativo, engloba desafios e listas */}

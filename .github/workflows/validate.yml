@@ -46,7 +46,7 @@ jobs:
           DATABASE_URL: postgres://ascend_test:local_disposable_only@127.0.0.1:55439/ascend_test?sslmode=disable
         run: |
           go run ./cmd/migrate up
-          go test -race -tags integration ./api/internal/store ./api/internal/handler ./api/internal/router -run 'TestTeacherStudentsOverview|TestStudentsOverview|TestPedagogicalDashboard|TestLiveSessionHistory'
+          go test -race -tags integration ./api/internal/store ./api/internal/handler ./api/internal/router -run 'TestTeacherStudentsOverview|TestStudentsOverview|TestPedagogicalDashboard|TestLiveSessionHistory|TestListAssessments'
       - name: Frontend tests, lint and build
         working-directory: web
         run: |

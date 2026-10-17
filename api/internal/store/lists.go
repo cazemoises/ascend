@@ -24,15 +24,16 @@ type ProblemList struct {
 }
 
 type ListItem struct {
-	ID         string `json:"id"`
-	ListID     string `json:"list_id"`
-	Ordinal    int    `json:"ordinal"`
-	Title      string `json:"title"`
-	Difficulty string `json:"difficulty"`
-	IsBonus    bool   `json:"is_bonus"`
-	Body       string `json:"body"`
+	ID                   string  `json:"id"`
+	AssessmentRevisionID *string `json:"assessment_revision_id"`
+	ListID               string  `json:"list_id"`
+	Ordinal              int     `json:"ordinal"`
+	Title                string  `json:"title"`
+	Difficulty           string  `json:"difficulty"`
+	IsBonus              bool    `json:"is_bonus"`
+	Body                 string  `json:"body"`
 	// Completed is only populated for a student viewer (GetProblemListDetail);
-	// nil for a teacher, since it isn't their completion to report. For an
+	// nil for a teacher. Assessments require acceptance in the current revision; for an
 	// item with LinkedChallengeID set, it's derived from the challenge
 	// "solved" rule instead of list_item_completions.
 	Completed *bool `json:"completed"`
@@ -230,7 +231,7 @@ func (s *Store) listItemsForDetail(ctx context.Context, listID, viewerID, role s
 	if role != "student" {
 		rows, err := s.db.QueryContext(ctx,
 			`SELECT li.id, li.list_id, li.ordinal, li.title, li.difficulty, li.is_bonus, li.body,
-			        li.created_at, li.updated_at, li.linked_challenge_id, c.title, c.slug
+			        li.created_at, li.updated_at, li.linked_challenge_id, c.title, c.slug, (SELECT ar.id FROM list_assessment_revisions ar WHERE ar.list_item_id=li.id ORDER BY ar.revision DESC LIMIT 1)
 			 FROM list_items li
 			 LEFT JOIN challenges c ON c.id = li.linked_challenge_id
 			 WHERE li.list_id = $1
@@ -245,7 +246,7 @@ func (s *Store) listItemsForDetail(ctx context.Context, listID, viewerID, role s
 			var it ListItem
 			if err := rows.Scan(&it.ID, &it.ListID, &it.Ordinal, &it.Title, &it.Difficulty,
 				&it.IsBonus, &it.Body, &it.CreatedAt, &it.UpdatedAt,
-				&it.LinkedChallengeID, &it.ChallengeTitle, &it.ChallengeSlug); err != nil {
+				&it.LinkedChallengeID, &it.ChallengeTitle, &it.ChallengeSlug, &it.AssessmentRevisionID); err != nil {
 				return nil, err
 			}
 			items = append(items, it)
@@ -263,8 +264,10 @@ func (s *Store) listItemsForDetail(ctx context.Context, listID, viewerID, role s
 	// '' literal as a uuid — separate placeholders sidestep that entirely.
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT li.id, li.list_id, li.ordinal, li.title, li.difficulty, li.is_bonus, li.body,
-		        li.created_at, li.updated_at, li.linked_challenge_id, c.title, c.slug,
-		        CASE WHEN li.linked_challenge_id IS NOT NULL
+		        li.created_at, li.updated_at, li.linked_challenge_id, c.title, c.slug, (SELECT ar.id FROM list_assessment_revisions ar WHERE ar.list_item_id=li.id ORDER BY ar.revision DESC LIMIT 1),
+		        CASE WHEN EXISTS(SELECT 1 FROM list_assessment_revisions ar WHERE ar.list_item_id=li.id)
+                     THEN EXISTS(SELECT 1 FROM list_assessment_attempts aa WHERE aa.student_id=$2 AND aa.accepted AND aa.revision_id=(SELECT ar.id FROM list_assessment_revisions ar WHERE ar.list_item_id=li.id ORDER BY ar.revision DESC LIMIT 1))
+                     WHEN li.linked_challenge_id IS NOT NULL
 		             THEN `+solvedExpr("li.linked_challenge_id", 3)+`
 		             ELSE (lic.id IS NOT NULL)
 		        END AS completed
@@ -285,7 +288,7 @@ func (s *Store) listItemsForDetail(ctx context.Context, listID, viewerID, role s
 		var completed bool
 		if err := rows.Scan(&it.ID, &it.ListID, &it.Ordinal, &it.Title, &it.Difficulty,
 			&it.IsBonus, &it.Body, &it.CreatedAt, &it.UpdatedAt,
-			&it.LinkedChallengeID, &it.ChallengeTitle, &it.ChallengeSlug, &completed); err != nil {
+			&it.LinkedChallengeID, &it.ChallengeTitle, &it.ChallengeSlug, &it.AssessmentRevisionID, &completed); err != nil {
 			return nil, err
 		}
 		it.Completed = &completed
@@ -318,6 +321,9 @@ func (s *Store) DeleteProblemList(ctx context.Context, listID, teacherID string)
 	res, err := s.db.ExecContext(ctx,
 		`DELETE FROM problem_lists WHERE id = $1 AND teacher_id = $2`, listID, teacherID)
 	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23503" {
+			return ErrConflict
+		}
 		return fmt.Errorf("delete problem list: %w", err)
 	}
 	n, err := res.RowsAffected()
@@ -469,9 +475,25 @@ func (s *Store) ImportProblemList(ctx context.Context, req ImportProblemListRequ
 // UpdateListItem and DeleteListItem join through problem_lists to scope the
 // mutation to the requesting teacher's own items.
 func (s *Store) UpdateListItem(ctx context.Context, itemID, teacherID string, req UpdateListItemRequest) (ListItem, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return ListItem{}, fmt.Errorf("begin item update: %w", err)
+	}
+	defer tx.Rollback()
+	var graded bool
+	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM list_assessment_revisions ar WHERE ar.list_item_id=li.id) FROM list_items li JOIN problem_lists pl ON pl.id=li.list_id WHERE li.id=$1 AND pl.teacher_id=$2 FOR UPDATE OF li`, itemID, teacherID).Scan(&graded)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ListItem{}, ErrNotFound
+	}
+	if err != nil {
+		return ListItem{}, fmt.Errorf("lock item update: %w", err)
+	}
+	if graded && req.LinkedChallengeID != nil {
+		return ListItem{}, ErrLinkedItem
+	}
 	if req.LinkedChallengeID != nil {
 		var exists bool
-		if err := s.db.QueryRowContext(ctx,
+		if err := tx.QueryRowContext(ctx,
 			`SELECT EXISTS(SELECT 1 FROM challenges WHERE id = $1)`, *req.LinkedChallengeID,
 		).Scan(&exists); err != nil {
 			return ListItem{}, fmt.Errorf("check linked challenge: %w", err)
@@ -481,7 +503,7 @@ func (s *Store) UpdateListItem(ctx context.Context, itemID, teacherID string, re
 		}
 	}
 
-	row := s.db.QueryRowContext(ctx,
+	row := tx.QueryRowContext(ctx,
 		`UPDATE list_items li
 		 SET title = $3, difficulty = $4, is_bonus = $5, body = $6, linked_challenge_id = $7, updated_at = now()
 		 FROM problem_lists pl
@@ -491,13 +513,16 @@ func (s *Store) UpdateListItem(ctx context.Context, itemID, teacherID string, re
 		itemID, teacherID, req.Title, req.Difficulty, req.IsBonus, req.Body, req.LinkedChallengeID)
 
 	var it ListItem
-	err := row.Scan(&it.ID, &it.ListID, &it.Ordinal, &it.Title, &it.Difficulty, &it.IsBonus, &it.Body,
+	err = row.Scan(&it.ID, &it.ListID, &it.Ordinal, &it.Title, &it.Difficulty, &it.IsBonus, &it.Body,
 		&it.CreatedAt, &it.UpdatedAt, &it.LinkedChallengeID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ListItem{}, ErrNotFound
 	}
 	if err != nil {
 		return ListItem{}, fmt.Errorf("update list item: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return ListItem{}, fmt.Errorf("commit item update: %w", err)
 	}
 	return it, nil
 }
@@ -509,6 +534,9 @@ func (s *Store) DeleteListItem(ctx context.Context, itemID, teacherID string) er
 		 WHERE li.id = $1 AND li.list_id = pl.id AND pl.teacher_id = $2`,
 		itemID, teacherID)
 	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23503" {
+			return ErrConflict
+		}
 		return fmt.Errorf("delete list item: %w", err)
 	}
 	n, err := res.RowsAffected()
