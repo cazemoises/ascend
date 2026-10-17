@@ -4,15 +4,20 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"strconv"
+	"sync"
+	"time"
 )
 
 var (
-	ErrTimeLimitExceeded = errors.New("time limit exceeded")
-	ErrRuntimeError      = errors.New("runtime error")
+	ErrTimeLimitExceeded   = errors.New("time limit exceeded")
+	ErrRuntimeError        = errors.New("runtime error")
+	ErrOutputLimitExceeded = errors.New("output limit exceeded")
 )
 
 type Language string
@@ -55,7 +60,9 @@ func NewDockerExecutor(binary string) DockerExecutor {
 	return &dockerCLIExecutor{binary: binary}
 }
 
-func (e *dockerCLIExecutor) Run(ctx context.Context, req RunRequest) (RunResult, error) {
+const maxRunOutput = 64 * 1024
+
+func (e *dockerCLIExecutor) Run(ctx context.Context, req RunRequest) (result RunResult, runErr error) {
 	image, command, fileName, err := containerConfig(req.Language)
 	if err != nil {
 		return RunResult{}, fmt.Errorf("container config: %w", err)
@@ -66,9 +73,36 @@ func (e *dockerCLIExecutor) Run(ctx context.Context, req RunRequest) (RunResult,
 		return RunResult{}, fmt.Errorf("build payload archive: %w", err)
 	}
 
+	nameBytes := make([]byte, 16)
+	if _, err := rand.Read(nameBytes); err != nil {
+		return RunResult{}, fmt.Errorf("generate sandbox name: %w", err)
+	}
+	name := fmt.Sprintf("ascend-run-%x", nameBytes)
+	// Create never starts student code. Only an acknowledged creation may start,
+	// avoiding a late daemon start after the request has already timed out.
+	created := false
+	defer func() {
+		// Kill first: removal must not wait for a graceful shutdown of hostile code.
+		killCtx, cancelKill := context.WithTimeout(context.Background(), 2*time.Second)
+		kill := exec.CommandContext(killCtx, e.binary, "kill", "--signal", "KILL", name)
+		kill.WaitDelay = time.Second
+		_ = kill.Run() // Already-exited containers need no signal; removal is authoritative.
+		cancelKill()
+		// A stuck kill must not consume the deadline for removal.
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		cleanup := exec.CommandContext(cleanupCtx, e.binary, "rm", "-f", name)
+		cleanup.WaitDelay = time.Second
+		if err := cleanup.Run(); err != nil {
+			runErr = errors.Join(runErr, fmt.Errorf("remove sandbox: %w", err), ErrRuntimeError)
+			if created {
+				const diagnostic = "\nSandbox cleanup failed; contact the mentor."
+				result.Stderr = truncate(result.Stderr, maxRunOutput-len(diagnostic)) + diagnostic
+			}
+		}
+	}()
 	args := []string{
-		"run",
-		"--rm",
+		"create", "--name", name,
 		"-i",
 		// Hardening: total network isolation plus least-privilege execution.
 		// The submission runs as the unprivileged "nobody" user with every
@@ -90,35 +124,76 @@ func (e *dockerCLIExecutor) Run(ctx context.Context, req RunRequest) (RunResult,
 	}
 	args = append(args, command...)
 
-	cmd := exec.CommandContext(ctx, e.binary, args...)
-	cmd.Stdin = bytes.NewReader(payload)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	// Image/daemon diagnostics are bounded too, without canceling on pull progress.
+	createOutput := &boundedOutput{}
+	create := exec.CommandContext(ctx, e.binary, args...)
+	create.Stdout = io.Discard
+	create.Stderr = outputStream{output: createOutput, stderr: true}
+	create.WaitDelay = time.Second
+	if err := create.Run(); err != nil {
+		result.Stderr = createOutput.stderr.String()
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return result, fmt.Errorf("create sandbox timed out: %w", ErrTimeLimitExceeded)
+		}
+		return result, fmt.Errorf("create sandbox: %w", errors.Join(ErrRuntimeError, err))
+	}
 
+	created = true
+	runCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	output := &boundedOutput{cancel: cancel}
+	cmd := exec.CommandContext(runCtx, e.binary, "start", "--attach", "--interactive", name)
+	cmd.Stdin = bytes.NewReader(payload)
+	cmd.Stdout = outputStream{output: output}
+	cmd.Stderr = outputStream{output: output, stderr: true}
+	cmd.WaitDelay = time.Second
 	err = cmd.Run()
-	result := RunResult{
-		Stdout: stdout.String(),
-		Stderr: stderr.String(),
+	result.Stdout, result.Stderr = output.stdout.String(), output.stderr.String()
+	if errors.Is(context.Cause(runCtx), ErrOutputLimitExceeded) {
+		result.Stderr = "Output limit exceeded (64 KiB combined stdout/stderr)."
+		return result, errors.Join(ErrRuntimeError, ErrOutputLimitExceeded)
+	}
+	if errors.Is(context.Cause(runCtx), context.DeadlineExceeded) {
+		return result, fmt.Errorf("sandbox timed out: %w", ErrTimeLimitExceeded)
 	}
 	if err == nil {
 		return result, nil
 	}
-
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return result, fmt.Errorf("docker run timed out: %w", ErrTimeLimitExceeded)
-	}
-
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
-		if exitErr.ProcessState != nil {
-			result.ExitCode = exitErr.ProcessState.ExitCode()
-		}
-		return result, fmt.Errorf("docker run exit error: %w", ErrRuntimeError)
+		result.ExitCode = exitErr.ExitCode()
 	}
+	return result, fmt.Errorf("start sandbox: %w", errors.Join(ErrRuntimeError, err))
+}
 
-	return result, fmt.Errorf("docker run: %w", ErrRuntimeError)
+// Both CLI output pipes share one budget. Continue consuming excess bytes until
+// cancellation takes effect so a full pipe cannot deadlock process shutdown.
+type boundedOutput struct {
+	mu             sync.Mutex
+	stdout, stderr bytes.Buffer
+	used           int
+	cancel         context.CancelCauseFunc
+}
+type outputStream struct {
+	output *boundedOutput
+	stderr bool
+}
+
+func (w outputStream) Write(p []byte) (int, error) {
+	o := w.output
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	n := min(len(p), maxRunOutput-o.used)
+	if w.stderr {
+		_, _ = o.stderr.Write(p[:n])
+	} else {
+		_, _ = o.stdout.Write(p[:n])
+	}
+	o.used += n
+	if n < len(p) && o.cancel != nil {
+		o.cancel(ErrOutputLimitExceeded)
+	}
+	return len(p), nil
 }
 
 func containerConfig(language Language) (image string, command []string, fileName string, err error) {

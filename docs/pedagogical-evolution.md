@@ -123,7 +123,10 @@ a etapa 3 padroniza o conflito de atividade registrada como HTTP 409.
 
 ## Etapa 3: múltipla escolha e resposta curta
 
-Implementação local em validação, ainda não publicada. Migration append-only
+Publicada pelo PR #3 (commit `92c240e`, merge `72b99e1`). Deploy
+[39049837765](https://github.com/cazemoises/ascend/actions/runs/39049837765)
+concluído: contrato `TestListAssessments` passou contra a aplicação publicada,
+assim como dashboard, histórico das três modalidades e convergência Yjs. Migration append-only
 000028 cria revisões e tentativas; não transforma ou remove itens antigos.
 
 - Na lista, o mentor proprietário acessa **correção automática** e configura
@@ -171,9 +174,40 @@ ao vivo continuam usando desafios do judge. Histórico do aluno mostra as 50
 últimas respostas por item, com registros completos preservados no banco.
 Trilhas e o vínculo de avaliações objetivas às sessões serão incrementos próprios.
 
+## Etapa 4: contenção da execução no Judge
+
+Implementada e validada localmente; publicação pendente.
+
+- stdout e stderr compartilham orçamento de 64 KiB durante a execução, em vez
+  de crescerem ilimitadamente antes do truncamento na persistência. Qualquer
+  byte excedente cancela a execução e produz `runtime_error` com diagnóstico
+  de limite; saída truncada nunca pode ser aceita por coincidência.
+- O CLI cria o container sem iniciá-lo e só executa após confirmação da criação.
+  Nome aleatório por execução permite encerramento e remoção explícitos em todos
+  os caminhos. Timeout continua como `time_limit_exceeded`.
+- Encerramento forçado e remoção têm contextos independentes do prazo do aluno
+  e entre si. Uma falha/travamento no kill não impede tentar rm. Falha de remoção
+  impede aceitação e acrescenta diagnóstico ao resultado. Pipes do CLI têm prazo
+  adicional limitado para fechamento.
+- Rede isolada, usuário sem privilégios, capabilities removidas, limites de
+  memória/CPU/processos, linguagens e transporte por tar permanecem preservados.
+  Sem nova migration, rota, permissão ou alteração ao Yjs.
+
+Validação: CLI simulado cobre sucesso, código de saída, timeout, fronteira do
+orçamento, excesso em cada pipe e combinado, falha na criação/remoção e kill
+travado. Testes com `-race` e execução real no Podman rootless privado cobrem
+stdin, erro Python, saída excessiva e loop infinito; verificam ausência de
+containers remanescentes. O check de PR executa também esse teste real.
+
+Limites: indisponibilidade do daemon pode impedir a limpeza e é reportada; uma
+criação confirmada tardiamente após cancelamento pode deixar apenas metadados
+parados (o start nunca é enviado). Download de imagem e compilação continuam
+contando no prazo do caso de teste, como antes. Não houve execução manual no
+Docker de produção; publicação permanece pela pipeline oficial.
+
 ## Próximas entregas e dependências
 
-1. Concluir publicação e smoke da etapa 3 antes de iniciar trilhas.
+1. Concluir publicação e smoke da etapa 4 antes de iniciar trilhas.
 2. Exercícios objetivos: integração com sessões e paginação do histórico.
    SQL já existe: evoluir o fluxo atual, evitando um segundo executor.
 3. Trilhas: módulos sobre listas, pré-requisitos validados sem ciclos, liberação
