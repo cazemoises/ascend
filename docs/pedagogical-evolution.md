@@ -2,7 +2,8 @@
 
 ## Etapa 1: indicadores no progresso dos alunos
 
-Implementada em 17/10/2026; integração PostgreSQL validada, publicação em preparação.
+Implementada e validada em 17/10/2026. Commit de implementação: `528e49e`.
+PR: https://github.com/cazemoises/ascend/pull/1 (aguardando checks e pipeline).
 
 A rota existente `GET /api/v1/teacher/students-overview`, restrita a professores,
 passa a incluir:
@@ -52,9 +53,14 @@ A ordenação das tentativas usa data e ID para desempatar datas iguais.
   frontend, lint e build em PRs para `main` antes do deploy existente.
 - Frontend: `cd web && npm test` passou (regressões de reconexão Yjs);
   `npm run lint` e `npm run build` passaram.
-- Validação manual pendente: entrar como professor e conferir aluno sem envios,
-  aluno com três falhas, filtro, aceitação posterior e tabela em tela estreita;
-  confirmar que aluno não acessa a rota do professor.
+- Interface conferida com Chromium/Playwright em container privado rootless,
+  frontend e API reais sobre fixtures locais: mentor vê aluno com três falhas,
+  filtro funciona, tabela semanal mostra primeira resolução, aceitação remove
+  alerta, tela de 375px não transborda, aluno recebe bloqueio e ViewAs bloqueia
+  o painel/restaura acesso ao voltar a professor. O primeiro ensaio direto
+  entre origens esbarrou no CORS do header de identidade; o ensaio válido usa
+  proxy de mesma origem, como a implantação. Nenhum ajuste de CORS foi feito.
+  Aluno sem envios e aluno só com conclusões de listas cobertos em PostgreSQL.
 
 Commit, push, PR e merge desta tarefa foram autorizados em 17/10/2026.
 A publicação continua exclusivamente pela pipeline oficial, após os checks
