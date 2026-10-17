@@ -72,7 +72,11 @@ do HEAD do PR. O journal da sessão pertence ao worker.
 
 ## Etapa 2: histórico e resultados das sessões
 
-Implementação validada localmente, aguardando PR e publicação.
+Implementação validada localmente: `cbb3c6a`.
+PR: https://github.com/cazemoises/ascend/pull/2. Checks e publicação são
+acompanhados no PR e nas execuções vinculadas ao commit de merge.
+O primeiro check detectou uma corrida na inicialização do banco descartável;
+a sondagem agora aguarda TCP, evitando o servidor temporário de socket Unix.
 
 - `GET /api/v1/live-sessions?status=finished`: somente sessões próprias do
   mentor ou sessões em que o aluno participou. O padrão mantém as sessões
