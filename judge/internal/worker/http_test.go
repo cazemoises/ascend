@@ -31,3 +31,27 @@ func TestHTTPFeedbackVisibility(t *testing.T) {
 		})
 	}
 }
+
+func TestHTTPMixedVisibility(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		firstPublic bool
+	}{{"public failure before hidden", true}, {"public failure after hidden", false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			good := testCaseRecord{Input: `{"method":"GET","path":"/secret"}`, ExpectedOutput: `{"status":200,"json":1}`, IsSample: false}
+			bad := testCaseRecord{Input: `{"method":"GET","path":"/public"}`, ExpectedOutput: `{"status":200,"json":2}`, IsSample: true}
+			cases := []testCaseRecord{good, bad}
+			if tc.firstPublic {
+				cases = []testCaseRecord{bad, good}
+			}
+			executor := &scriptedExecutor{results: []RunResult{{Stdout: `[{"status":200,"json":1},{"status":200,"json":1}]`, Stderr: "secret later request"}}, errs: []error{nil}}
+			result := evaluateHTTP(context.Background(), executor, "code", cases, 1000, 128)
+			if result.status != "wrong_answer" || result.stderr != "" {
+				t.Fatalf("invalid mixed feedback %+v", result)
+			}
+			if result.failedIsSample != tc.firstPublic || (result.expectedOutput != "") != tc.firstPublic || (result.stdout != "") != tc.firstPublic {
+				t.Fatalf("state-tainted feedback: %+v", result)
+			}
+		})
+	}
+}

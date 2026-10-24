@@ -34,14 +34,15 @@ for r in requests:
  c=http.client.HTTPConnection('127.0.0.1',8000,timeout=2)
  c.request(r['method'],r['path'],body,{'Content-Type':'application/json'} if body is not None else {})
  rsp=c.getresponse()
+ headers={k.lower():v for k,v in rsp.getheaders() if k.lower() in ('content-type','content-language','cache-control','allow','content-encoding')}
  b=rsp.read(16385)
  if len(b)>16384: raise RuntimeError('HTTP response exceeds 16 KiB')
  try: value=json.loads(b) if b else None
  except ValueError:
-  responses.append({'status':rsp.status,'json':None,'raw_body':b.decode('utf-8',errors='replace')})
+  responses.append({'status':rsp.status,'headers':headers,'json':None,'raw_body':b.decode('utf-8',errors='replace')})
   c.close()
   continue
- responses.append({'status':rsp.status,'json':value})
+ responses.append({'status':rsp.status,'headers':headers,'json':value})
  c.close()
 print(json.dumps(responses,ensure_ascii=True))
 `
@@ -112,7 +113,7 @@ func (e *dockerCLIExecutor) runHTTP(ctx context.Context, name string, payload []
 // A batch shares one server and one deadline, allowing POST/GET stateful labs.
 // Only requests enter the sandbox; expected responses and verdicts remain here.
 func evaluateHTTP(ctx context.Context, executor DockerExecutor, source string, cases []testCaseRecord, timeout, memory int) evalResult {
-	res := evalResult{status: "runtime_error", total: len(cases)}
+	res := evalResult{status: "runtime_error", total: len(cases), httpResult: true}
 	// A batch runs every request before comparison. Even a sample failure's
 	// server logs can contain later hidden requests, so suppress batch logs.
 	hasHidden := false
@@ -156,10 +157,13 @@ func evaluateHTTP(ctx context.Context, executor DockerExecutor, source string, c
 	}
 	res.status = "accepted"
 	exploratory := true
+	seenHidden := false
 	for i, tc := range cases {
+		public := tc.IsSample && !seenHidden
+		seenHidden = seenHidden || !tc.IsSample
 		actual := string(responses[i])
 		res.stdout = ""
-		if tc.IsSample {
+		if public {
 			res.stdout = actual
 		}
 		if _, err := httplab.ParseResponse(actual); err != nil {
@@ -171,8 +175,8 @@ func evaluateHTTP(ctx context.Context, executor DockerExecutor, source string, c
 			exploratory = false
 			if !httplab.Match(actual, tc.ExpectedOutput) {
 				res.status = "wrong_answer"
-				res.failedIsSample = tc.IsSample
-				if tc.IsSample {
+				res.failedIsSample = public
+				if public {
 					res.expectedOutput = tc.ExpectedOutput
 					res.failedInput = tc.Input
 				}

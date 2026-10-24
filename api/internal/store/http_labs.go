@@ -97,3 +97,55 @@ func (s *Store) IsHTTPLab(ctx context.Context, id string) (bool, error) {
 	err := s.db.QueryRowContext(ctx, `SELECT COALESCE(language='fastapi',false) FROM challenges WHERE id=$1`, id).Scan(&lab)
 	return lab, err
 }
+
+// PrepareHTTPFeedback is a response-boundary guard, including older persisted
+// results. Stateful requests after a hidden request can reveal its data even
+// when the later request is labelled public. Only a public prefix is safe.
+func (s *Store) PrepareHTTPFeedback(ctx context.Context, sub *Submission) error {
+	if sub.HTTPExploration {
+		sub.HTTPFeedbackSafe = true
+		return nil
+	}
+	var public, hidden bool
+	err := s.db.QueryRowContext(ctx, `WITH ordered AS (
+ SELECT *,row_number() OVER (ORDER BY ordinal)-1 AS position FROM test_cases WHERE challenge_id=$1
+ ) SELECT
+ EXISTS(SELECT 1 FROM ordered tc WHERE tc.position=$4 AND tc.is_sample
+ AND tc.input=$2 AND tc.expected_output=$3
+ AND NOT EXISTS(SELECT 1 FROM test_cases h WHERE h.challenge_id=$1 AND NOT h.is_sample AND h.ordinal<=tc.ordinal)),
+ EXISTS(SELECT 1 FROM test_cases WHERE challenge_id=$1 AND NOT is_sample)`, sub.ChallengeID, sub.FailedInput, sub.ExpectedOutput, sub.PassedCount).Scan(&public, &hidden)
+	if err != nil {
+		return fmt.Errorf("check HTTP feedback visibility: %w", err)
+	}
+	sub.HTTPFeedbackSafe = !hidden
+	if hidden {
+		sub.Stderr = nil
+	}
+	if sub.Status != "wrong_answer" {
+		sub.ExpectedOutput = nil
+		sub.FailedInput = nil
+		if hidden {
+			sub.Stdout = nil
+		}
+		return nil
+	}
+	if sub.FailedIsSample == nil || !*sub.FailedIsSample || !public {
+		sub.Stdout = nil
+		sub.ExpectedOutput = nil
+		sub.FailedInput = nil
+		value := false
+		sub.FailedIsSample = &value
+		return nil
+	}
+	if sub.Stdout != nil && sub.ExpectedOutput != nil {
+		comparison, err := httplab.Compare(*sub.Stdout, *sub.ExpectedOutput)
+		if err == nil {
+			sub.HTTPDebug = comparison
+		} else {
+			sub.Stdout = nil
+			sub.ExpectedOutput = nil
+			sub.Stderr = nil
+		}
+	}
+	return nil
+}

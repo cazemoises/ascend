@@ -217,6 +217,7 @@ func (w *Worker) processSubmission(ctx context.Context, job SubmissionJob) error
 }
 
 type evalResult struct {
+	httpResult  bool
 	status      string
 	passedCount int
 	total       int
@@ -460,8 +461,12 @@ func truncate(s string, max int) string {
 
 func (w *Worker) updateSubmissionResult(ctx context.Context, submissionID string, res evalResult) error {
 	stderrLog := truncate(res.stderr, maxStderrBytes)
-	stdoutLog := truncate(res.stdout, maxOutputBytes)
-	expectedLog := truncate(res.expectedOutput, maxOutputBytes)
+	outputLimit := maxOutputBytes
+	if res.httpResult {
+		outputLimit = maxRunOutput
+	}
+	stdoutLog := truncate(res.stdout, outputLimit)
+	expectedLog := truncate(res.expectedOutput, outputLimit)
 
 	// sql.NullString/NullBool, not NULLIF(x, ''): failedInput can
 	// legitimately BE an empty string for a sample case whose test input is

@@ -17,9 +17,10 @@ type Request struct {
 	JSON   json.RawMessage `json:"json,omitempty"`
 }
 type Response struct {
-	Status  int             `json:"status"`
-	JSON    json.RawMessage `json:"json"`
-	RawBody *string         `json:"raw_body,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+	Status  int               `json:"status"`
+	JSON    json.RawMessage   `json:"json"`
+	RawBody *string           `json:"raw_body,omitempty"`
 }
 
 func ParseRequest(raw string) (Request, error) {
@@ -52,7 +53,36 @@ func ParseResponse(raw string) (Response, error) {
 	if r.Status < 100 || r.Status > 599 || len(r.JSON) == 0 {
 		return r, fmt.Errorf("response requires status (100–599) and json (null for empty body)")
 	}
+	var err error
+	r.Headers, err = normalizeHeaders(r.Headers)
+	if err != nil {
+		return r, err
+	}
 	return r, nil
+}
+
+// Capture only pedagogical headers, never cookies, authentication or tracing data.
+func AllowedHeader(name string) bool {
+	switch strings.ToLower(name) {
+	case "content-type", "content-language", "cache-control", "allow", "content-encoding":
+		return true
+	default:
+		return false
+	}
+}
+func normalizeHeaders(headers map[string]string) (map[string]string, error) {
+	normalized := make(map[string]string, len(headers))
+	for name, value := range headers {
+		key := strings.ToLower(name)
+		if !AllowedHeader(key) || strings.ContainsAny(value, "\r\n") {
+			return nil, fmt.Errorf("unsupported or invalid HTTP header")
+		}
+		if _, exists := normalized[key]; exists {
+			return nil, fmt.Errorf("duplicate HTTP header")
+		}
+		normalized[key] = value
+	}
+	return normalized, nil
 }
 func Match(actual, expected string) bool {
 	a, err := ParseResponse(actual)
@@ -62,6 +92,11 @@ func Match(actual, expected string) bool {
 	e, err := ParseResponse(expected)
 	if err != nil || a.Status != e.Status || a.RawBody != nil {
 		return false
+	}
+	for name, value := range e.Headers {
+		if actual, ok := a.Headers[name]; !ok || actual != value {
+			return false
+		}
 	}
 	var av, ev any
 	ad, ed := json.NewDecoder(bytes.NewReader(a.JSON)), json.NewDecoder(bytes.NewReader(e.JSON))

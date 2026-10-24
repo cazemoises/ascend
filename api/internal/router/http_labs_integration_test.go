@@ -148,7 +148,7 @@ def get(key:str):
  return items[key]
 `
 	in := map[string]any{"starter_code": "from fastapi import FastAPI\napp=FastAPI()\n", "time_limit_ms": 15000, "memory_limit_mb": 128, "test_cases": []map[string]any{
-		{"input": `{"method":"GET","path":"/hello/Ana?greeting=Oi"}`, "expected_output": `{"status":200,"json":{"message":"Oi, Ana!"}}`, "is_sample": true},
+		{"input": `{"method":"GET","path":"/hello/Ana?greeting=Oi"}`, "expected_output": `{"status":200,"headers":{"Content-Type":"application/json"},"json":{"message":"Oi, Ana!"}}`, "is_sample": true},
 		{"input": `{"method":"POST","path":"/items/7","json":{"title":"secret-test"}}`, "expected_output": `{"status":201,"json":{"title":"secret-test"}}`, "is_sample": false},
 		{"input": `{"method":"GET","path":"/items/7"}`, "expected_output": `{"status":200,"json":{"title":"secret-test"}}`, "is_sample": false},
 	}}
@@ -235,6 +235,52 @@ def get(key:str):
 		if wrong.Status != "wrong_answer" || wrong.FailedInput == nil || wrong.ExpectedOutput == nil || completed() {
 			t.Fatalf("missing failure feedback: %+v", wrong)
 		}
+		if wrong.HTTPDebug == nil || len(wrong.HTTPDebug.Differences) != 1 || wrong.HTTPDebug.Differences[0].Path != `$.json["message"]` || wrong.Stderr != nil {
+			t.Fatalf("missing deterministic public debugger / leaked batch logs: %+v", wrong)
+		}
+		var mentorFeedback store.Submission
+		request("GET", "/submissions/"+wrong.ID, mentor.Email, "", nil, 200, &mentorFeedback)
+		if mentorFeedback.HTTPDebug == nil {
+			t.Fatal("mentor lost public comparison")
+		}
+		// Duplicate public requests must not make a later state-tainted snapshot
+		// look like the earlier safe case when reading an older persisted result.
+		if _, err = db.ExecContext(ctx, `INSERT INTO test_cases(challenge_id,input,expected_output,is_sample,ordinal) SELECT challenge_id,input,expected_output,true,3 FROM test_cases WHERE challenge_id=$1 AND ordinal=0`, challengeID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = db.ExecContext(ctx, `UPDATE submissions SET passed_count=3 WHERE id=$1`, wrong.ID); err != nil {
+			t.Fatal(err)
+		}
+		var duplicateProtected store.Submission
+		request("GET", "/submissions/"+wrong.ID, student.Email, "", nil, 200, &duplicateProtected)
+		if duplicateProtected.HTTPDebug != nil || duplicateProtected.Stdout != nil || duplicateProtected.ExpectedOutput != nil {
+			t.Fatal("duplicate request bypassed visibility")
+		}
+		if _, err = db.ExecContext(ctx, `DELETE FROM test_cases WHERE challenge_id=$1 AND ordinal=3`, challengeID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = db.ExecContext(ctx, `UPDATE submissions SET passed_count=0 WHERE id=$1`, wrong.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		// A public request after a hidden request must not expose shared state,
+		// including for persisted results produced by the previous Judge version.
+		if _, err = db.ExecContext(ctx, `UPDATE test_cases SET ordinal=-1 WHERE challenge_id=$1 AND ordinal=1`, challengeID); err != nil {
+			t.Fatal(err)
+		}
+		var protected store.Submission
+		_ = request("GET", "/submissions/"+wrong.ID, student.Email, "", nil, 200, &protected)
+		if protected.HTTPDebug != nil || protected.Stdout != nil || protected.ExpectedOutput != nil || protected.FailedInput != nil {
+			t.Fatal("state-tainted feedback leaked")
+		}
+		if _, err = db.ExecContext(ctx, `UPDATE test_cases SET ordinal=1 WHERE challenge_id=$1 AND ordinal=-1`, challengeID); err != nil {
+			t.Fatal(err)
+		}
+		hiddenWrong := submit(student.Email, false, strings.Replace(source, "return data", "return {'private': 'secret-test'}", 1))
+		if hiddenWrong.Status != "wrong_answer" || hiddenWrong.HTTPDebug != nil || hiddenWrong.ExpectedOutput != nil || hiddenWrong.Stdout != nil || hiddenWrong.Stderr != nil {
+			t.Fatalf("hidden comparison leaked: %+v", hiddenWrong)
+		}
+
 	}
 	graded := submit(student.Email, false, source)
 	if graded.Status != "accepted" || graded.IsTestRun || !completed() {
@@ -250,7 +296,7 @@ def get(key:str):
 	}
 	want := 1
 	if real {
-		want = 2
+		want = 3
 	}
 	if attempts != want {
 		t.Fatalf("graded attempts %d want %d", attempts, want)
