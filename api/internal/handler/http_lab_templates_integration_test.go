@@ -6,12 +6,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/caze/ascend/api/internal/auth"
 	"github.com/caze/ascend/api/internal/store"
+	"github.com/go-chi/chi/v5"
 )
 
 func TestHTTPSequenceImport(t *testing.T) {
@@ -19,12 +21,13 @@ func TestHTTPSequenceImport(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	s := store.New(db, nil)
-	owner, err := s.CreateUser(ctx, "sequence-import@example.com", "unused")
+	owner, err := s.CreateUser(ctx, fmt.Sprintf("sequence-import-%d@example.com", time.Now().UnixNano()), "unused")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
 		db.ExecContext(ctx, `UPDATE list_items SET linked_challenge_id=NULL WHERE list_id IN (SELECT id FROM problem_lists WHERE teacher_id=$1)`, owner.ID)
+		db.ExecContext(ctx, `DELETE FROM test_cases WHERE challenge_id IN (SELECT id FROM challenges WHERE lab_owner_id=$1)`, owner.ID)
 		db.ExecContext(ctx, `DELETE FROM challenges WHERE lab_owner_id=$1`, owner.ID)
 		db.ExecContext(ctx, `DELETE FROM problem_lists WHERE teacher_id=$1`, owner.ID)
 		db.ExecContext(ctx, `DELETE FROM users WHERE id=$1`, owner.ID)
@@ -86,4 +89,32 @@ func TestHTTPSequenceImport(t *testing.T) {
 	if lists != 1 || labs != 6 {
 		t.Fatalf("partial import persisted: lists=%d labs=%d", lists, labs)
 	}
+	// The normal item endpoint must not silently discard HTTP configuration.
+	var original importListBody
+	json.Unmarshal(fastAPISequence, &original)
+	itemPayload, _ := json.Marshal(original.Items[0])
+	req := withClaims(httptest.NewRequest("POST", "/lists/"+detail.ID+"/items", bytes.NewReader(itemPayload)), auth.Claims{UserID: owner.ID, Role: "teacher"})
+	route := chi.NewRouteContext()
+	route.URLParams.Add("id", detail.ID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+	response := httptest.NewRecorder()
+	h.CreateItem(response, req)
+	if response.Code != 201 {
+		t.Fatalf("create HTTP item: %d %s", response.Code, response.Body.String())
+	}
+	var item store.ListItem
+	if err := json.Unmarshal(response.Body.Bytes(), &item); err != nil {
+		t.Fatal(err)
+	}
+	if item.LinkedChallengeID == nil {
+		t.Fatal("HTTP configuration was discarded")
+	}
+	var cases int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM test_cases WHERE challenge_id=$1`, *item.LinkedChallengeID).Scan(&cases); err != nil {
+		t.Fatal(err)
+	}
+	if cases != len(original.Items[0].HTTPLab.TestCases) {
+		t.Fatal("HTTP tests were not persisted")
+	}
+
 }
