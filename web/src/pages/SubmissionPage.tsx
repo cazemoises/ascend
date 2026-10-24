@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 
 import { getLiveSession, getSubmission, listChallenges, type Challenge, type Submission } from '../api'
+import { HTTPTestDebugger } from '../components/HTTPTestDebugger'
 import { ExecutionTrail } from '../components/ExecutionTrail'
 import { TelemetryChip } from '../components/TelemetryChip'
 import { VerdictBadge } from '../components/VerdictBadge'
@@ -230,7 +231,8 @@ export function SubmissionPage() {
             </div>
 
             <div className="submission-panel__body">
-              {submission.status === 'accepted' && submission.stdout !== null ? (
+              {submission.language === 'fastapi' ? <HTTPTestDebugger key={submission.id} submission={submission}/> : null}
+              {submission.language !== 'fastapi' && submission.status === 'accepted' && submission.stdout !== null ? (
                 <section className="submission-section">
                   <div className="submission-output">
                     <div className="result-panel">
@@ -241,7 +243,7 @@ export function SubmissionPage() {
                 </section>
               ) : null}
 
-              {submission.status === 'wrong_answer' && submission.failed_input !== null ? (
+              {submission.language !== 'fastapi' && submission.status === 'wrong_answer' && submission.failed_input !== null ? (
                 <section className="submission-section">
                   <div className="result-panel">
                     <p className="result-panel__header">Entrada</p>
@@ -250,7 +252,7 @@ export function SubmissionPage() {
                 </section>
               ) : null}
 
-              {submission.status === 'wrong_answer' &&
+              {submission.language !== 'fastapi' && submission.status === 'wrong_answer' &&
               submission.failed_input === null &&
               submission.failed_is_sample === false ? (
                 <section className="submission-section">
@@ -258,7 +260,7 @@ export function SubmissionPage() {
                 </section>
               ) : null}
 
-              {submission.status === 'wrong_answer' && submission.stdout !== null ? (
+              {submission.language !== 'fastapi' && submission.status === 'wrong_answer' && submission.stdout !== null ? (
                 <section className="submission-section">
                   <div className="submission-output">
                     <div className="result-panel result-panel--actual">
@@ -273,7 +275,7 @@ export function SubmissionPage() {
                 </section>
               ) : null}
 
-              {(submission.language === 'fastapi' || submission.status === 'runtime_error' || submission.status === 'time_limit_exceeded') &&
+              {submission.language !== 'fastapi' && (submission.status === 'runtime_error' || submission.status === 'time_limit_exceeded') &&
               submission.stderr !== null ? (
                 <section className="submission-section">
                   <div className="submission-output">

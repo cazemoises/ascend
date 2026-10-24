@@ -3580,3 +3580,16 @@ pre {
 .lab-form textarea { width: 100%; box-sizing: border-box; font-family: monospace; }
 .lab-form button { white-space: normal; }
 @media (max-width: 800px) { .lab-workspace { grid-template-columns: minmax(0, 1fr); } }
+
+.http-debugger { padding: 1.25rem; margin-block: 1rem; min-width: 0; }
+.http-debugger__columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.http-debugger__columns > div { min-width: 0; }
+.http-debugger pre { overflow: auto; max-height: 24rem; padding: 1rem; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--panel-alt); border: 1px solid var(--border); border-radius: .5rem; }
+.http-debugger__difference { border-inline-start: 4px solid var(--amber) !important; }
+.http-debugger__modes { display: flex; flex-wrap: wrap; gap: .5rem; }
+.http-debugger button { font: inherit; color: inherit; background: var(--panel-alt); border: 1px solid var(--border); border-radius: .5rem; padding: .65rem; cursor: pointer; text-align: start; }
+.http-debugger button[aria-pressed="true"] { border-color: var(--amber); outline: 2px solid var(--amber); outline-offset: 2px; }
+.http-debugger button:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+.http-debugger__differences { display: grid; gap: .5rem; max-height: 20rem; overflow: auto; padding: .5rem 1.75rem; }
+.http-debugger__differences button { width: 100%; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .http-debugger__columns { grid-template-columns: minmax(0, 1fr); } }

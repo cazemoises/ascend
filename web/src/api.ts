@@ -114,7 +114,21 @@ export interface SubmissionSummary {
   created_at: string
 }
 
+export interface HTTPDifference {
+  path: string
+  kind: string
+  expected: string | null
+  actual: string | null
+  explanation: string
+}
+export interface HTTPComparison {
+  differences: HTTPDifference[]
+  truncated: boolean
+}
 export interface Submission {
+  http_feedback_safe?: boolean
+  http_debug?: HTTPComparison
+  http_exploration?: boolean
  is_test_run: boolean
   id: string
   challenge_id: string
