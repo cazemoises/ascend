@@ -4,6 +4,7 @@ package worker
 
 import (
 	"context"
+	"github.com/caze/ascend/pkg/httplab"
 	"os"
 	"os/exec"
 	"strings"
@@ -26,6 +27,10 @@ def create(key:str,data:dict):
 @app.get('/items/{key}')
 def get(key:str):
  return items[key]
+@app.get('/headers')
+def headers():
+ from fastapi.responses import JSONResponse
+ return JSONResponse({'ok':True},headers={'Content-Language':'pt','Set-Cookie':'private-cookie','X-Api-Key':'private-key'})
 @app.get('/identity')
 def identity():
  return {'uid':os.getuid()}
@@ -70,7 +75,7 @@ func TestHTTPLabPodman(t *testing.T) {
 		timeout              int
 	}{
 		{"stateful methods path query JSON", labSolution, "accepted", []testCaseRecord{
-			{Input: `{"method":"GET","path":"/hello/Ana?greeting=Oi"}`, ExpectedOutput: `{"status":200,"json":{"message":"Oi, Ana!"}}`},
+			{Input: `{"method":"GET","path":"/hello/Ana?greeting=Oi"}`, ExpectedOutput: `{"status":200,"headers":{"Content-Type":"application/json"},"json":{"message":"Oi, Ana!"}}`},
 			{Input: `{"method":"POST","path":"/items/7","json":{"title":"A","count":2}}`, ExpectedOutput: `{"status":201,"json":{"count":2,"title":"A"}}`},
 			{Input: `{"method":"GET","path":"/items/7"}`, ExpectedOutput: `{"status":200,"json":{"title":"A","count":2}}`},
 			{Input: `{"method":"GET","path":"/identity"}`, ExpectedOutput: `{"status":200,"json":{"uid":65534}}`},
@@ -78,6 +83,8 @@ func TestHTTPLabPodman(t *testing.T) {
 		}, 15000},
 		{"status mismatch", labSolution, "wrong_answer", []testCaseRecord{{Input: `{"method":"GET","path":"/hello/Ana"}`, ExpectedOutput: `{"status":201,"json":{"message":"Hello, Ana!"}}`, IsSample: true}}, 15000},
 		{"redirect not followed", labSolution, "accepted", []testCaseRecord{{Input: `{"method":"GET","path":"/redirect"}`, ExpectedOutput: `{"status":307,"json":null}`}}, 15000},
+		{"safe headers", labSolution, "accepted", []testCaseRecord{{Input: `{"method":"GET","path":"/headers"}`, ExpectedOutput: `{"status":200,"headers":{"content-language":"pt"},"json":{"ok":true}}`, IsSample: true}}, 15000},
+		{"header mismatch", labSolution, "wrong_answer", []testCaseRecord{{Input: `{"method":"GET","path":"/headers"}`, ExpectedOutput: `{"status":200,"headers":{"content-language":"en"},"json":{"ok":true}}`, IsSample: true}}, 15000},
 		{"exploration", labSolution, "accepted", []testCaseRecord{{Input: `{"method":"GET","path":"/hello/Ana"}`, IsSample: true}}, 15000},
 		{"response budget", labSolution, "runtime_error", []testCaseRecord{{Input: `{"method":"GET","path":"/huge"}`}}, 15000},
 		{"startup error", "raise ValueError('fixture startup failure')", "runtime_error", []testCaseRecord{{Input: `{"method":"GET","path":"/"}`}}, 15000},
@@ -91,6 +98,15 @@ func TestHTTPLabPodman(t *testing.T) {
 			}
 			if tc.name == "stateful methods path query JSON" && res.stderr != "" {
 				t.Error("hidden request logs leaked")
+			}
+			if strings.Contains(res.stdout, "private-cookie") || strings.Contains(res.stdout, "private-key") {
+				t.Fatal("sensitive response headers captured")
+			}
+			if tc.name == "header mismatch" {
+				c, err := httplab.Compare(res.stdout, res.expectedOutput)
+				if err != nil || len(c.Differences) != 1 || c.Differences[0].Kind != "header" {
+					t.Fatalf("missing header comparison: %+v %v", c, err)
+				}
 			}
 			if tc.name == "status mismatch" && res.failedInput == "" {
 				t.Error("missing HTTP feedback")

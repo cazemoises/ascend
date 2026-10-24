@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { createSubmission, getLastSubmission, getSubmission, type Challenge, type HTTPRequest, type Submission } from '../api'
+import { HTTPTestDebugger } from '../components/HTTPTestDebugger'
 import { VerdictBadge } from '../components/VerdictBadge'
 import { useAuth } from '../auth/useAuth'
 
@@ -46,10 +47,7 @@ export function HTTPLabWorkspace({challenge}:{challenge:Challenge}){
  {error?<p role="alert" className="status-error">{error}</p>:null}
  {pending?<p role="status">Servidor em execução / aguardando o Judge...</p>:null}
  {submission?<section aria-live="polite"><h2>{mode==='explore'?'Resultado exploratório (sem nota)':'Avaliação automática'}</h2><VerdictBadge status={submission.status}/><p>{submission.passed_count??0} / {submission.total_test_cases??0} {mode==='explore'?'requisições executadas':'testes aprovados'}</p>
- {submission.failed_input?<><h3>Requisição com falha</h3><pre>{submission.failed_input}</pre></>:null}
- {submission.stdout?<><h3>Resposta HTTP</h3><pre>{submission.stdout}</pre></>:null}
- {submission.expected_output?<><h3>Resposta esperada</h3><pre>{submission.expected_output}</pre></>:null}
- {submission.stderr?<><h3>Logs do servidor e diagnósticos</h3><pre>{submission.stderr}</pre></>:null}
+ <HTTPTestDebugger key={submission.id} submission={submission}/>
  <Link to={`/challenges/${challenge.id}/submissions/${submission.id}`}>Abrir resultado salvo</Link>
  </section>:null}
  </main>

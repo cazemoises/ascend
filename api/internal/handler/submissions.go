@@ -225,5 +225,12 @@ func (h *ChallengesHandler) GetSubmission(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
+	if sub.Language == "fastapi" {
+		if err := h.store.PrepareHTTPFeedback(r.Context(), &sub); err != nil {
+			writeError(w, 500, "could not prepare HTTP feedback")
+			return
+		}
+	}
+
 	writeJSON(w, http.StatusOK, sub)
 }

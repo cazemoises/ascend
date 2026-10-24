@@ -2,7 +2,7 @@ FROM node:24-alpine AS frontend
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
-COPY web/src/lib/liveRoomConnection.ts ./src/lib/liveRoomConnection.ts
+COPY web/src ./src
 COPY web/tests ./tests
 RUN npm test
 

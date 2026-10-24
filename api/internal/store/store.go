@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/caze/ascend/pkg/httplab"
 	"github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 )
@@ -143,15 +144,18 @@ type ChallengeFeedItem struct {
 }
 
 type Submission struct {
-	IsTestRun    bool    `json:"is_test_run"`
-	ID           string  `json:"id"`
-	ChallengeID  string  `json:"challenge_id"`
-	Language     string  `json:"language"`
-	SourceCode   string  `json:"source_code"`
-	Status       string  `json:"status"`
-	ExecTimeMs   *int    `json:"exec_time_ms"`
-	MemoryPeakMb *int    `json:"memory_peak_mb"`
-	Stderr       *string `json:"stderr"`
+	HTTPDebug        *httplab.Comparison `json:"http_debug,omitempty"`
+	HTTPFeedbackSafe bool                `json:"http_feedback_safe,omitempty"`
+	HTTPExploration  bool                `json:"http_exploration,omitempty"`
+	IsTestRun        bool                `json:"is_test_run"`
+	ID               string              `json:"id"`
+	ChallengeID      string              `json:"challenge_id"`
+	Language         string              `json:"language"`
+	SourceCode       string              `json:"source_code"`
+	Status           string              `json:"status"`
+	ExecTimeMs       *int                `json:"exec_time_ms"`
+	MemoryPeakMb     *int                `json:"memory_peak_mb"`
+	Stderr           *string             `json:"stderr"`
 	// Stdout/ExpectedOutput are only populated on a wrong_answer verdict —
 	// the failing case's actual vs. expected output, for the result page's
 	// diff display. NULL for every other verdict, and for submissions
@@ -610,7 +614,7 @@ func (s *Store) GetSubmission(ctx context.Context, id string) (Submission, error
 		        s.failed_input, s.failed_is_sample,
 		        s.passed_count, s.total_test_cases,
 		        c.time_limit_ms, c.memory_limit_mb,
-		        s.created_at, s.updated_at, s.live_session_id,s.is_test_run
+		        s.created_at, s.updated_at, s.live_session_id,s.is_test_run,(s.http_requests IS NOT NULL)
 		 FROM submissions s
 		 JOIN challenges c ON c.id = s.challenge_id
 		 WHERE s.id = $1`, id)
@@ -620,7 +624,7 @@ func (s *Store) GetSubmission(ctx context.Context, id string) (Submission, error
 		&sub.FailedInput, &sub.FailedIsSample,
 		&sub.PassedCount, &sub.TotalTestCases,
 		&sub.TimeLimitMs, &sub.MemoryLimitMb,
-		&sub.CreatedAt, &sub.UpdatedAt, &sub.LiveSessionID, &sub.IsTestRun); err != nil {
+		&sub.CreatedAt, &sub.UpdatedAt, &sub.LiveSessionID, &sub.IsTestRun, &sub.HTTPExploration); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Submission{}, ErrNotFound
 		}
