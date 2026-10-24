@@ -408,6 +408,17 @@ func (h *ListsHandler) CreateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if body.HTTPLab != nil {
+		if body.LinkedChallengeID != nil || body.LinkedChallengeSlug != nil {
+			writeError(w, 422, "HTTP lab cannot also link a challenge")
+			return
+		}
+		if err := body.HTTPLab.Validate(); err != nil {
+			writeError(w, 422, err.Error())
+			return
+		}
+	}
+
 	listID := chi.URLParam(r, "id")
 	item, err := h.store.CreateListItem(r.Context(), listID, claims.UserID, store.CreateListItemRequest{
 		Title:             body.Title,
@@ -415,6 +426,7 @@ func (h *ListsHandler) CreateItem(w http.ResponseWriter, r *http.Request) {
 		IsBonus:           body.IsBonus,
 		Body:              body.Body,
 		LinkedChallengeID: body.LinkedChallengeID,
+		HTTPLab:           body.HTTPLab,
 	})
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -446,6 +458,11 @@ func (h *ListsHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 	}
 	if msg, ok := body.validate(); !ok {
 		writeError(w, http.StatusUnprocessableEntity, msg)
+		return
+	}
+
+	if body.HTTPLab != nil {
+		writeError(w, 422, "use the HTTP lab creation endpoint; configuration is immutable")
 		return
 	}
 

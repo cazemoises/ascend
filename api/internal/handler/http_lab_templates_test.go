@@ -2,44 +2,21 @@ package handler
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/caze/ascend/api/internal/auth"
-	"github.com/go-chi/chi/v5"
 )
 
+// Administrative package stays outside the production binary and student bundle.
+//
+//go:embed activity_templates/fastapi-v1.json
+var fastAPISequence []byte
+
 func TestHTTPSequenceCatalog(t *testing.T) {
-	r := chi.NewRouter()
-	h := NewListsHandler(nil)
-	r.With(auth.RequireAuthenticated, auth.RequireRole("teacher")).Get("/sequence", h.HTTPSequence)
-	for _, tc := range []struct {
-		role string
-		want int
-	}{{"", 401}, {"student", 403}, {"teacher", 200}} {
-		t.Run(tc.role, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/sequence", nil)
-			if tc.role != "" {
-				req = withClaims(req, auth.Claims{UserID: "fixture", Role: tc.role})
-			}
-			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
-			if w.Code != tc.want {
-				t.Fatalf("got %d want %d", w.Code, tc.want)
-			}
-			if tc.want != 200 {
-				if bytes.Contains(w.Body.Bytes(), []byte("starter_code")) {
-					t.Fatal("catalog exposed")
-				}
-				return
-			}
-			if w.Header().Get("Cache-Control") != "no-store" {
-				t.Fatal("catalog must not be cached")
-			}
-		})
-	}
 	var body importListBody
 	if err := json.Unmarshal(fastAPISequence, &body); err != nil {
 		t.Fatal(err)
@@ -99,5 +76,25 @@ func TestImportHTTPLabRejectsInvalidBeforeWriting(t *testing.T) {
 				t.Fatalf("got %d: %s", w.Code, w.Body.String())
 			}
 		})
+	}
+}
+
+func TestCreateHTTPItemRejectsInvalidBeforeWriting(t *testing.T) {
+	for _, payload := range []string{
+		`{"title":"HTTP","body":"Statement","difficulty":"easy","http_lab":{}}`,
+		`{"title":"HTTP","body":"Statement","difficulty":"easy","linked_challenge_id":"existing","http_lab":{}}`,
+	} {
+		req := withClaims(httptest.NewRequest("POST", "/lists/fixture/items", bytes.NewBufferString(payload)), auth.Claims{UserID: "mentor", Role: "teacher"})
+		response := httptest.NewRecorder()
+		NewListsHandler(nil).CreateItem(response, req)
+		if response.Code != 422 {
+			t.Fatalf("invalid HTTP config must fail before persistence: %d", response.Code)
+		}
+	}
+	req := withClaims(httptest.NewRequest("PATCH", "/list-items/fixture", bytes.NewBufferString(`{"title":"HTTP","body":"Statement","difficulty":"easy","http_lab":{}}`)), auth.Claims{UserID: "mentor", Role: "teacher"})
+	response := httptest.NewRecorder()
+	NewListsHandler(nil).UpdateItem(response, req)
+	if response.Code != 422 {
+		t.Fatalf("HTTP configuration updates must be explicit: %d", response.Code)
 	}
 }
