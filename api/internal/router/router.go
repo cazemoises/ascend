@@ -111,6 +111,7 @@ func New(s *store.Store, pa *appmw.PangolinAuth, rl *appmw.RateLimiter, hub *han
 
 		lh := handler.NewListsHandler(s)
 		ah := handler.NewAssessmentsHandler(s)
+		r.With(auth.RequireAuthenticated, teacherOnly).Get("/teacher/http-lab-sequence", lh.HTTPSequence)
 		r.Route("/lists", func(r chi.Router) {
 			// Public: anyone can browse published lists, no accounts
 			// required. An authenticated teacher additionally sees their own
