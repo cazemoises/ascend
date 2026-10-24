@@ -113,6 +113,12 @@ func (e *dockerCLIExecutor) runHTTP(ctx context.Context, name string, payload []
 // Only requests enter the sandbox; expected responses and verdicts remain here.
 func evaluateHTTP(ctx context.Context, executor DockerExecutor, source string, cases []testCaseRecord, timeout, memory int) evalResult {
 	res := evalResult{status: "runtime_error", total: len(cases)}
+	// A batch runs every request before comparison. Even a sample failure's
+	// server logs can contain later hidden requests, so suppress batch logs.
+	hasHidden := false
+	for _, tc := range cases {
+		hasHidden = hasHidden || !tc.IsSample
+	}
 	if len(cases) == 0 || len(cases) > 30 {
 		res.stderr = "HTTP lab requires 1–30 tests"
 		return res
@@ -131,7 +137,9 @@ func evaluateHTTP(ctx context.Context, executor DockerExecutor, source string, c
 	start := time.Now()
 	result, err := executor.Run(runCtx, RunRequest{Language: LanguageFastAPI, SourceCode: source, Input: string(input), MemoryLimitMB: memory})
 	res.execTimeMs = int(time.Since(start).Milliseconds())
-	res.stderr = result.Stderr
+	if !hasHidden {
+		res.stderr = result.Stderr
+	}
 	if err != nil {
 		if errors.Is(err, ErrTimeLimitExceeded) {
 			res.status = "time_limit_exceeded"
@@ -150,7 +158,10 @@ func evaluateHTTP(ctx context.Context, executor DockerExecutor, source string, c
 	exploratory := true
 	for i, tc := range cases {
 		actual := string(responses[i])
-		res.stdout = actual
+		res.stdout = ""
+		if tc.IsSample {
+			res.stdout = actual
+		}
 		if _, err := httplab.ParseResponse(actual); err != nil {
 			res.status = "runtime_error"
 			res.stderr = err.Error()
@@ -160,9 +171,9 @@ func evaluateHTTP(ctx context.Context, executor DockerExecutor, source string, c
 			exploratory = false
 			if !httplab.Match(actual, tc.ExpectedOutput) {
 				res.status = "wrong_answer"
-				res.expectedOutput = tc.ExpectedOutput
 				res.failedIsSample = tc.IsSample
 				if tc.IsSample {
+					res.expectedOutput = tc.ExpectedOutput
 					res.failedInput = tc.Input
 				}
 				return res

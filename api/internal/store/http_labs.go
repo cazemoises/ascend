@@ -85,7 +85,7 @@ func (s *Store) CreateHTTPLab(ctx context.Context, itemID, userID string, in HTT
 func (s *Store) CanAccessChallenge(ctx context.Context, id, userID string, teacher, write bool) (bool, error) {
 	var ok bool
 	err := s.db.QueryRowContext(ctx, `SELECT CASE WHEN c.language IS DISTINCT FROM 'fastapi' THEN true ELSE
- (c.lab_owner_id=NULLIF($2,'')::uuid AND $3) OR (NOT $4 AND EXISTS(SELECT 1 FROM problem_lists pl WHERE pl.id=c.lab_list_id AND pl.published)) END FROM challenges c WHERE c.id=$1`, id, userID, teacher, write).Scan(&ok)
+ COALESCE(c.lab_owner_id=NULLIF($2,'')::uuid AND $3,false) OR (NOT $4 AND EXISTS(SELECT 1 FROM problem_lists pl WHERE pl.id=c.lab_list_id AND pl.published)) END FROM challenges c WHERE c.id=$1`, id, userID, teacher, write).Scan(&ok)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}

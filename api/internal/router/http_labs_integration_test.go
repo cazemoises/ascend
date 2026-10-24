@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	appmw "github.com/caze/ascend/api/internal/middleware"
 	"github.com/caze/ascend/api/internal/router"
 	"github.com/caze/ascend/api/internal/store"
@@ -32,7 +33,8 @@ func TestHTTPLabs(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
 	var rdb *redis.Client
 	real := os.Getenv("ASCEND_HTTP_LAB_REDIS_ADDR") != ""
 	if real {
@@ -44,6 +46,8 @@ func TestHTTPLabs(t *testing.T) {
 	var users []string
 	var listID, challengeID string
 	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		if challengeID != "" {
 			db.ExecContext(ctx, `DELETE FROM submissions WHERE challenge_id=$1`, challengeID)
 			db.ExecContext(ctx, `UPDATE list_items SET linked_challenge_id=NULL WHERE linked_challenge_id=$1`, challengeID)
@@ -78,7 +82,14 @@ func TestHTTPLabs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewServer(router.New(s, appmw.NewPangolinAuth(s, ""), nil, nil, nil))
+	limiterRedis := rdb
+	if limiterRedis == nil {
+		mini := miniredis.RunT(t)
+		limiterRedis = redis.NewClient(&redis.Options{Addr: mini.Addr()})
+		defer limiterRedis.Close()
+	}
+	limiter := appmw.NewRateLimiter(limiterRedis, 100, time.Minute, appmw.UserKey)
+	server := httptest.NewServer(router.New(s, appmw.NewPangolinAuth(s, ""), limiter, nil, nil))
 	defer server.Close()
 	base := os.Getenv("LIVE_ROOM_DEPLOYED_URL")
 	if base == "" {
@@ -151,16 +162,17 @@ def get(key:str):
 	challengeID = created["challenge_id"]
 	challengePath := "/challenges/" + challengeID
 	request("POST", path, mentor.Email, "", in, 409, nil)
+	request("GET", challengePath, "", "", nil, 404, nil)
 	request("GET", challengePath, student.Email, "", nil, 404, nil)
 	request("GET", challengePath, other.Email, "", nil, 404, nil)
 	request("GET", challengePath, mentor.Email, "student", nil, 404, nil)
 	request("GET", challengePath, mentor.Email, "", nil, 200, nil)
 	var persistedPublished bool
-	if err = db.QueryRow(`SELECT published FROM problem_lists WHERE id=$1`, listID).Scan(&persistedPublished); err != nil || persistedPublished {
+	if err = db.QueryRowContext(ctx, `SELECT published FROM problem_lists WHERE id=$1`, listID).Scan(&persistedPublished); err != nil || persistedPublished {
 		t.Fatal("creating lab changed publication")
 	}
 	// Explicit fixture publication, never real editorial content.
-	if _, err = db.Exec(`UPDATE problem_lists SET published=true WHERE id=$1`, listID); err != nil {
+	if _, err = db.ExecContext(ctx, `UPDATE problem_lists SET published=true WHERE id=$1`, listID); err != nil {
 		t.Fatal(err)
 	}
 	raw := request("GET", challengePath, student.Email, "", nil, 200, nil)
@@ -184,7 +196,7 @@ def get(key:str):
 		var queued map[string]string
 		request("POST", challengePath+"/submissions", email, "", body, 202, &queued)
 		if !real {
-			_, err = db.Exec(`UPDATE submissions SET status='accepted',passed_count=1,total_test_cases=1 WHERE id=$1`, queued["submission_id"])
+			_, err = db.ExecContext(ctx, `UPDATE submissions SET status='accepted',passed_count=1,total_test_cases=1 WHERE id=$1`, queued["submission_id"])
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -233,7 +245,7 @@ def get(key:str):
 		t.Fatal("mentor generated graded student run")
 	}
 	var attempts int
-	if err = db.QueryRow(`SELECT count(*) FROM submissions WHERE user_id=$1 AND NOT is_test_run`, student.ID).Scan(&attempts); err != nil {
+	if err = db.QueryRowContext(ctx, `SELECT count(*) FROM submissions WHERE user_id=$1 AND NOT is_test_run`, student.ID).Scan(&attempts); err != nil {
 		t.Fatal(err)
 	}
 	want := 1

@@ -89,8 +89,8 @@ func TestHTTPLabPodman(t *testing.T) {
 			if res.status != tc.status {
 				t.Fatalf("status %s want %s; logs %s", res.status, tc.status, res.stderr)
 			}
-			if tc.name == "stateful methods path query JSON" && !strings.Contains(res.stderr, "student log") {
-				t.Error("missing server logs")
+			if tc.name == "stateful methods path query JSON" && res.stderr != "" {
+				t.Error("hidden request logs leaked")
 			}
 			if tc.name == "status mismatch" && res.failedInput == "" {
 				t.Error("missing HTTP feedback")

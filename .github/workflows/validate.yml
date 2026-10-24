@@ -27,7 +27,11 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: Unit tests
-        run: go test ./cmd/... ./api/... ./judge/... ./pkg/...
+        run: |
+          timeout -k 2s 58s go list ./cmd/... ./api/... ./judge/... ./pkg/... > /tmp/ascend-go-packages.txt
+          while IFS= read -r package; do
+            timeout -k 2s 58s go test -p 1 -timeout 45s "$package"
+          done < /tmp/ascend-go-packages.txt
       - name: Disposable PostgreSQL (rootless Podman)
         run: |
           test "$(podman info --format '{{.Host.Security.Rootless}}')" = true
@@ -45,13 +49,17 @@ jobs:
         run: |
           podman pull docker.io/library/python:3.11-alpine
           podman build -f docker/fastapi.Dockerfile -t ascend-fastapi:latest .
-          ASCEND_TEST_PODMAN=1 go test -race -tags integration ./judge/internal/worker -run '^(TestExecutorPodman|TestHTTPLabPodman)$'
+          for scenario in TestExecutorPodman TestHTTPLabPodman; do
+            ASCEND_TEST_PODMAN=1 timeout -k 2s 58s go test -race -timeout 45s -tags integration ./judge/internal/worker -run "^${scenario}$"
+          done
       - name: Dashboard and history integration and permissions
         env:
           DATABASE_URL: postgres://ascend_test:local_disposable_only@127.0.0.1:55439/ascend_test?sslmode=disable
         run: |
           go run ./cmd/migrate up
-          go test -race -tags integration ./api/internal/store ./api/internal/handler ./api/internal/router -run 'TestTeacherStudentsOverview|TestStudentsOverview|TestPedagogicalDashboard|TestLiveSessionHistory|TestListAssessments'
+          for package in ./api/internal/store ./api/internal/handler ./api/internal/router; do
+            timeout -k 2s 58s go test -race -timeout 45s -tags integration "$package" -run 'TestTeacherStudentsOverview|TestStudentsOverview|TestPedagogicalDashboard|TestLiveSessionHistory|TestListAssessments'
+          done
       - name: HTTP labs mentor/student with real Judge (private rootless Podman)
         env:
           DATABASE_URL: postgres://ascend_test:local_disposable_only@127.0.0.1:55439/ascend_test?sslmode=disable
@@ -64,10 +72,11 @@ jobs:
             if podman exec ascend-validation-redis redis-cli ping; then break; fi
             sleep 1
           done
-          go run ./judge/cmd/worker > /tmp/ascend-validation-judge.log 2>&1 &
+          go build -o /tmp/ascend-validation-judge ./judge/cmd/worker
+          /tmp/ascend-validation-judge > /tmp/ascend-validation-judge.log 2>&1 &
           lab_judge_pid=$!
-          trap 'kill "$lab_judge_pid" 2>/dev/null || true' EXIT
-          go test -race -tags integration ./api/internal/router -run '^TestHTTPLabs$' -v
+          trap 'kill "$lab_judge_pid" 2>/dev/null || true; wait "$lab_judge_pid" 2>/dev/null || true' EXIT
+          timeout -k 2s 58s go test -race -timeout 45s -tags integration ./api/internal/router -run '^TestHTTPLabs$' -v
       - name: Frontend tests, lint and build
         working-directory: web
         run: |
