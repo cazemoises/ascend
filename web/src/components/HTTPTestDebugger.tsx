@@ -35,7 +35,8 @@ export function HTTPTestDebugger({ submission }: { submission: Submission }) {
           <div><h3>Recebido</h3><pre className="http-debugger__difference">{current.actual ?? 'Ausente'}</pre></div>
         </div>
       </div> : <p>Nenhuma diferença detalhada disponível nesta resposta.</p>}
-    </> : <p>Abra a visão técnica para consultar o lote de respostas e os logs da exploração.</p>}
+    </> : <p>Confira as respostas abaixo. A visão técnica inclui o lote bruto e os logs da execução.</p>}
+    {view.actual !== null ? <HTTPResponses raw={view.actual} /> : null}
     {technical ? <>
       {view.kind === 'comparison' && submission.failed_input ? <><h3>Requisição pública</h3><pre>{submission.failed_input}</pre></> : null}
       <div className="http-debugger__columns">
@@ -45,4 +46,23 @@ export function HTTPTestDebugger({ submission }: { submission: Submission }) {
       <h3>Logs e diagnósticos</h3><pre>{view.logs ?? 'Logs indisponíveis. Lotes com testes ocultos têm seus logs protegidos.'}</pre>
     </> : null}
   </section>
+}
+
+// Only receives data already authorized by httpDebuggerView. Never parse the
+// submission directly: hidden or state-tainted snapshots must fail closed.
+function HTTPResponses({ raw }: { raw: string }) {
+  let parsed: unknown
+  try { parsed = JSON.parse(raw) } catch { return null }
+  const responses: unknown[] = Array.isArray(parsed) ? parsed : [parsed]
+  return <div aria-label="Respostas HTTP">{responses.map((response, index) => {
+    if (typeof response !== 'object' || response === null || !('status' in response) || typeof response.status !== 'number') return null
+    const body = 'raw_body' in response && typeof response.raw_body === 'string' ? response.raw_body :
+      'json' in response ? JSON.stringify(response.json, null, 2) : 'Sem corpo'
+    const headers = 'headers' in response && typeof response.headers === 'object' && response.headers !== null ? response.headers : {}
+    return <section className="result-panel" key={index}>
+      <h3 className="result-panel__header">Resposta {index + 1} · HTTP {response.status}</h3>
+      <div className="result-panel__body"><details><summary>Headers da resposta</summary><pre>{Object.entries(headers).map(([name, value]) => `${name}: ${String(value)}`).join('\n') || 'Sem headers disponíveis'}</pre></details>
+        <pre>{body}</pre></div>
+    </section>
+  })}</div>
 }

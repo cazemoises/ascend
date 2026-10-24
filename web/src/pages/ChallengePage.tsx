@@ -1,5 +1,8 @@
-import { HTTPLabWorkspace } from './HTTPLabWorkspace'
-import Editor from '@monaco-editor/react'
+import { CodeEditor } from '../components/CodeEditor'
+import { HTTPWorkspacePanel } from '../components/HTTPWorkspacePanel'
+import { useHTTPExecution } from '../lib/useHTTPExecution'
+import { HTTPExamples } from '../components/HTTPExamples'
+import { httpDescription } from '../lib/httpClient'
 import { useEffect, useState, type FormEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
@@ -23,8 +26,6 @@ import {
 import { useAuth } from '../auth/useAuth'
 import { TelemetryChip } from '../components/TelemetryChip'
 import { VerdictBadge } from '../components/VerdictBadge'
-import { registerAscendSnippets } from '../lib/monacoSnippets'
-import { defineAscendMonacoTheme } from '../lib/monacoTheme'
 
 // SQL challenges have no starter template or tab — the student writes the
 // whole query from scratch, so its entries here are unused placeholders that
@@ -232,7 +233,7 @@ export function ChallengePage() {
     return () => {
       active = false
     }
-  }, [id, liveSessionId])
+  }, [id, liveSessionId, user?.id, role])
 
   useEffect(() => {
     if (!id) return
@@ -266,6 +267,8 @@ export function ChallengePage() {
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [id, liveSessionId])
 
+  const http = useHTTPExecution(id, liveSessionId, `${user?.id}-${role}`)
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -275,6 +278,11 @@ export function ChallengePage() {
     }
     if (timedRoundLocked) {
       setError('Esta rodada não está aberta para submissões')
+      return
+    }
+
+    if (challenge?.language === 'fastapi') {
+      await http.run(sourceCode)
       return
     }
 
@@ -307,6 +315,7 @@ export function ChallengePage() {
     if (byLanguage) {
       return visibleTemplate(byLanguage)
     }
+    if (lang === 'fastapi') return challenge?.starter_code ?? ''
     if (lang === 'python' && !challenge?.starter_code_by_language && challenge?.starter_code) {
       return visibleTemplate(challenge.starter_code)
     }
@@ -319,7 +328,8 @@ export function ChallengePage() {
     return <Navigate to="/" replace />
   }
 
-  if (challenge?.language === 'fastapi') return <HTTPLabWorkspace key={`${challenge.id}-${user?.id}-${role}`} challenge={challenge} />
+  const isHTTP = challenge?.language === 'fastapi'
+  const busy = loading || submitting || http.pending
 
   return (
     <main className="page-shell page-shell--workspace">
@@ -331,11 +341,11 @@ export function ChallengePage() {
 
       {error ? <p className="status-message status-error">{error}</p> : null}
 
-      {challenge ? (
+      {challenge && !loading && challenge.id === id ? (
         <>
         <div className="workspace">
           <section className="workspace__brief">
-            <p className="eyebrow">Desafio</p>
+            <p className="eyebrow">{isHTTP ? 'Laboratório HTTP' : 'Desafio'}</p>
             <h1>{challenge.title}</h1>
 
             <div className="constraints">
@@ -352,7 +362,7 @@ export function ChallengePage() {
             </div>
 
             <div className="muted markdown-content">
-              <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{challenge.description}</ReactMarkdown>
+              <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{isHTTP ? httpDescription(challenge.description) : challenge.description}</ReactMarkdown>
             </div>
 
             {challenge.notes ? (
@@ -368,7 +378,7 @@ export function ChallengePage() {
               </>
             ) : null}
 
-            {challenge.sample_test_cases.length > 0 ? (
+            {isHTTP ? <HTTPExamples samples={challenge.sample_test_cases} /> : challenge.sample_test_cases.length > 0 ? (
               <>
                 <h2 className="section-title">Exemplos</h2>
                 {challenge.sample_test_cases.map((tc, i) => (
@@ -408,7 +418,7 @@ export function ChallengePage() {
                     className="editor-language-select"
                     aria-label="Linguagem"
                     value={language}
-                    disabled={submitting}
+                    disabled={busy}
                     onChange={(e) => setLanguage(e.target.value as SubmissionLanguage)}
                   >
                     {LANGUAGES.map((lang) => (
@@ -423,43 +433,16 @@ export function ChallengePage() {
             </div>
 
             <div className="editor-host">
-              <Editor
-                height="100%"
-                theme="ascend"
-                beforeMount={(monaco) => {
-                  defineAscendMonacoTheme(monaco)
-                  registerAscendSnippets(monaco)
-                }}
-                language={language}
+              <CodeEditor
+                language={language === 'fastapi' ? 'python' : language}
                 value={sourceCode}
-                onChange={(v) => setCodeByLanguage((prev) => ({ ...prev, [language]: v ?? '' }))}
-                options={{
-                  fontFamily: 'JetBrains Mono, Consolas, monospace',
-                  fontSize: 13,
-                  minimap: { enabled: false },
-                  automaticLayout: true,
-                  padding: { top: 12 },
-                  readOnly: submitting || timedRoundLocked,
-                  // Explicit rather than relying on Monaco's own defaults —
-                  // investigated (node_modules/monaco-editor's own
-                  // editorConfigurationSchema.js) and confirmed both already
-                  // default to exactly this (quickSuggestions:
-                  // {other:'on', comments:'off', strings:'off'},
-                  // wordBasedSuggestions:'matchingDocuments'), but pinning
-                  // them here documents the decision and protects against a
-                  // future Monaco upgrade silently changing either default
-                  // out from under this editor. registerAscendSnippets
-                  // above is what actually adds new suggestions — Monaco's
-                  // basic-languages bundle ships tokenizers for
-                  // python/go/java/c/cpp/javascript but no completion
-                  // provider at all, so "syntax snippets" (type "for", get
-                  // a loop skeleton) didn't exist for any of them before it.
-                  quickSuggestions: { other: true, comments: false, strings: false },
-                  wordBasedSuggestions: 'matchingDocuments',
-                  snippetSuggestions: 'inline',
-                }}
+                onChange={(value) => setCodeByLanguage((prev) => ({ ...prev, [language]: value }))}
+                readOnly={busy || timedRoundLocked}
               />
             </div>
+
+            {isHTTP ? <HTTPWorkspacePanel key={`${challenge.id}-${user?.id}-${role}`} challenge={challenge} execution={http}
+              onExplore={(requests) => void http.run(sourceCode, requests)} locked={timedRoundLocked} /> : null}
 
             <div className="workspace__insights">
               <button
@@ -626,12 +609,12 @@ export function ChallengePage() {
             <div className="editor-actions">
               {timedRoundLocked ? <p className="status-message status-error">A rodada cronometrada está encerrada ou outro desafio está ativo.</p> : null}
               <p className="editor-actions__hint">
-                {challenge.language === 'sql'
+                {isHTTP ? (isTeacher ? 'Execuções do mentor não contam para o progresso do aluno.' : 'Explorar não avalia. Envie sua solução para registrar o progresso.') : challenge.language === 'sql'
                   ? 'Sua query roda em um sandbox isolado contra todos os casos de teste.'
                   : 'Sua solução roda em um sandbox isolado contra todos os casos de teste.'}
               </p>
-              <button type="submit" className="challenge-submit" disabled={submitting || timedRoundLocked}>
-                {submitting ? 'enviando...' : 'enviar solução'}
+              <button type="submit" className="challenge-submit" disabled={busy || timedRoundLocked}>
+                {busy ? 'aguardando Judge...' : isHTTP ? (isTeacher ? 'testar avaliação como mentor' : 'submeter para avaliação') : 'enviar solução'}
               </button>
             </div>
           </form>

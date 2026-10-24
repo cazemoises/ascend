@@ -1636,6 +1636,7 @@ pre {
 
 .editor-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -1653,6 +1654,7 @@ pre {
 }
 
 .editor-actions__hint {
+  flex: 1 1 200px;
   margin: 0;
   color: var(--code-muted);
   font-size: 0.78rem;
@@ -3574,12 +3576,29 @@ pre {
   }
 }
 
-.lab-workspace { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1.5rem; }
-.lab-form { display: grid; gap: 1rem; min-width: 0; }
-.lab-form label { display: grid; gap: .5rem; }
-.lab-form textarea { width: 100%; box-sizing: border-box; font-family: monospace; }
-.lab-form button { white-space: normal; }
-@media (max-width: 800px) { .lab-workspace { grid-template-columns: minmax(0, 1fr); } }
+/* HTTP tools compose the same bounded workspace information panel. */
+.workspace__editor { min-width: 0; }
+.http-workbench { background: var(--panel); color: var(--text); }
+.http-workbench__toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px; }
+.http-workbench__toolbar .studio__mode-tabs { margin: 0; }
+.http-workbench__toolbar > button { white-space: normal; }
+.http-workbench > .status-message { margin: 0 16px 8px; }
+.http-workbench__body { max-height: 340px; padding-top: 12px; }
+.http-client { display: grid; gap: 12px; }
+.http-client p { margin: 0; font-size: .8rem; }
+.http-client label { display: grid; gap: 6px; min-width: 0; font-size: .8rem; }
+.http-client input, .http-client select, .http-client textarea {
+  width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--border);
+  border-radius: 7px; background: var(--panel-alt); color: var(--text); font-family: var(--mono);
+}
+.http-client__route { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; }
+.http-client__batch { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.http-client__batch label { flex: 1 1 160px; }
+.http-workbench .submission-panel { margin: 0; }
+.http-workbench .http-debugger { margin: 0; padding: 0; border: 0; box-shadow: none; }
+@media (max-width: 1020px) {
+  .http-workbench__body { max-height: 520px; }
+}
 
 .http-debugger { padding: 1.25rem; margin-block: 1rem; min-width: 0; }
 .http-debugger__columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
