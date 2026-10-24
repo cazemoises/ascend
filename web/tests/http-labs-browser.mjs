@@ -40,7 +40,7 @@ try {
  await page.getByRole('button',{name:'criar lista',exact:true}).click()
  await page.waitForURL(/\/listas\/[0-9a-f-]+$/)
  const listURL=page.url()
- await page.getByRole('heading',{name:pack.title,exact:true}).waitFor()
+ await page.getByRole('heading',{name:pack.title,exact:true,level:1}).waitFor()
  await page.getByRole('button',{name:'publicar',exact:true}).click()
  await page.getByText('RASCUNHO',{exact:true}).waitFor({state:'hidden'})
  console.log('PASS mentor: normal JSON import, six persisted activities, publish '+listURL)
@@ -54,7 +54,8 @@ try {
  assert.equal(student.effective_role,'student')
  await page.locator('article').filter({has:page.getByRole('heading',{name:pack.title,exact:true})}).getByRole('link',{name:'ver lista'}).click()
  await page.waitForURL(listURL)
- await page.getByRole('heading',{name:pack.title,exact:true}).waitFor()
+ await page.getByRole('heading',{name:pack.title,exact:true,level:1}).waitFor()
+ await page.getByRole('link',{name:'resolver desafio:',exact:false}).nth(5).waitFor()
  const links=await page.locator('a[href*="/challenges/"]').evaluateAll(elements=>elements.map(e=>e.getAttribute('href')))
  assert.equal(new Set(links).size,6)
  for (let i=0;i<6;i++) {
@@ -92,7 +93,7 @@ try {
  console.log(`PASS activity ${index+1}: exploration, wrong answer, debugger, Monaco correction and acceptance`)
  }
  await page.goto(listURL)
- await page.getByRole('heading',{name:pack.title,exact:true}).waitFor()
+ await page.getByRole('heading',{name:pack.title,exact:true,level:1}).waitFor()
  assert.equal(await page.getByText('CONCLUÍDO',{exact:true}).count(),6)
  console.log('PASS correct answer: edit in Monaco, graded acceptance and list progress')
  assert.deepEqual(errors,[])
