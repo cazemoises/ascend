@@ -36,7 +36,11 @@ export function HTTPWorkspacePanel({ challenge, execution, onExplore, locked }: 
     {error && tab === 'client' ? <p className="status-message status-error" role="alert">{error}</p> : null}
     <div className="workspace__insights-body http-workbench__body">
       {tab === 'client' ? <div role="tabpanel" id="http-panel-client" aria-labelledby="http-tab-client" className="http-client">
-        <p className="muted">O lote executa em ordem e compartilha estado. Cada envio inicia um servidor novo.</p>
+        <p>Escreva em <strong>main.py</strong> no editor. Este cliente inicia seu servidor Python e envia pedidos às rotas que você implementou. A resposta mostra o que seu código fez; explorar não registra conclusão.</p>
+        <p className="muted">Método é a ação; Path é a rota; Query são parâmetros de consulta; Body são os dados enviados. O lote executa em ordem e compartilha estado. Cada envio inicia um servidor novo.</p>
+        {challenge.sample_test_cases.length ? <button type="button" className="btn-secondary" disabled={disabled} onClick={() => {
+          setRequests(initialRequests(challenge.sample_test_cases)); setSelected(0); setError(null)
+        }}>Carregar exemplos do enunciado</button> : null}
         <div className="http-client__batch">
           <label>Requisição<select aria-label="Requisição" value={selected} disabled={disabled} onChange={event => setSelected(Number(event.target.value))}>
             {requests.map((request, index) => <option key={index} value={index}>{index + 1}. {request.method} {request.path}</option>)}
@@ -61,10 +65,15 @@ export function HTTPWorkspacePanel({ challenge, execution, onExplore, locked }: 
         {execution.pending ? <p className="status-message" role="status">Servidor em execução / aguardando o Judge...</p> : null}
         {execution.submission && execution.submission.status !== 'pending' ? <>
           <p className="eyebrow">{execution.submission.http_exploration ? 'Resultado exploratório (sem nota)' : 'Avaliação automática'}</p>
+          <p className="status-message">{execution.submission.status === 'accepted'
+            ? execution.submission.http_exploration ? 'As requisições foram executadas. Confira o retorno: explorar não compara respostas esperadas nem conclui a atividade. Quando estiver pronto, submeta para avaliação.' : 'Sua solução passou na avaliação. Releia o que aprendeu e siga para a próxima atividade.'
+            : execution.submission.status === 'wrong_answer' ? 'O servidor respondeu, mas houve uma diferença no contrato. Compare método, rota, status e JSON no depurador; ajuste uma coisa por vez e teste novamente.'
+            : execution.submission.status === 'time_limit_exceeded' ? 'A execução excedeu o tempo disponível. Revise laços e operações que podem impedir o servidor de responder; depois execute novamente.'
+            : 'A execução não terminou como esperado. Leia os logs, confira a sintaxe Python e a definição de app em main.py. Corrija e teste novamente.'}</p>
           <SubmissionResult submission={execution.submission}>
             <Link className="back-link" to={`/challenges/${challenge.id}/submissions/${execution.submission.id}${new URLSearchParams(window.location.search).get('liveSessionId') ? window.location.search : ''}`}>Abrir resultado salvo →</Link>
           </SubmissionResult>
-        </> : !execution.pending && !execution.error ? <p className="status-message">Execute uma requisição ou envie sua solução para ver o resultado.</p> : null}
+        </> : !execution.pending && !execution.error ? <p className="status-message">Comece pelo enunciado, complete main.py no editor e abra Cliente HTTP. Os exemplos já estão prontos: use executar servidor e testar rotas. Depois compare o retorno e submeta sua solução para avaliação.</p> : null}
       </div> : null}
     </div>
   </section>
