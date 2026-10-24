@@ -49,3 +49,10 @@ test('safe all-public execution keeps responses and logs without fabricating com
   const view=httpDebuggerView({...base,http_feedback_safe:true,http_debug:undefined,status:'runtime_error'})
   assert.equal(view.kind,'response');assert.equal(view.logs,'public logs');assert.equal(view.expected,null)
 })
+
+test('authorized exploration renders each HTTP status, headers and formatted body in the simple view', () => {
+ const html=renderToStaticMarkup(createElement(HTTPTestDebugger,{submission:{...base,http_exploration:true,
+  stdout:JSON.stringify([{status:201,headers:{'content-type':'application/json'},json:{name:'Olá'}},{status:204,headers:{},json:null}])}}))
+ for(const text of ['Resposta 1 · HTTP 201','Resposta 2 · HTTP 204','Headers da resposta','content-type: application/json','Olá']) assert.ok(html.includes(text),text)
+ assert.ok(!html.includes('JSON bruto'))
+})
