@@ -790,8 +790,3 @@ export interface HTTPLabInput { starter_code: string; time_limit_ms: number; mem
 export function createHTTPLab(itemId: string, body: HTTPLabInput) {
  return requestJSON<{challenge_id: string}>(`/api/v1/list-items/${itemId}/http-lab`, {method:'POST', body:JSON.stringify(body)})
 }
-
-// Mentor-only: includes hidden tests, fetched separately from student assets.
-export function getHTTPSequence() {
-  return requestJSON<ImportProblemListInput>('/api/v1/teacher/http-lab-sequence')
-}

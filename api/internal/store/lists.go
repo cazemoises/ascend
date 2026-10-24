@@ -398,6 +398,16 @@ func (s *Store) CreateListItem(ctx context.Context, listID, teacherID string, re
 	if err != nil {
 		return ListItem{}, fmt.Errorf("insert list item: %w", err)
 	}
+	if req.HTTPLab != nil {
+		if err := req.HTTPLab.Validate(); err != nil {
+			return ListItem{}, err
+		}
+		id, err := createHTTPLabTx(ctx, tx, it.ID, teacherID, *req.HTTPLab)
+		if err != nil {
+			return ListItem{}, err
+		}
+		it.LinkedChallengeID = &id
+	}
 	return it, tx.Commit()
 }
 

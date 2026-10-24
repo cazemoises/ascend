@@ -5,7 +5,6 @@ import { RequireAuth, RequireTeacher } from './auth/RequireAuth'
 import { AppLayout } from './components/AppLayout'
 import { ChallengeList } from './pages/ChallengeList'
 import { ChallengePage } from './pages/ChallengePage'
-import { HTTPSequencePage } from './pages/HTTPSequencePage'
 import { HTTPLabAuthoringPage } from './pages/HTTPLabAuthoringPage'
 import { AssessmentAuthoringPage } from './pages/AssessmentAuthoringPage'
 import { ListDetailPage } from './pages/ListDetailPage'
@@ -65,7 +64,6 @@ function App() {
                 </RequireTeacher>
               }
             />
-            <Route path="/listas/nova/laboratorios" element={<RequireTeacher><HTTPSequencePage /></RequireTeacher>} />
             <Route path="/listas/:id/laboratorios" element={<RequireTeacher><HTTPLabAuthoringPage /></RequireTeacher>} />
             <Route path="/listas/:id/avaliacoes" element={<RequireTeacher><AssessmentAuthoringPage /></RequireTeacher>} />
             <Route path="/listas/:id" element={<ListDetailPage />} />

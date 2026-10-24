@@ -84,6 +84,40 @@ jobs:
           npm test
           npm run lint
           npm run build
+      - name: HTTP laboratories in real Chromium (mentor to student)
+        env:
+          DATABASE_URL: postgres://ascend_test:local_disposable_only@127.0.0.1:55439/ascend_test?sslmode=disable
+          REDIS_URL: redis://127.0.0.1:55440
+          REDIS_ADDR: 127.0.0.1:55440
+          SANDBOX_CLI: podman
+          API_ADDR: 127.0.0.1:58081
+          DEV_FAKE_EMAIL: http-browser-ci@example.test
+          SUBMIT_RATE_LIMIT: 100
+          ASCEND_HTTP_BROWSER_BASE: http://127.0.0.1:58001/ascend
+        run: |
+          timeout -k 2s 180s npx --prefix web playwright install --with-deps chromium
+          timeout -k 2s 58s go build -o /tmp/ascend-browser-api ./api/cmd/server
+          /tmp/ascend-browser-api > /tmp/ascend-browser-api.log 2>&1 &
+          browser_api_pid=$!
+          /tmp/ascend-validation-judge > /tmp/ascend-browser-judge.log 2>&1 &
+          browser_judge_pid=$!
+          (cd web && exec env VITE_API_URL='' VITE_API_TARGET=http://127.0.0.1:58081 ./node_modules/.bin/vite --port 58001 --host 127.0.0.1) > /tmp/ascend-browser-web.log 2>&1 &
+          browser_web_pid=$!
+          trap 'kill "$browser_api_pid" "$browser_judge_pid" "$browser_web_pid" 2>/dev/null || true; wait || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:58081/api/v1/auth/me > /dev/null; then break; fi
+            sleep 1
+          done
+          podman exec ascend-validation-db psql -U ascend_test -d ascend_test -v ON_ERROR_STOP=1 -c "UPDATE users SET role='teacher' WHERE email='http-browser-ci@example.test'"
+          timeout -k 2s 300s node web/tests/http-labs-browser.mjs
+          timeout -k 2s 20s python3 -m unittest discover -s scripts -p 'test_populate_http_labs.py'
+      - name: Browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: http-labs-browser
+          path: /tmp/ascend-http-browser
+          if-no-files-found: ignore
       - name: Remove disposable database
         if: always()
         run: podman rm -f ascend-validation-db ascend-validation-redis || true

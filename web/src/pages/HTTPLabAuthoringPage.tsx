@@ -3,20 +3,9 @@ import { Link, useParams } from 'react-router-dom'
 import { createHTTPLab, getProblemList, type CreateTestCaseInput, type ListItem, type ProblemListDetail } from '../api'
 import { useAuth } from '../auth/useAuth'
 
-const STARTER = `from fastapi import FastAPI
-
-app = FastAPI()
-
-@app.get("/hello/{name}")
-def hello(name: str, greeting: str = "Olá"):
-    # Implemente a resposta JSON
-    return {"message": "TODO"}
-`
-const TESTS: CreateTestCaseInput[] = [{ input: JSON.stringify({method:'GET',path:'/hello/Ana?greeting=Oi'}), expected_output:JSON.stringify({status:200,json:{message:'Oi, Ana!'}}), is_sample:true, order_matters:false }]
-
 function LabEditor({item}: {item: ListItem}) {
- const [code,setCode]=useState(STARTER)
- const [tests,setTests]=useState(JSON.stringify(TESTS,null,2))
+ const [code,setCode]=useState('')
+ const [tests,setTests]=useState('[]')
  const [timeout,setTimeoutMs]=useState(10000)
  const [memory,setMemory]=useState(128)
  const [created,setCreated]=useState<string|null>(item.linked_challenge_id)
@@ -40,7 +29,7 @@ function LabEditor({item}: {item: ListItem}) {
  <label>Tempo total por execução (ms)<input type="number" min={1000} max={30000} value={timeout} onChange={e=>setTimeoutMs(Number(e.target.value))}/></label>
  <label>Memória (MiB)<input type="number" min={64} max={512} value={memory} onChange={e=>setMemory(Number(e.target.value))}/></label>
  <p>A configuração fica imutável após a criação. Para outra versão, crie outro item. A publicação da lista continua manual.</p>
- <button className="challenge-submit" disabled={pending}>{pending?'criando...':'criar laboratório FastAPI'}</button>
+ <button className="challenge-submit" disabled={pending}>{pending?'criando...':'criar laboratório HTTP'}</button>
  {error?<p role="alert" className="status-error">{error}</p>:null}
  </form>}
  </article>

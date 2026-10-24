@@ -71,7 +71,7 @@ function isoToDateInputValue(iso: string | null): string {
 
 type JsonImportPreview = {
   title: string
-  items: { title: string; difficulty: string; linkedChallengeSlug: string }[]
+  items: { title: string; difficulty: string; linkedChallengeSlug: string; httpLab: boolean }[]
 }
 
 // Reads only what the preview needs to display — the backend is the sole
@@ -87,6 +87,7 @@ function toImportPreview(raw: unknown): JsonImportPreview {
       return {
         title: typeof item.title === 'string' ? item.title : '',
         difficulty: typeof item.difficulty === 'string' ? item.difficulty : '',
+        httpLab: item.http_lab !== undefined,
         linkedChallengeSlug:
           typeof item.linked_challenge_slug === 'string' ? item.linked_challenge_slug : '',
       }
@@ -381,7 +382,7 @@ export function ListFormPage() {
             <h2 className="studio__panel-title">Importar JSON</h2>
             <p className="studio__panel-hint">
               Cole o JSON da lista completa (título, semana, descrição e itens) para criar tudo de
-              uma vez.
+              uma vez. Para laboratórios HTTP, informe items[].body (enunciado) e items[].http_lab com starter_code, time_limit_ms, memory_limit_mb e test_cases. Cada teste contém input e expected_output como strings JSON, e is_sample para distinguir exemplos de testes ocultos. A lista é criada em rascunho; publique após conferir os itens.
             </p>
             <label className="studio__field--full">
               JSON
@@ -417,6 +418,7 @@ export function ListFormPage() {
                     <li key={i}>
                       {it.title || '(sem título)'} — {it.difficulty || '(sem dificuldade)'}
                       {it.linkedChallengeSlug ? ` — vinculado a: ${it.linkedChallengeSlug}` : ''}
+                      {it.httpLab ? ' — Laboratório HTTP com Judge' : ''}
                     </li>
                   ))}
                 </ul>
