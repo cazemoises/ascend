@@ -11,7 +11,7 @@ WORKDIR /build
 COPY go.work go.work.sum* go.mod go.sum* ./
 COPY api ./api
 COPY judge/go.mod judge/go.sum ./judge/
-COPY pkg/go.mod ./pkg/
+COPY pkg ./pkg/
 RUN cd api && CGO_ENABLED=0 go test -c -tags integration ./internal/handler -o /bin/live-room-tests
 
 FROM node:24-alpine

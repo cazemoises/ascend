@@ -5,6 +5,7 @@ import { RequireAuth, RequireTeacher } from './auth/RequireAuth'
 import { AppLayout } from './components/AppLayout'
 import { ChallengeList } from './pages/ChallengeList'
 import { ChallengePage } from './pages/ChallengePage'
+import { HTTPLabAuthoringPage } from './pages/HTTPLabAuthoringPage'
 import { AssessmentAuthoringPage } from './pages/AssessmentAuthoringPage'
 import { ListDetailPage } from './pages/ListDetailPage'
 import { ListFormPage } from './pages/ListFormPage'
@@ -63,6 +64,7 @@ function App() {
                 </RequireTeacher>
               }
             />
+            <Route path="/listas/:id/laboratorios" element={<RequireTeacher><HTTPLabAuthoringPage /></RequireTeacher>} />
             <Route path="/listas/:id/avaliacoes" element={<RequireTeacher><AssessmentAuthoringPage /></RequireTeacher>} />
             <Route path="/listas/:id" element={<ListDetailPage />} />
 
@@ -80,7 +82,7 @@ function App() {
             <Route path="/sessoes/:id/salas/:itemId" element={<RequireAuth><LiveRoomPageWithKey /></RequireAuth>} />
 
             {/* Rotas de Judge/Desafios (Desativadas se isOnlyLists = true) */}
-            {!isOnlyLists && (
+            {(
               <>
                 <Route
                   path="/submissions"

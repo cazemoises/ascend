@@ -47,7 +47,7 @@ func main() {
 	}
 	slog.Info("connected to database")
 
-	dockerExecutor := worker.NewDockerExecutor("docker")
+	dockerExecutor := worker.NewDockerExecutor(os.Getenv("SANDBOX_CLI"))
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()

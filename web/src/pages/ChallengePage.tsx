@@ -1,3 +1,4 @@
+import { HTTPLabWorkspace } from './HTTPLabWorkspace'
 import Editor from '@monaco-editor/react'
 import { useEffect, useState, type FormEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -29,6 +30,7 @@ import { defineAscendMonacoTheme } from '../lib/monacoTheme'
 // whole query from scratch, so its entries here are unused placeholders that
 // exist only to satisfy Record<SubmissionLanguage, string>.
 const CODE_TEMPLATES: Record<SubmissionLanguage, string> = {
+  fastapi: '',
   sql: '',
   python: `import sys
 
@@ -129,6 +131,7 @@ function visibleTemplate(starter: string): string {
 const LANGUAGES: SubmissionLanguage[] = ['python', 'go', 'javascript', 'java', 'c', 'cpp']
 
 const FILE_NAMES: Record<SubmissionLanguage, string> = {
+  fastapi: 'main.py',
   sql: 'query.sql',
   python: 'solution.py',
   go: 'main.go',
@@ -142,7 +145,7 @@ export function ChallengePage() {
   const { id } = useParams<{ id: string }>()
   const liveSessionId = new URLSearchParams(window.location.search).get('liveSessionId') ?? undefined
   const navigate = useNavigate()
-  const { isTeacher } = useAuth()
+  const { isTeacher, user, role } = useAuth()
 
   const [challenge, setChallenge] = useState<Challenge | null>(null)
   const [language, setLanguage] = useState<SubmissionLanguage>('python')
@@ -315,6 +318,8 @@ export function ChallengePage() {
   if (!id) {
     return <Navigate to="/" replace />
   }
+
+  if (challenge?.language === 'fastapi') return <HTTPLabWorkspace key={`${challenge.id}-${user?.id}-${role}`} challenge={challenge} />
 
   return (
     <main className="page-shell page-shell--workspace">

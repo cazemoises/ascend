@@ -27,7 +27,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: Unit tests
-        run: go test ./cmd/... ./api/... ./judge/...
+        run: go test ./cmd/... ./api/... ./judge/... ./pkg/...
       - name: Disposable PostgreSQL (rootless Podman)
         run: |
           test "$(podman info --format '{{.Host.Security.Rootless}}')" = true
@@ -44,13 +44,30 @@ jobs:
       - name: Judge isolation and lifecycle (private rootless Podman)
         run: |
           podman pull docker.io/library/python:3.11-alpine
-          ASCEND_TEST_PODMAN=1 go test -tags integration ./judge/internal/worker -run '^TestExecutorPodman$'
+          podman build -f docker/fastapi.Dockerfile -t ascend-fastapi:latest .
+          ASCEND_TEST_PODMAN=1 go test -race -tags integration ./judge/internal/worker -run '^(TestExecutorPodman|TestHTTPLabPodman)$'
       - name: Dashboard and history integration and permissions
         env:
           DATABASE_URL: postgres://ascend_test:local_disposable_only@127.0.0.1:55439/ascend_test?sslmode=disable
         run: |
           go run ./cmd/migrate up
           go test -race -tags integration ./api/internal/store ./api/internal/handler ./api/internal/router -run 'TestTeacherStudentsOverview|TestStudentsOverview|TestPedagogicalDashboard|TestLiveSessionHistory|TestListAssessments'
+      - name: HTTP labs mentor/student with real Judge (private rootless Podman)
+        env:
+          DATABASE_URL: postgres://ascend_test:local_disposable_only@127.0.0.1:55439/ascend_test?sslmode=disable
+          REDIS_ADDR: 127.0.0.1:55440
+          SANDBOX_CLI: podman
+          ASCEND_HTTP_LAB_REDIS_ADDR: 127.0.0.1:55440
+        run: |
+          podman run -d --name ascend-validation-redis -p 127.0.0.1:55440:6379 docker.io/library/redis:7-alpine
+          for i in $(seq 1 30); do
+            if podman exec ascend-validation-redis redis-cli ping; then break; fi
+            sleep 1
+          done
+          go run ./judge/cmd/worker > /tmp/ascend-validation-judge.log 2>&1 &
+          lab_judge_pid=$!
+          trap 'kill "$lab_judge_pid" 2>/dev/null || true' EXIT
+          go test -race -tags integration ./api/internal/router -run '^TestHTTPLabs$' -v
       - name: Frontend tests, lint and build
         working-directory: web
         run: |
@@ -60,4 +77,4 @@ jobs:
           npm run build
       - name: Remove disposable database
         if: always()
-        run: podman rm -f ascend-validation-db || true
+        run: podman rm -f ascend-validation-db ascend-validation-redis || true

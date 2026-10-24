@@ -24,8 +24,8 @@ func NewChallengesHandler(s *store.Store) *ChallengesHandler {
 // teacher-only management, and the authenticated submission route are wired
 // by the router with the appropriate middleware.
 func (h *ChallengesHandler) Routes(r chi.Router) {
-	r.Get("/{id}", h.get)
-	r.Get("/{id}/submissions", h.listSubmissions)
+	r.With(h.ChallengeAccess).Get("/{id}", h.get)
+	r.With(h.ChallengeAccess).Get("/{id}/submissions", h.listSubmissions)
 }
 
 var validDifficulties = map[string]bool{
@@ -120,6 +120,9 @@ func validateSQLFields(language, sqlSchema *string) string {
 	if language == nil || *language == "" {
 		return ""
 	}
+	if *language == "fastapi" {
+		return ""
+	}
 	if *language != "sql" {
 		return `language must be omitted or "sql"`
 	}
@@ -138,6 +141,14 @@ func (b createChallengeBody) validate() string {
 	if !validDifficulties[b.Difficulty] {
 		return "difficulty must be easy, medium, or hard"
 	}
+	if b.Language != nil && *b.Language == "fastapi" {
+		if b.TimeLimitMs < 1000 || b.TimeLimitMs > 30000 || b.MemoryLimitMb < 64 || b.MemoryLimitMb > 512 {
+			return "FastAPI requires time_limit_ms 1000–30000 and memory_limit_mb 64–512"
+		}
+		if b.StarterCode == nil || len(*b.StarterCode) > 65536 {
+			return "FastAPI requires starter_code up to 64 KiB"
+		}
+	}
 	if msg := validateSQLFields(b.Language, b.SQLSchema); msg != "" {
 		return msg
 	}
@@ -155,6 +166,10 @@ func (h *ChallengesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if body.Language != nil && *body.Language == "fastapi" {
+		writeError(w, 422, "create FastAPI labs from a list item")
+		return
+	}
 	c, err := h.store.CreateChallenge(r.Context(), store.CreateChallengeRequest{
 		Slug:                  body.Slug,
 		Title:                 body.Title,
@@ -195,6 +210,10 @@ func (h *ChallengesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if body.Language != nil && *body.Language == "fastapi" {
+		writeError(w, 422, "create FastAPI labs from a list item")
+		return
+	}
 	id := chi.URLParam(r, "id")
 	c, err := h.store.UpdateChallenge(r.Context(), id, store.CreateChallengeRequest{
 		Slug:                  body.Slug,
@@ -394,6 +413,10 @@ func (h *ChallengesHandler) Import(w http.ResponseWriter, r *http.Request) {
 
 	reqs := make([]store.ImportChallengeRequest, 0, len(body.Challenges))
 	for i, ch := range body.Challenges {
+		if ch.Language != nil && *ch.Language == "fastapi" {
+			writeError(w, 422, "create FastAPI labs from a list item")
+			return
+		}
 		if msg := ch.validate(); msg != "" {
 			writeError(w, http.StatusUnprocessableEntity, "challenge "+strconv.Itoa(i)+": "+msg)
 			return

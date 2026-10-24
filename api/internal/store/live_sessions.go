@@ -113,7 +113,7 @@ func (s *Store) CreateLiveSessionWithMode(ctx context.Context, listID, teacherID
 		return LiveSession{}, ErrNotFound
 	}
 	var executable int
-	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM list_items WHERE list_id=$1 AND linked_challenge_id IS NOT NULL`, listID).Scan(&executable); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM list_items WHERE list_id=$1 AND linked_challenge_id IS NOT NULL AND linked_challenge_id NOT IN (SELECT id FROM challenges WHERE language='fastapi')`, listID).Scan(&executable); err != nil {
 		return LiveSession{}, err
 	}
 	if executable == 0 {
@@ -187,7 +187,7 @@ func (s *Store) GetLiveSession(ctx context.Context, id, viewer string) (LiveSess
 	return x, ps, rows.Err()
 }
 func (s *Store) liveItems(ctx context.Context, listID string) ([]ListItem, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT li.id,li.list_id,li.ordinal,li.title,li.difficulty,li.is_bonus,li.body,li.linked_challenge_id,c.title,c.slug,li.created_at,li.updated_at FROM list_items li JOIN challenges c ON c.id=li.linked_challenge_id WHERE li.list_id=$1 ORDER BY li.ordinal`, listID)
+	rows, err := s.db.QueryContext(ctx, `SELECT li.id,li.list_id,li.ordinal,li.title,li.difficulty,li.is_bonus,li.body,li.linked_challenge_id,c.title,c.slug,li.created_at,li.updated_at FROM list_items li JOIN challenges c ON c.id=li.linked_challenge_id WHERE li.list_id=$1 AND c.language IS DISTINCT FROM 'fastapi' ORDER BY li.ordinal`, listID)
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +345,7 @@ func (s *Store) CreateLiveSessionRounds(ctx context.Context, sessionID, teacherI
 		}
 		return s.LiveSessionRounds(ctx, sessionID, teacherID)
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id FROM list_items WHERE list_id=$1 AND linked_challenge_id IS NOT NULL ORDER BY ordinal`, listID)
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM list_items WHERE list_id=$1 AND linked_challenge_id IS NOT NULL AND linked_challenge_id NOT IN (SELECT id FROM challenges WHERE language='fastapi') ORDER BY ordinal`, listID)
 	if err != nil {
 		return nil, err
 	}

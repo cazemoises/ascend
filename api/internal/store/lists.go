@@ -182,7 +182,7 @@ func (s *Store) LinkedChallengeCounts(ctx context.Context, listIDs []string) (ma
 	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT list_id, count(*) FROM list_items
-		 WHERE list_id = ANY($1) AND linked_challenge_id IS NOT NULL
+		 WHERE list_id = ANY($1) AND linked_challenge_id IS NOT NULL AND linked_challenge_id NOT IN (SELECT id FROM challenges WHERE language='fastapi')
 		 GROUP BY list_id`,
 		pq.Array(listIDs))
 	if err != nil {

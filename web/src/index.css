@@ -3573,3 +3573,10 @@ pre {
     transform: none;
   }
 }
+
+.lab-workspace { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1.5rem; }
+.lab-form { display: grid; gap: 1rem; min-width: 0; }
+.lab-form label { display: grid; gap: .5rem; }
+.lab-form textarea { width: 100%; box-sizing: border-box; font-family: monospace; }
+.lab-form button { white-space: normal; }
+@media (max-width: 800px) { .lab-workspace { grid-template-columns: minmax(0, 1fr); } }

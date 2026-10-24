@@ -49,7 +49,7 @@ func (s *Store) ValidateLiveRoomItem(ctx context.Context, sessionID, listItemID 
 	var ok bool
 	err := s.db.QueryRowContext(ctx,
 		`SELECT EXISTS(SELECT 1 FROM live_sessions s JOIN list_items li ON li.list_id=s.problem_list_id
-		 WHERE s.id=$1 AND li.id=$2 AND s.mode='collaborative')`, sessionID, listItemID).Scan(&ok)
+		 WHERE s.id=$1 AND li.id=$2 AND s.mode='collaborative' AND NOT EXISTS(SELECT 1 FROM challenges c WHERE c.id=li.linked_challenge_id AND c.language='fastapi'))`, sessionID, listItemID).Scan(&ok)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (s *Store) ListLiveRoomsForSession(ctx context.Context, sessionID string) (
 		 JOIN list_items li ON li.list_id = s.problem_list_id
 		 LEFT JOIN challenges c ON c.id = li.linked_challenge_id
 		 LEFT JOIN live_session_rooms r ON r.session_id = s.id AND r.list_item_id = li.id
-		 WHERE s.id=$1
+		 WHERE s.id=$1 AND c.language IS DISTINCT FROM 'fastapi'
 		 ORDER BY li.ordinal`, sessionID)
 	if err != nil {
 		return nil, err
@@ -234,7 +234,7 @@ func (s *Store) LiveRoomChallenge(ctx context.Context, listItemID string) (chall
 	if err != nil {
 		return "", "", err
 	}
-	if !cid.Valid {
+	if !cid.Valid || lang.String == "fastapi" {
 		return "", "", nil
 	}
 	language = lang.String

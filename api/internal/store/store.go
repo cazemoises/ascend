@@ -105,10 +105,10 @@ type TestCase struct {
 }
 
 type CreateTestCaseRequest struct {
-	Input          string
-	ExpectedOutput string
-	IsSample       bool
-	OrderMatters   bool
+	Input          string `json:"input"`
+	ExpectedOutput string `json:"expected_output"`
+	IsSample       bool   `json:"is_sample"`
+	OrderMatters   bool   `json:"order_matters"`
 }
 
 type SampleTestCase struct {
@@ -143,6 +143,7 @@ type ChallengeFeedItem struct {
 }
 
 type Submission struct {
+	IsTestRun    bool    `json:"is_test_run"`
 	ID           string  `json:"id"`
 	ChallengeID  string  `json:"challenge_id"`
 	Language     string  `json:"language"`
@@ -184,6 +185,7 @@ type CreateSubmissionRequest struct {
 	SourceCode  string
 	// IsTestRun is derived server-side from the caller's JWT role — never
 	// trust this from client input.
+	HTTPRequests  json.RawMessage
 	IsTestRun     bool
 	LiveSessionID *string
 	LiveRoomID    *string
@@ -273,6 +275,7 @@ func (s *Store) ListChallengesForViewer(ctx context.Context, viewerID string, li
 	 FROM challenges c
 	 LEFT JOIN challenge_collections cc ON cc.id = c.collection_id
 	 LEFT JOIN challenge_groups cg ON cg.id = cc.group_id
+ WHERE c.language IS DISTINCT FROM 'fastapi'
 	 ORDER BY (cg.id IS NULL) ASC, cg.ordinal ASC,
 	          (c.collection_id IS NULL) ASC, cc.ordinal ASC, c.created_at ASC
 	 LIMIT $1 OFFSET $2`
@@ -545,7 +548,7 @@ func languageAllowed(challengeLanguage sql.NullString, submissionLanguage string
 	if challengeLanguage.Valid {
 		return submissionLanguage == challengeLanguage.String
 	}
-	return submissionLanguage != "sql"
+	return submissionLanguage != "sql" && submissionLanguage != "fastapi"
 }
 
 func (s *Store) CreateSubmission(ctx context.Context, req CreateSubmissionRequest) (Submission, error) {
@@ -570,10 +573,10 @@ func (s *Store) CreateSubmission(ctx context.Context, req CreateSubmissionReques
 
 	var sub Submission
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO submissions (challenge_id, user_id, language, source_code, is_test_run, live_session_id, live_room_id)
-		 VALUES ($1, NULLIF($2, '')::uuid, $3, $4, $5, NULLIF($6, '')::uuid, NULLIF($7, '')::uuid)
+		`INSERT INTO submissions (challenge_id, user_id, language, source_code, is_test_run, live_session_id, live_room_id, http_requests)
+		 VALUES ($1, NULLIF($2, '')::uuid, $3, $4, $5, NULLIF($6, '')::uuid, NULLIF($7, '')::uuid, $8)
 		 RETURNING id, challenge_id, language, source_code, status, created_at, updated_at`,
-		req.ChallengeID, req.UserID, req.Language, req.SourceCode, req.IsTestRun, req.LiveSessionID, req.LiveRoomID,
+		req.ChallengeID, req.UserID, req.Language, req.SourceCode, req.IsTestRun, req.LiveSessionID, req.LiveRoomID, nullableJSON(req.HTTPRequests),
 	).Scan(&sub.ID, &sub.ChallengeID, &sub.Language, &sub.SourceCode,
 		&sub.Status, &sub.CreatedAt, &sub.UpdatedAt)
 	if err != nil {
@@ -607,7 +610,7 @@ func (s *Store) GetSubmission(ctx context.Context, id string) (Submission, error
 		        s.failed_input, s.failed_is_sample,
 		        s.passed_count, s.total_test_cases,
 		        c.time_limit_ms, c.memory_limit_mb,
-		        s.created_at, s.updated_at, s.live_session_id
+		        s.created_at, s.updated_at, s.live_session_id,s.is_test_run
 		 FROM submissions s
 		 JOIN challenges c ON c.id = s.challenge_id
 		 WHERE s.id = $1`, id)
@@ -617,7 +620,7 @@ func (s *Store) GetSubmission(ctx context.Context, id string) (Submission, error
 		&sub.FailedInput, &sub.FailedIsSample,
 		&sub.PassedCount, &sub.TotalTestCases,
 		&sub.TimeLimitMs, &sub.MemoryLimitMb,
-		&sub.CreatedAt, &sub.UpdatedAt, &sub.LiveSessionID); err != nil {
+		&sub.CreatedAt, &sub.UpdatedAt, &sub.LiveSessionID, &sub.IsTestRun); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Submission{}, ErrNotFound
 		}
@@ -856,4 +859,11 @@ func (s *Store) ListTestCases(ctx context.Context, challengeID string) ([]TestCa
 		tcs = append(tcs, tc)
 	}
 	return tcs, rows.Err()
+}
+
+func nullableJSON(raw json.RawMessage) any {
+	if len(raw) == 0 {
+		return nil
+	}
+	return string(raw)
 }

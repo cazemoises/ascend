@@ -273,12 +273,12 @@ export function SubmissionPage() {
                 </section>
               ) : null}
 
-              {(submission.status === 'runtime_error' || submission.status === 'time_limit_exceeded') &&
+              {(submission.language === 'fastapi' || submission.status === 'runtime_error' || submission.status === 'time_limit_exceeded') &&
               submission.stderr !== null ? (
                 <section className="submission-section">
                   <div className="submission-output">
                     <div className="result-panel">
-                      <p className="result-panel__header">Erro</p>
+                      <p className="result-panel__header">Logs e diagnósticos</p>
                       <pre className="result-panel__body">{submission.stderr}</pre>
                     </div>
                   </div>
