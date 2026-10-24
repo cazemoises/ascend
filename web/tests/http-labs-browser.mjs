@@ -6,8 +6,10 @@ if (!base || !['localhost','127.0.0.1'].includes(new URL(base).hostname)) throw 
 const phase=process.env.ASCEND_HTTP_BROWSER_PHASE ?? 'all'
 const output=process.env.ASCEND_HTTP_BROWSER_OUTPUT ?? '/tmp/ascend-http-browser'
 await (await import('node:fs/promises')).mkdir(output,{recursive:true})
-const pack=JSON.parse(await readFile(new URL('../../api/internal/handler/activity_templates/fastapi-v1.json',import.meta.url),'utf8'))
-const browser=await chromium.launch({headless:true})
+const pack=JSON.parse(await readFile(new URL('../../api/internal/handler/activity_templates/fastapi-pedagogy-v2.json',import.meta.url),'utf8'))
+const browser=process.env.ASCEND_HTTP_BROWSER_WS
+ ? await chromium.connect(process.env.ASCEND_HTTP_BROWSER_WS,{exposeNetwork:'<loopback>'})
+ : await chromium.launch({headless:true})
 const page=await browser.newPage({viewport:{width:1440,height:1000},permissions:['clipboard-read','clipboard-write']})
 page.setDefaultTimeout(15000)
 const errors=[]
@@ -76,6 +78,11 @@ try {
   await page.goto(new URL(links[i],base).href)
   await page.getByRole('heading',{name:pack.items[i].title,exact:true}).waitFor()
   await page.locator('.monaco-editor textarea').waitFor()
+  for (const name of ['Contexto real','O problema','Sua missão','Exemplo de funcionamento','Por onde começar','Contrato HTTP','Como saber que concluiu']) {
+   await page.getByRole('heading',{name,exact:true}).waitFor()
+  }
+  await page.getByText('Ver representação técnica completa',{exact:true}).first().click()
+  await page.getByRole('button',{name:'Carregar exemplos do enunciado',exact:true}).click()
   const requests=pack.items[i].http_lab.test_cases.filter(t=>t.is_sample).slice(0,10).map(t=>JSON.parse(t.input))
   assert.equal(await page.getByLabel('Requisição',{exact:true}).locator('option').count(),requests.length)
   assert.equal(await page.getByLabel('Método',{exact:true}).inputValue(),requests[0].method)

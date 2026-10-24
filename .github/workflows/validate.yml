@@ -110,7 +110,7 @@ jobs:
           done
           podman exec ascend-validation-db psql -U ascend_test -d ascend_test -v ON_ERROR_STOP=1 -c "UPDATE users SET role='teacher' WHERE email='http-browser-ci@example.test'"
           timeout -k 2s 300s node web/tests/http-labs-browser.mjs
-          timeout -k 2s 20s python3 -m unittest discover -s scripts -p 'test_populate_http_labs.py'
+          ASCEND_PEDAGOGY_TEST_DB=ascend-validation-db timeout -k 2s 58s python3 -m unittest discover -s scripts -p 'test_*http_lab*.py'
       - name: Browser evidence
         if: always()
         uses: actions/upload-artifact@v4
