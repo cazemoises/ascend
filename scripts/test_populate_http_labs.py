@@ -39,6 +39,20 @@ class PopulationTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'differs'):
                 populate('https://example.test', changed, checkpoint, request)
 
+    def test_activity_in_differently_named_list_blocks_duplicate(self):
+        package = {'title': 'HTTP', 'items': [{'title': 'One', 'body': 'Statement'}]}
+        def request(method, path, body=None):
+            self.assertEqual(method, 'GET')
+            if path == '/auth/me': return {'id': 'mentor', 'effective_role': 'teacher'}
+            if path == '/lists': return [{'id': 'old', 'title': 'Another list'}]
+            if path == '/lists/old': return {'items': [{'title': 'One', 'body': 'Statement'}]}
+            self.fail('Unexpected API call')
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / 'checkpoint'
+            with self.assertRaisesRegex(RuntimeError, 'another visible list'):
+                populate('https://example.test', package, checkpoint, request)
+            self.assertFalse(checkpoint.exists())
+
     def test_lost_import_response_records_attempt_before_write(self):
         writes = []
         with tempfile.TemporaryDirectory() as directory:

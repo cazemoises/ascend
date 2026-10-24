@@ -35,7 +35,10 @@ Esse comando **cadastra e publica** a lista pela API oficial. Não altera usuár
 listas tradicionais nem atividades preexistentes. Antes de publicar, confere
 os seis vínculos, enunciados, configurações e testes persistidos. Uma lista com
 mesmo título só é reutilizada se pertencer à sessão e coincidir com o pacote;
-divergências ou múltiplos resultados interrompem a operação. Não execute
+divergências ou múltiplos resultados interrompem a operação. A operação também
+procura os títulos/enunciados nas outras listas visíveis e interrompe se os
+exercícios já estiverem cadastrados sob outro título de lista. Rascunhos de
+outros professores continuam protegidos pelas permissões oficiais. Não execute
 operadores simultâneos com checkpoints diferentes. Guarde o checkpoint: ele
 registra a tentativa antes do POST e impede repetir uma importação cuja
 resposta se perdeu. Não há retry automático de escrita. Ao retomar, a operação

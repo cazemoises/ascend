@@ -19,10 +19,20 @@ def populate(base, package, checkpoint, request):
     me = request('GET', '/auth/me')
     if me.get('effective_role') != 'teacher':
         raise RuntimeError('An authenticated teacher session is required')
-    matches = [row for row in request('GET', '/lists')
+    inventory = request('GET', '/lists')
+    matches = [row for row in inventory
                if row['title'].casefold() == package['title'].casefold()]
     if len(matches) > 1:
         raise RuntimeError('Multiple lists match; manual reconciliation required')
+    titles = {item['title'].casefold() for item in package.get('items', [])}
+    statements = {item['body'] for item in package.get('items', [])}
+    for row in inventory:
+        if matches and row['id'] == matches[0]['id']:
+            continue
+        existing = request('GET', '/lists/' + row['id'])
+        if any(item['title'].casefold() in titles or item['body'] in statements
+               for item in existing['items']):
+            raise RuntimeError('Activities already exist in another visible list; no duplicates created')
     if matches:
         row = matches[0]
         if row['teacher_id'] != me['id']:
