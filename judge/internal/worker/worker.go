@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/caze/ascend/pkg/httplab"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -20,6 +21,7 @@ type SubmissionJob struct {
 }
 
 type submissionRecord struct {
+	HTTPRequests  []byte
 	ID            string
 	ChallengeID   string
 	Language      string
@@ -181,6 +183,20 @@ func (w *Worker) processSubmission(ctx context.Context, job SubmissionJob) error
 
 	sourceCode := buildExecutable(submission.SourceCode, challenge.starterCodeFor(submission.Language))
 
+	if submission.Language == "fastapi" {
+		sourceCode = submission.SourceCode
+		if len(submission.HTTPRequests) > 0 {
+			var requests []httplab.Request
+			if err := json.Unmarshal(submission.HTTPRequests, &requests); err != nil {
+				return fmt.Errorf("decode HTTP exploration: %w", err)
+			}
+			testCases = nil
+			for _, request := range requests {
+				raw, _ := json.Marshal(request)
+				testCases = append(testCases, testCaseRecord{Input: string(raw), IsSample: true})
+			}
+		}
+	}
 	res := evaluate(ctx, w.executor, submission.Language, sourceCode, challenge.SQLSchema, testCases, challenge.TimeLimitMs, challenge.MemoryLimitMB)
 
 	if err := w.updateSubmissionResult(ctx, submission.ID, res); err != nil {
@@ -229,6 +245,9 @@ type evalResult struct {
 // sqlSchema is the challenge's shared DDL/base data (only meaningful when
 // language is "sql"; ignored otherwise).
 func evaluate(ctx context.Context, executor DockerExecutor, language, sourceCode, sqlSchema string, testCases []testCaseRecord, timeLimitMs, memoryLimitMB int) evalResult {
+	if language == "fastapi" {
+		return evaluateHTTP(ctx, executor, sourceCode, testCases, timeLimitMs, memoryLimitMB)
+	}
 	res := evalResult{status: "accepted", total: len(testCases)}
 
 	for _, testCase := range testCases {
@@ -271,7 +290,12 @@ func evaluate(ctx context.Context, executor DockerExecutor, language, sourceCode
 			return res
 		}
 
-		if !outputsMatch(language, testCase.OrderMatters, result.Stdout, testCase.ExpectedOutput) {
+		res.stderr = result.Stderr
+		matches := outputsMatch(language, testCase.OrderMatters, result.Stdout, testCase.ExpectedOutput)
+		if language == "fastapi" {
+			matches = testCase.ExpectedOutput == "" || httplab.Match(result.Stdout, testCase.ExpectedOutput)
+		}
+		if !matches {
 			res.status = "wrong_answer"
 			res.stdout = result.Stdout
 			res.expectedOutput = testCase.ExpectedOutput
@@ -325,10 +349,10 @@ func sortedLines(s string) string {
 
 func (w *Worker) fetchSubmission(ctx context.Context, id string) (submissionRecord, error) {
 	row := w.db.QueryRowContext(ctx,
-		`SELECT id, challenge_id, language, source_code, user_id, live_session_id FROM submissions WHERE id = $1`, id)
+		`SELECT id, challenge_id, language, source_code, user_id, live_session_id, http_requests FROM submissions WHERE id = $1`, id)
 
 	var submission submissionRecord
-	if err := row.Scan(&submission.ID, &submission.ChallengeID, &submission.Language, &submission.SourceCode, &submission.UserID, &submission.LiveSessionID); err != nil {
+	if err := row.Scan(&submission.ID, &submission.ChallengeID, &submission.Language, &submission.SourceCode, &submission.UserID, &submission.LiveSessionID, &submission.HTTPRequests); err != nil {
 		return submissionRecord{}, fmt.Errorf("scan submission %s: %w", id, err)
 	}
 	return submission, nil

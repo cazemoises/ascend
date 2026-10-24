@@ -3,6 +3,7 @@ module github.com/caze/ascend/judge
 go 1.25.0
 
 require (
+	github.com/caze/ascend/pkg v0.0.0
 	github.com/lib/pq v1.10.9
 	github.com/redis/go-redis/v9 v9.20.0
 )
@@ -15,3 +16,5 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 )
+
+replace github.com/caze/ascend/pkg => ../pkg

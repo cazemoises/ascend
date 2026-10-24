@@ -75,6 +75,14 @@ services:
     profiles: ["build-only"]
     command: ["true"]
 
+  fastapi:
+    build:
+      context: .
+      dockerfile: docker/fastapi.Dockerfile
+    image: ascend-fastapi:latest
+    profiles: ["build-only"]
+    command: ["true"]
+
   judge:
     build:
       context: .

@@ -29,7 +29,7 @@ export const DIFFICULTY_LABELS: Record<ChallengeDifficulty, string> = {
   medium: 'Médio',
   hard: 'Difícil',
 }
-export type SubmissionLanguage = 'python' | 'go' | 'javascript' | 'sql' | 'java' | 'c' | 'cpp'
+export type SubmissionLanguage = 'fastapi' | 'python' | 'go' | 'javascript' | 'sql' | 'java' | 'c' | 'cpp'
 // A challenge's language: null keeps today's multi-language behavior (the
 // student picks from every SubmissionLanguage). A non-null value pins the
 // challenge to exactly that one — enforced generically server-side
@@ -115,6 +115,7 @@ export interface SubmissionSummary {
 }
 
 export interface Submission {
+ is_test_run: boolean
   id: string
   challenge_id: string
   language: SubmissionLanguage
@@ -144,6 +145,7 @@ export interface Submission {
 }
 
 export interface CreateSubmissionRequest {
+ http_requests?: HTTPRequest[]
   language: SubmissionLanguage
   source_code: string
   live_session_id?: string
@@ -767,3 +769,9 @@ export function getAssessmentAuthoring(itemID: string) { return requestJSON<Asse
 export function saveAssessment(itemID: string, input: AssessmentInput) { return requestJSON<AssessmentAuthoring>(`/api/v1/list-items/${itemID}/assessment`, { method: 'POST', body: JSON.stringify(input) }) }
 export function answerAssessment(itemID: string, revisionID: string, answer: string) { return requestJSON<AssessmentAttempt>(`/api/v1/list-items/${itemID}/answers`, { method: 'POST', body: JSON.stringify({ revision_id: revisionID, answer }) }) }
 export function getAssessmentAttempts(itemID: string) { return requestJSON<AssessmentAttempt[]>(`/api/v1/list-items/${itemID}/answers`) }
+
+export interface HTTPRequest { method: string; path: string; json?: unknown }
+export interface HTTPLabInput { starter_code: string; time_limit_ms: number; memory_limit_mb: number; test_cases: CreateTestCaseInput[] }
+export function createHTTPLab(itemId: string, body: HTTPLabInput) {
+ return requestJSON<{challenge_id: string}>(`/api/v1/list-items/${itemId}/http-lab`, {method:'POST', body:JSON.stringify(body)})
+}

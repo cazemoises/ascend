@@ -217,6 +217,7 @@ export function ListDetailPage() {
                       publicar
                     </button>
                   ) : null}
+                  <Link className="btn-secondary" to={`/listas/${detail.id}/laboratorios`}>laboratórios HTTP</Link>
                   <Link className="btn-secondary" to={`/listas/${detail.id}/avaliacoes`}>correção automática</Link>
                   <Link className="btn-secondary" to={`/listas/${detail.id}/editar`}>
                     editar lista

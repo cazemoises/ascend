@@ -23,6 +23,7 @@ var (
 type Language string
 
 const (
+	LanguageFastAPI    Language = "fastapi"
 	LanguagePython     Language = "python"
 	LanguageJavaScript Language = "javascript"
 	LanguageGo         Language = "go"
@@ -122,6 +123,10 @@ func (e *dockerCLIExecutor) Run(ctx context.Context, req RunRequest) (result Run
 		"--cpus", "0.5",
 		image,
 	}
+	if req.Language == LanguageFastAPI {
+		// Bound writable storage as well as memory; the image and client stay immutable.
+		args = append(args[:len(args)-1], "--read-only", "--tmpfs", "/tmp:rw,nosuid,nodev,size=32m,mode=1777", image)
+	}
 	args = append(args, command...)
 
 	// Image/daemon diagnostics are bounded too, without canceling on pull progress.
@@ -139,6 +144,9 @@ func (e *dockerCLIExecutor) Run(ctx context.Context, req RunRequest) (result Run
 	}
 
 	created = true
+	if req.Language == LanguageFastAPI {
+		return e.runHTTP(ctx, name, payload, req.Input)
+	}
 	runCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	output := &boundedOutput{cancel: cancel}
@@ -198,6 +206,8 @@ func (w outputStream) Write(p []byte) (int, error) {
 
 func containerConfig(language Language) (image string, command []string, fileName string, err error) {
 	switch language {
+	case LanguageFastAPI:
+		return "ascend-fastapi:latest", []string{"sh", "-c", "tar -xf - -C /tmp && cd /tmp && python -m uvicorn main:app --host 127.0.0.1 --port 8000 --no-access-log"}, "main.py", nil
 	case LanguagePython:
 		return "python:3.11-alpine", []string{"sh", "-c", "tar -xf - -C /tmp && python /tmp/solution.py < /tmp/input.txt"}, "solution.py", nil
 	case LanguageJavaScript:

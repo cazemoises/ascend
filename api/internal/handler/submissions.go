@@ -14,9 +14,11 @@ import (
 
 	"github.com/caze/ascend/api/internal/auth"
 	"github.com/caze/ascend/api/internal/store"
+	"github.com/caze/ascend/pkg/httplab"
 )
 
 var validLanguages = map[string]bool{
+	"fastapi":    true,
 	"go":         true,
 	"python":     true,
 	"javascript": true,
@@ -27,16 +29,17 @@ var validLanguages = map[string]bool{
 }
 
 type createSubmissionBody struct {
-	Language      string  `json:"language"`
-	SourceCode    string  `json:"source_code"`
-	LiveSessionID *string `json:"live_session_id"`
+	HTTPRequests  []httplab.Request `json:"http_requests"`
+	Language      string            `json:"language"`
+	SourceCode    string            `json:"source_code"`
+	LiveSessionID *string           `json:"live_session_id"`
 }
 
 // CreateSubmission is registered by the router behind JWT auth, unlike the
 // public routes wired in Routes.
 func (h *ChallengesHandler) CreateSubmission(w http.ResponseWriter, r *http.Request) {
 	var body createSubmissionBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 128*1024)).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
@@ -46,6 +49,10 @@ func (h *ChallengesHandler) CreateSubmission(w http.ResponseWriter, r *http.Requ
 	}
 	if !validLanguages[body.Language] {
 		writeError(w, http.StatusUnprocessableEntity, "language must be go, python, javascript, java, c, cpp, or sql")
+		return
+	}
+	if len(body.SourceCode) > 65536 {
+		writeError(w, 422, "source_code exceeds 64 KiB")
 		return
 	}
 	if body.SourceCode == "" {
@@ -59,7 +66,26 @@ func (h *ChallengesHandler) CreateSubmission(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	var requests json.RawMessage
+	if body.HTTPRequests != nil {
+		if body.Language != "fastapi" || len(body.HTTPRequests) < 1 || len(body.HTTPRequests) > 10 || body.LiveSessionID != nil {
+			writeError(w, 422, "exploration requires 1–10 HTTP requests and no live session")
+			return
+		}
+		for _, req := range body.HTTPRequests {
+			raw, _ := json.Marshal(req)
+			if _, err := httplab.ParseRequest(string(raw)); err != nil {
+				writeError(w, 422, err.Error())
+				return
+			}
+		}
+		requests, _ = json.Marshal(body.HTTPRequests)
+	}
 	challengeID := chi.URLParam(r, "id")
+	if body.Language == "fastapi" && body.LiveSessionID != nil {
+		writeError(w, 422, "HTTP labs are not supported in live sessions")
+		return
+	}
 	if body.LiveSessionID != nil && *body.LiveSessionID != "" {
 		if err := h.store.ValidateLiveSubmission(r.Context(), *body.LiveSessionID, claims.UserID, challengeID); err != nil {
 			writeError(w, http.StatusUnprocessableEntity, "live session is not active or does not include this challenge")
@@ -74,7 +100,8 @@ func (h *ChallengesHandler) CreateSubmission(w http.ResponseWriter, r *http.Requ
 		// Derived server-side from the verified JWT role — never trust this
 		// from the request body, since a teacher testing their own challenge
 		// shouldn't contaminate student-facing aggregate stats.
-		IsTestRun:     claims.RealRole == "teacher",
+		IsTestRun:     claims.RealRole == "teacher" || requests != nil,
+		HTTPRequests:  requests,
 		LiveSessionID: body.LiveSessionID,
 	})
 	if err != nil {

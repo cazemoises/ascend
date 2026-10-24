@@ -16,11 +16,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build sandbox images (sqlite, cpp)
+      - name: Build sandbox images (sqlite, cpp, fastapi)
         # build-only profile services aren't started by `up`, but the judge
         # launches them as sibling containers via docker.sock - must be
         # tagged before judge can use them.
-        run: docker compose build sqlite cpp
+        run: docker compose build sqlite cpp fastapi
 
       - name: Bring the stack up
         run: docker compose up -d --build postgres redis api judge web
