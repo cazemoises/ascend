@@ -1,0 +1,294 @@
+{
+  "title": "Laboratórios HTTP · Primeiros passos com FastAPI",
+  "description": "Sequência de seis atividades preparada por IA para revisão do mentor: GET, POST, parâmetros, validação, CRUD e erros. Use Explorar para testar requisições sem nota; envie para avaliação para comparar respostas no Visual Test Debugger. Cada laboratório é independente. A correção usa somente testes determinísticos.",
+  "items": [
+    {
+      "title": "01 · GET: o primeiro recurso",
+      "difficulty": "easy",
+      "body": "## Objetivo\nConstruir uma rota de leitura e reconhecer status, headers e JSON.\n\n## Contrato\n`GET /health` deve retornar status **200** e exatamente `{\"service\":\"biblioteca\",\"ok\":true}`. A resposta deve ser JSON.\n\nImplemente em `main.py`, exportando `app = FastAPI()`. Não use serviços externos ou instalação de pacotes. O servidor reinicia a cada execução; as requisições de um mesmo lote compartilham estado.\n\n## Experimente\nCole este lote no campo de requisições e use **Explorar** (sem nota):\n\n```json\n[\n  {\n    \"method\": \"GET\",\n    \"path\": \"/health\"\n  }\n]\n```\n\nOs exemplos públicos e suas respostas esperadas aparecem no workspace. Testes ocultos verificam o mesmo contrato com outros valores, sem expor seus pedidos ou gabaritos.\n\nAntes de concluir, devolva propositalmente um status ou campo JSON incorreto e envie para avaliação. No Visual Test Debugger, selecione uma diferença na visão simples e depois confira a requisição e os snapshots na visão técnica. Corrija a implementação e envie novamente. A correção é feita por testes determinísticos, sem IA.\n",
+      "http_lab": {
+        "starter_code": "from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get(\"/health\")\ndef health():\n    # TODO: retorne o nome do serviço e sua disponibilidade\n    return {\"service\": \"TODO\", \"ok\": False}\n",
+        "time_limit_ms": 10000,
+        "memory_limit_mb": 128,
+        "test_cases": [
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/health\"}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"service\": \"biblioteca\", \"ok\": true}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/health?probe=ready\"}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"service\": \"biblioteca\", \"ok\": true}}",
+            "is_sample": false,
+            "order_matters": false
+          }
+        ]
+      }
+    },
+    {
+      "title": "02 · POST: receber e transformar JSON",
+      "difficulty": "easy",
+      "body": "## Objetivo\nReceber um corpo JSON com Pydantic e escolher o status de criação.\n\n## Contrato\n`POST /echo` recebe `{\"text\": string}` e retorna **201** com `{\"text\": <texto recebido>, \"length\": <número de caracteres Python do texto>}`. Preserve espaços e acentos; a string pode ser vazia. Não é necessário persistir mensagens.\n\nImplemente em `main.py`, exportando `app = FastAPI()`. Não use serviços externos ou instalação de pacotes. O servidor reinicia a cada execução; as requisições de um mesmo lote compartilham estado.\n\n## Experimente\nCole este lote no campo de requisições e use **Explorar** (sem nota):\n\n```json\n[\n  {\n    \"method\": \"POST\",\n    \"path\": \"/echo\",\n    \"json\": {\n      \"text\": \"Olá\"\n    }\n  },\n  {\n    \"method\": \"POST\",\n    \"path\": \"/echo\",\n    \"json\": {\n      \"text\": \"\"\n    }\n  }\n]\n```\n\nOs exemplos públicos e suas respostas esperadas aparecem no workspace. Testes ocultos verificam o mesmo contrato com outros valores, sem expor seus pedidos ou gabaritos.\n\nAntes de concluir, devolva propositalmente um status ou campo JSON incorreto e envie para avaliação. No Visual Test Debugger, selecione uma diferença na visão simples e depois confira a requisição e os snapshots na visão técnica. Corrija a implementação e envie novamente. A correção é feita por testes determinísticos, sem IA.\n",
+      "http_lab": {
+        "starter_code": "from fastapi import FastAPI\nfrom pydantic import BaseModel\n\napp = FastAPI()\n\nclass Message(BaseModel):\n    text: str\n\n@app.post(\"/echo\")\ndef echo(message: Message):\n    # TODO: retorne texto e tamanho, com status 201\n    return {\"text\": \"TODO\", \"length\": 0}\n",
+        "time_limit_ms": 10000,
+        "memory_limit_mb": 128,
+        "test_cases": [
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/echo\", \"json\": {\"text\": \"Olá\"}}",
+            "expected_output": "{\"status\": 201, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"text\": \"Olá\", \"length\": 3}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/echo\", \"json\": {\"text\": \"\"}}",
+            "expected_output": "{\"status\": 201, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"text\": \"\", \"length\": 0}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/echo\", \"json\": {\"text\": \" livro \"}}",
+            "expected_output": "{\"status\": 201, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"text\": \" livro \", \"length\": 7}}",
+            "is_sample": false,
+            "order_matters": false
+          }
+        ]
+      }
+    },
+    {
+      "title": "03 · Parâmetros: caminho e consulta",
+      "difficulty": "easy",
+      "body": "## Objetivo\nCombinar parâmetros de caminho, valores padrão e query strings.\n\n## Contrato\n`GET /books/{book_id}` recebe um inteiro e uma query `lang` opcional (padrão `pt`). Retorne **200** com `{\"id\": <inteiro>, \"lang\": <idioma recebido>, \"available\": true}`. Não é necessário procurar livros reais; aceite IDs positivos arbitrários.\n\nImplemente em `main.py`, exportando `app = FastAPI()`. Não use serviços externos ou instalação de pacotes. O servidor reinicia a cada execução; as requisições de um mesmo lote compartilham estado.\n\n## Experimente\nCole este lote no campo de requisições e use **Explorar** (sem nota):\n\n```json\n[\n  {\n    \"method\": \"GET\",\n    \"path\": \"/books/7\"\n  },\n  {\n    \"method\": \"GET\",\n    \"path\": \"/books/7?lang=en\"\n  }\n]\n```\n\nOs exemplos públicos e suas respostas esperadas aparecem no workspace. Testes ocultos verificam o mesmo contrato com outros valores, sem expor seus pedidos ou gabaritos.\n\nAntes de concluir, devolva propositalmente um status ou campo JSON incorreto e envie para avaliação. No Visual Test Debugger, selecione uma diferença na visão simples e depois confira a requisição e os snapshots na visão técnica. Corrija a implementação e envie novamente. A correção é feita por testes determinísticos, sem IA.\n",
+      "http_lab": {
+        "starter_code": "from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get(\"/books/{book_id}\")\ndef book(book_id: int, lang: str = \"pt\"):\n    # TODO: utilize os dois parâmetros\n    return {\"id\": 0, \"lang\": \"TODO\", \"available\": False}\n",
+        "time_limit_ms": 10000,
+        "memory_limit_mb": 128,
+        "test_cases": [
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/books/7\"}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"id\": 7, \"lang\": \"pt\", \"available\": true}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/books/7?lang=en\"}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"id\": 7, \"lang\": \"en\", \"available\": true}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/books/42?lang=es\"}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"id\": 42, \"lang\": \"es\", \"available\": true}}",
+            "is_sample": false,
+            "order_matters": false
+          }
+        ]
+      }
+    },
+    {
+      "title": "04 · Validação: dados de entrada",
+      "difficulty": "medium",
+      "body": "## Objetivo\nValidar restrições e normalizar erros sem depender dos detalhes internos do framework.\n\n## Contrato\n`POST /loans` recebe `reader` (string com pelo menos 1 caractere) e `days` (inteiro de **1 a 14**, inclusive). Para entrada válida, retorne **201** com os dois campos. Para campo ausente ou violação dessas restrições, retorne **422** e exatamente `{\"error\":\"invalid_payload\"}`. Use Pydantic e um handler de `RequestValidationError`. Não é necessário testar coerção entre tipos.\n\nImplemente em `main.py`, exportando `app = FastAPI()`. Não use serviços externos ou instalação de pacotes. O servidor reinicia a cada execução; as requisições de um mesmo lote compartilham estado.\n\n## Experimente\nCole este lote no campo de requisições e use **Explorar** (sem nota):\n\n```json\n[\n  {\n    \"method\": \"POST\",\n    \"path\": \"/loans\",\n    \"json\": {\n      \"reader\": \"Ana\",\n      \"days\": 1\n    }\n  },\n  {\n    \"method\": \"POST\",\n    \"path\": \"/loans\",\n    \"json\": {\n      \"reader\": \"Ana\",\n      \"days\": 0\n    }\n  }\n]\n```\n\nOs exemplos públicos e suas respostas esperadas aparecem no workspace. Testes ocultos verificam o mesmo contrato com outros valores, sem expor seus pedidos ou gabaritos.\n\nAntes de concluir, devolva propositalmente um status ou campo JSON incorreto e envie para avaliação. No Visual Test Debugger, selecione uma diferença na visão simples e depois confira a requisição e os snapshots na visão técnica. Corrija a implementação e envie novamente. A correção é feita por testes determinísticos, sem IA.\n",
+      "http_lab": {
+        "starter_code": "from fastapi import FastAPI, Request\nfrom fastapi.exceptions import RequestValidationError\nfrom fastapi.responses import JSONResponse\nfrom pydantic import BaseModel, Field\n\napp = FastAPI()\n\nclass Loan(BaseModel):\n    reader: str  # TODO: mínimo de 1 caractere\n    days: int  # TODO: entre 1 e 14\n\n# TODO: registre o handler de RequestValidationError\n\n@app.post(\"/loans\", status_code=201)\ndef create_loan(loan: Loan):\n    return loan.model_dump()\n",
+        "time_limit_ms": 10000,
+        "memory_limit_mb": 128,
+        "test_cases": [
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/loans\", \"json\": {\"reader\": \"Ana\", \"days\": 1}}",
+            "expected_output": "{\"status\": 201, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"reader\": \"Ana\", \"days\": 1}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/loans\", \"json\": {\"reader\": \"Ana\", \"days\": 0}}",
+            "expected_output": "{\"status\": 422, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"error\": \"invalid_payload\"}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/loans\", \"json\": {\"reader\": \"Bia\", \"days\": 14}}",
+            "expected_output": "{\"status\": 201, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"reader\": \"Bia\", \"days\": 14}}",
+            "is_sample": false,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/loans\", \"json\": {\"reader\": \"Bia\", \"days\": 15}}",
+            "expected_output": "{\"status\": 422, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"error\": \"invalid_payload\"}}",
+            "is_sample": false,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/loans\", \"json\": {\"reader\": \"\", \"days\": 2}}",
+            "expected_output": "{\"status\": 422, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"error\": \"invalid_payload\"}}",
+            "is_sample": false,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/loans\", \"json\": {\"reader\": \"Bia\"}}",
+            "expected_output": "{\"status\": 422, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"error\": \"invalid_payload\"}}",
+            "is_sample": false,
+            "order_matters": false
+          }
+        ]
+      }
+    },
+    {
+      "title": "05 · CRUD: catálogo em memória",
+      "difficulty": "medium",
+      "body": "## Objetivo\nManter estado entre requisições e implementar o ciclo de vida de um recurso.\n\n## Contrato\nO catálogo começa vazio em cada execução. `GET /books` retorna **200** e array de livros em ordem de ID. `POST /books` recebe `{\"title\": string}` e cria livro com ID sequencial começando em 1: **201** e `{\"id\": id, \"title\": title}`. `GET /books/{id}` retorna **200** e livro. `PUT /books/{id}` substitui o título e retorna **200** e livro. `DELETE /books/{id}` retorna **200** e `{\"deleted\": id}`. GET/PUT/DELETE de ID inexistente retornam **404** e `{\"detail\":\"book_not_found\"}`. Não reutilize IDs removidos. Os testes usam títulos válidos, sem necessidade de regras extras.\n\nImplemente em `main.py`, exportando `app = FastAPI()`. Não use serviços externos ou instalação de pacotes. O servidor reinicia a cada execução; as requisições de um mesmo lote compartilham estado.\n\n## Experimente\nCole este lote no campo de requisições e use **Explorar** (sem nota):\n\n```json\n[\n  {\n    \"method\": \"GET\",\n    \"path\": \"/books\"\n  },\n  {\n    \"method\": \"POST\",\n    \"path\": \"/books\",\n    \"json\": {\n      \"title\": \"Python\"\n    }\n  },\n  {\n    \"method\": \"GET\",\n    \"path\": \"/books/1\"\n  },\n  {\n    \"method\": \"PUT\",\n    \"path\": \"/books/1\",\n    \"json\": {\n      \"title\": \"FastAPI\"\n    }\n  },\n  {\n    \"method\": \"GET\",\n    \"path\": \"/books\"\n  },\n  {\n    \"method\": \"DELETE\",\n    \"path\": \"/books/1\"\n  },\n  {\n    \"method\": \"GET\",\n    \"path\": \"/books/1\"\n  }\n]\n```\n\nOs exemplos públicos e suas respostas esperadas aparecem no workspace. Testes ocultos verificam o mesmo contrato com outros valores, sem expor seus pedidos ou gabaritos.\n\nAntes de concluir, devolva propositalmente um status ou campo JSON incorreto e envie para avaliação. No Visual Test Debugger, selecione uma diferença na visão simples e depois confira a requisição e os snapshots na visão técnica. Corrija a implementação e envie novamente. A correção é feita por testes determinísticos, sem IA.\n",
+      "http_lab": {
+        "starter_code": "from fastapi import FastAPI, HTTPException\nfrom pydantic import BaseModel\n\napp = FastAPI()\nbooks = {}\nnext_id = 1\n\nclass BookInput(BaseModel):\n    title: str\n\n@app.get(\"/books\")\ndef list_books():\n    return list(books.values())\n\n# TODO: implemente POST, GET por ID, PUT e DELETE\n# Use HTTPException(status_code=404, detail=\"book_not_found\")\n",
+        "time_limit_ms": 10000,
+        "memory_limit_mb": 128,
+        "test_cases": [
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/books\"}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": []}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/books\", \"json\": {\"title\": \"Python\"}}",
+            "expected_output": "{\"status\": 201, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"id\": 1, \"title\": \"Python\"}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/books/1\"}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"id\": 1, \"title\": \"Python\"}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"PUT\", \"path\": \"/books/1\", \"json\": {\"title\": \"FastAPI\"}}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"id\": 1, \"title\": \"FastAPI\"}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/books\"}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": [{\"id\": 1, \"title\": \"FastAPI\"}]}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"DELETE\", \"path\": \"/books/1\"}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"deleted\": 1}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/books/1\"}",
+            "expected_output": "{\"status\": 404, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"detail\": \"book_not_found\"}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/books\", \"json\": {\"title\": \"HTTP\"}}",
+            "expected_output": "{\"status\": 201, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"id\": 2, \"title\": \"HTTP\"}}",
+            "is_sample": false,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/books\"}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": [{\"id\": 2, \"title\": \"HTTP\"}]}",
+            "is_sample": false,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"PUT\", \"path\": \"/books/99\", \"json\": {\"title\": \"Missing\"}}",
+            "expected_output": "{\"status\": 404, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"detail\": \"book_not_found\"}}",
+            "is_sample": false,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"DELETE\", \"path\": \"/books/99\"}",
+            "expected_output": "{\"status\": 404, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"detail\": \"book_not_found\"}}",
+            "is_sample": false,
+            "order_matters": false
+          }
+        ]
+      }
+    },
+    {
+      "title": "06 · Erros de domínio: reservas",
+      "difficulty": "medium",
+      "body": "## Objetivo\nDistinguir recurso ausente de conflito e preservar o estado depois de falhas.\n\n## Contrato\nO acervo começa com **2 exemplares** do livro 1. `GET /stock/1` retorna **200** e `{\"book_id\":1,\"available\": n}`. `POST /reservations` recebe `{\"book_id\": int,\"quantity\": int}`. Quantidade menor que 1 retorna **400** e `{\"detail\":\"invalid_quantity\"}` (verifique primeiro). Outro ID retorna **404** e `{\"detail\":\"book_not_found\"}`. Quantidade maior que o estoque retorna **409** e `{\"detail\":\"insufficient_stock\"}`. Em sucesso, desconte a quantidade e retorne **201** e `{\"book_id\":1,\"reserved\": quantity,\"remaining\": n}`. Falhas nunca alteram o estoque. `GET /stock/{outro_id}` retorna o mesmo 404. Os testes usam corpos completos e tipos corretos.\n\nImplemente em `main.py`, exportando `app = FastAPI()`. Não use serviços externos ou instalação de pacotes. O servidor reinicia a cada execução; as requisições de um mesmo lote compartilham estado.\n\n## Experimente\nCole este lote no campo de requisições e use **Explorar** (sem nota):\n\n```json\n[\n  {\n    \"method\": \"GET\",\n    \"path\": \"/stock/1\"\n  },\n  {\n    \"method\": \"POST\",\n    \"path\": \"/reservations\",\n    \"json\": {\n      \"book_id\": 1,\n      \"quantity\": 1\n    }\n  },\n  {\n    \"method\": \"POST\",\n    \"path\": \"/reservations\",\n    \"json\": {\n      \"book_id\": 1,\n      \"quantity\": 2\n    }\n  },\n  {\n    \"method\": \"GET\",\n    \"path\": \"/stock/1\"\n  }\n]\n```\n\nOs exemplos públicos e suas respostas esperadas aparecem no workspace. Testes ocultos verificam o mesmo contrato com outros valores, sem expor seus pedidos ou gabaritos.\n\nAntes de concluir, devolva propositalmente um status ou campo JSON incorreto e envie para avaliação. No Visual Test Debugger, selecione uma diferença na visão simples e depois confira a requisição e os snapshots na visão técnica. Corrija a implementação e envie novamente. A correção é feita por testes determinísticos, sem IA.\n",
+      "http_lab": {
+        "starter_code": "from fastapi import FastAPI, HTTPException\nfrom pydantic import BaseModel\n\napp = FastAPI()\navailable = 2\n\nclass Reservation(BaseModel):\n    book_id: int\n    quantity: int\n\n@app.get(\"/stock/{book_id}\")\ndef stock(book_id: int):\n    # TODO: trate livro inexistente\n    return {\"book_id\": book_id, \"available\": available}\n\n@app.post(\"/reservations\", status_code=201)\ndef reserve(reservation: Reservation):\n    # TODO: valide, desconte somente no sucesso e retorne o saldo\n    return {\"book_id\": 1, \"reserved\": 0, \"remaining\": available}\n",
+        "time_limit_ms": 10000,
+        "memory_limit_mb": 128,
+        "test_cases": [
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/stock/1\"}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"book_id\": 1, \"available\": 2}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/reservations\", \"json\": {\"book_id\": 1, \"quantity\": 1}}",
+            "expected_output": "{\"status\": 201, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"book_id\": 1, \"reserved\": 1, \"remaining\": 1}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/reservations\", \"json\": {\"book_id\": 1, \"quantity\": 2}}",
+            "expected_output": "{\"status\": 409, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"detail\": \"insufficient_stock\"}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/stock/1\"}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"book_id\": 1, \"available\": 1}}",
+            "is_sample": true,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/reservations\", \"json\": {\"book_id\": 99, \"quantity\": 1}}",
+            "expected_output": "{\"status\": 404, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"detail\": \"book_not_found\"}}",
+            "is_sample": false,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/reservations\", \"json\": {\"book_id\": 1, \"quantity\": 0}}",
+            "expected_output": "{\"status\": 400, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"detail\": \"invalid_quantity\"}}",
+            "is_sample": false,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/reservations\", \"json\": {\"book_id\": 1, \"quantity\": -1}}",
+            "expected_output": "{\"status\": 400, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"detail\": \"invalid_quantity\"}}",
+            "is_sample": false,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/stock/99\"}",
+            "expected_output": "{\"status\": 404, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"detail\": \"book_not_found\"}}",
+            "is_sample": false,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/reservations\", \"json\": {\"book_id\": 1, \"quantity\": 1}}",
+            "expected_output": "{\"status\": 201, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"book_id\": 1, \"reserved\": 1, \"remaining\": 0}}",
+            "is_sample": false,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"POST\", \"path\": \"/reservations\", \"json\": {\"book_id\": 1, \"quantity\": 1}}",
+            "expected_output": "{\"status\": 409, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"detail\": \"insufficient_stock\"}}",
+            "is_sample": false,
+            "order_matters": false
+          },
+          {
+            "input": "{\"method\": \"GET\", \"path\": \"/stock/1\"}",
+            "expected_output": "{\"status\": 200, \"headers\": {\"content-type\": \"application/json\"}, \"json\": {\"book_id\": 1, \"available\": 0}}",
+            "is_sample": false,
+            "order_matters": false
+          }
+        ]
+      }
+    }
+  ]
+}

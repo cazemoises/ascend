@@ -159,7 +159,7 @@ func (h *ListsHandler) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body importListBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024*1024)).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
@@ -184,6 +184,16 @@ func (h *ListsHandler) Import(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnprocessableEntity, fmt.Sprintf("item %d: %s", i, msg))
 			return
 		}
+		if it.HTTPLab != nil {
+			if it.LinkedChallengeID != nil || it.LinkedChallengeSlug != nil {
+				writeError(w, 422, fmt.Sprintf("item %d: HTTP lab cannot also link a challenge", i))
+				return
+			}
+			if err := it.HTTPLab.Validate(); err != nil {
+				writeError(w, 422, fmt.Sprintf("item %d: %s", i, err))
+				return
+			}
+		}
 		items = append(items, store.CreateListItemRequest{
 			Title:               it.Title,
 			Difficulty:          it.Difficulty,
@@ -191,6 +201,7 @@ func (h *ListsHandler) Import(w http.ResponseWriter, r *http.Request) {
 			Body:                it.Body,
 			LinkedChallengeID:   it.LinkedChallengeID,
 			LinkedChallengeSlug: it.LinkedChallengeSlug,
+			HTTPLab:             it.HTTPLab,
 		})
 	}
 
@@ -365,7 +376,8 @@ type listItemBody struct {
 	// the JSON by hand knows a challenge's slug, not its UUID.
 	// CreateItem/UpdateItem ignore it (the studio dropdown already sends
 	// LinkedChallengeID directly).
-	LinkedChallengeSlug *string `json:"linked_challenge_slug"`
+	LinkedChallengeSlug *string             `json:"linked_challenge_slug"`
+	HTTPLab             *store.HTTPLabInput `json:"http_lab,omitempty"`
 }
 
 func (b listItemBody) validate() (string, bool) {

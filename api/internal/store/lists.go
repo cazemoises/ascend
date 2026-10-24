@@ -85,6 +85,7 @@ type CreateListItemRequest struct {
 	// only ever receive LinkedChallengeID directly (from the studio
 	// dropdown, which already has the real id).
 	LinkedChallengeSlug *string
+	HTTPLab             *HTTPLabInput
 }
 
 type UpdateListItemRequest struct {
@@ -406,6 +407,17 @@ func (s *Store) CreateListItem(ctx context.Context, listID, teacherID string, re
 // Ordinals are assigned by array position, same as a fresh CreateListItem
 // sequence would produce.
 func (s *Store) ImportProblemList(ctx context.Context, req ImportProblemListRequest) (ProblemListDetail, error) {
+	// Validate before writing, including non-HTTP callers of the store.
+	for i, it := range req.Items {
+		if it.HTTPLab != nil {
+			if it.LinkedChallengeID != nil || it.LinkedChallengeSlug != nil {
+				return ProblemListDetail{}, fmt.Errorf("item %d: HTTP lab cannot also link a challenge", i)
+			}
+			if err := it.HTTPLab.Validate(); err != nil {
+				return ProblemListDetail{}, fmt.Errorf("item %d: %w", i, err)
+			}
+		}
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return ProblemListDetail{}, err
@@ -462,6 +474,13 @@ func (s *Store) ImportProblemList(ctx context.Context, req ImportProblemListRequ
 			&li.CreatedAt, &li.UpdatedAt, &li.LinkedChallengeID)
 		if err != nil {
 			return ProblemListDetail{}, fmt.Errorf("insert list item %d: %w", i, err)
+		}
+		if it.HTTPLab != nil {
+			id, err := createHTTPLabTx(ctx, tx, li.ID, req.TeacherID, *it.HTTPLab)
+			if err != nil {
+				return ProblemListDetail{}, fmt.Errorf("create lab for item %d: %w", i, err)
+			}
+			li.LinkedChallengeID = &id
 		}
 		items = append(items, li)
 	}

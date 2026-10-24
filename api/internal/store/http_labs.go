@@ -47,10 +47,22 @@ func (s *Store) CreateHTTPLab(ctx context.Context, itemID, userID string, in HTT
 		return "", err
 	}
 	defer tx.Rollback()
+	id, err := createHTTPLabTx(ctx, tx, itemID, userID, in)
+	if err != nil {
+		return "", err
+	}
+	if err = tx.Commit(); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+// createHTTPLabTx shares the caller's transaction for whole-list imports.
+func createHTTPLabTx(ctx context.Context, tx *sql.Tx, itemID, userID string, in HTTPLabInput) (string, error) {
 	var listID, title, body, difficulty string
 	var linked sql.NullString
 	var assessment bool
-	err = tx.QueryRowContext(ctx, `SELECT li.list_id,li.title,li.body,li.difficulty,li.linked_challenge_id,EXISTS(SELECT 1 FROM list_assessment_revisions ar WHERE ar.list_item_id=li.id) FROM list_items li JOIN problem_lists pl ON pl.id=li.list_id WHERE li.id=$1 AND pl.teacher_id=$2 FOR UPDATE OF li`, itemID, userID).Scan(&listID, &title, &body, &difficulty, &linked, &assessment)
+	err := tx.QueryRowContext(ctx, `SELECT li.list_id,li.title,li.body,li.difficulty,li.linked_challenge_id,EXISTS(SELECT 1 FROM list_assessment_revisions ar WHERE ar.list_item_id=li.id) FROM list_items li JOIN problem_lists pl ON pl.id=li.list_id WHERE li.id=$1 AND pl.teacher_id=$2 FOR UPDATE OF li`, itemID, userID).Scan(&listID, &title, &body, &difficulty, &linked, &assessment)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", ErrNotFound
 	}
@@ -73,9 +85,6 @@ func (s *Store) CreateHTTPLab(ctx context.Context, itemID, userID string, in HTT
 	}
 	if _, err = tx.ExecContext(ctx, `UPDATE list_items SET linked_challenge_id=$2,updated_at=now() WHERE id=$1`, itemID, id); err != nil {
 		return "", fmt.Errorf("link HTTP lab: %w", err)
-	}
-	if err = tx.Commit(); err != nil {
-		return "", err
 	}
 	return id, nil
 }

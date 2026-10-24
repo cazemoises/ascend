@@ -630,6 +630,7 @@ export function deleteProblemList(id: string) {
 }
 
 export interface ImportListItemInput {
+  http_lab?: { starter_code: string; time_limit_ms: number; memory_limit_mb: number; test_cases: CreateTestCaseInput[] }
   title: string
   difficulty: ListItemDifficulty
   is_bonus?: boolean
@@ -788,4 +789,9 @@ export interface HTTPRequest { method: string; path: string; json?: unknown }
 export interface HTTPLabInput { starter_code: string; time_limit_ms: number; memory_limit_mb: number; test_cases: CreateTestCaseInput[] }
 export function createHTTPLab(itemId: string, body: HTTPLabInput) {
  return requestJSON<{challenge_id: string}>(`/api/v1/list-items/${itemId}/http-lab`, {method:'POST', body:JSON.stringify(body)})
+}
+
+// Mentor-only: includes hidden tests, fetched separately from student assets.
+export function getHTTPSequence() {
+  return requestJSON<ImportProblemListInput>('/api/v1/teacher/http-lab-sequence')
 }

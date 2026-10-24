@@ -159,6 +159,7 @@ export function ListsPage() {
       {isTeacher ? (
         <div className="action-bar">
           <span className="action-bar__label">Área do professor</span>
+          <Link className="btn-secondary" to="/listas/nova/laboratorios">Preparar sequência FastAPI com IA</Link>
           <Link className="challenge-submit" to="/listas/nova">
             nova lista
           </Link>
