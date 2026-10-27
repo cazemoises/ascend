@@ -57,8 +57,8 @@ jobs:
           DATABASE_URL: postgres://ascend_test:local_disposable_only@127.0.0.1:55439/ascend_test?sslmode=disable
         run: |
           go run ./cmd/migrate up
-          for package in ./api/internal/store ./api/internal/handler ./api/internal/router; do
-            timeout -k 2s 58s go test -race -timeout 45s -tags integration "$package" -run 'TestTeacherStudentsOverview|TestStudentsOverview|TestPedagogicalDashboard|TestLiveSessionHistory|TestListAssessments|TestHTTPSequenceImport'
+          for package in ./api/internal/store ./api/internal/handler ./api/internal/router ./api/internal/middleware; do
+            timeout -k 2s 58s go test -race -timeout 45s -tags integration "$package" -run 'TestPangolinAuth_|TestTeacherStudentsOverview|TestStudentsOverview|TestPedagogicalDashboard|TestLiveSessionHistory|TestListAssessments|TestHTTPSequenceImport'
           done
       - name: HTTP labs mentor/student with real Judge (private rootless Podman)
         env:
