@@ -5,8 +5,12 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
+
+	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/lib/pq"
 
 	"github.com/caze/ascend/api/internal/auth"
 	"github.com/caze/ascend/api/internal/store"
@@ -44,6 +48,17 @@ func (m *PangolinAuth) Middleware(next http.Handler) http.Handler {
 
 		u, err := m.findOrCreateUser(r.Context(), email)
 		if err != nil {
+			// PostgreSQL error messages/details may contain personal data. Log only
+			// the SQLSTATE and request ID so failures can be correlated safely.
+			code := ""
+			var pgErr *pq.Error
+			if errors.As(err, &pgErr) {
+				code = string(pgErr.Code)
+			}
+			slog.ErrorContext(r.Context(), "identity lookup failed", "sqlstate", code,
+				"canceled", errors.Is(err, context.Canceled),
+				"deadline_exceeded", errors.Is(err, context.DeadlineExceeded),
+				"request_id", chimw.GetReqID(r.Context()))
 			writeJSONError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -62,7 +77,7 @@ func (m *PangolinAuth) findOrCreateUser(ctx context.Context, email string) (stor
 		return store.User{}, err
 	}
 
-	hash, err := randomPasswordHash()
+	hash, err := randomPasswordPlaceholder()
 	if err != nil {
 		return store.User{}, err
 	}
@@ -84,14 +99,13 @@ func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
-// randomPasswordHash produces a bcrypt hash of a random value for users
-// provisioned from a trusted header. They never have a password — this
-// only satisfies the NOT NULL column; there is no login path that could
-// ever check it.
-func randomPasswordHash() (string, error) {
+// randomPasswordPlaceholder satisfies the legacy NOT NULL column without doing
+// expensive password hashing on concurrent first visits. The ! prefix makes it
+// an invalid bcrypt hash, so this trusted-header account cannot use a password.
+func randomPasswordPlaceholder() (string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
-	return auth.HashPassword(base64.RawURLEncoding.EncodeToString(buf))
+	return "!pangolin:" + base64.RawURLEncoding.EncodeToString(buf), nil
 }

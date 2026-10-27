@@ -77,6 +77,10 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+	// Queue bursts inside the API instead of exhausting PostgreSQL connections.
+	db.SetMaxOpenConns(envInt("DB_MAX_OPEN_CONNS", 20))
+	db.SetMaxIdleConns(envInt("DB_MAX_IDLE_CONNS", 5))
+	db.SetConnMaxIdleTime(5 * time.Minute)
 
 	if err := db.Ping(); err != nil {
 		slog.Error("failed to connect to database", "err", err)

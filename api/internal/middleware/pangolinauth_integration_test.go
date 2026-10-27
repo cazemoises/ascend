@@ -3,11 +3,15 @@
 package middleware
 
 import (
+	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	_ "github.com/lib/pq"
 
@@ -153,4 +157,61 @@ func TestPangolinAuth_DevFakeEmail_OnlyWhenHeaderAbsent(t *testing.T) {
 			t.Errorf("claims = %+v, want header user %s, not dev email", got, headerUser.ID)
 		}
 	})
+}
+
+// A page can issue multiple requests before the first account creation finishes.
+func TestPangolinAuth_ConcurrentLogins(t *testing.T) {
+	db := openTestDB(t)
+	db.SetMaxOpenConns(3)
+	db.SetMaxIdleConns(3)
+	pa := NewPangolinAuth(store.New(db, nil), "")
+	prefix := fmt.Sprintf("login-burst-%d", time.Now().UnixNano())
+	emails := make([]string, 7)
+	for i := range emails {
+		emails[i] = fmt.Sprintf("%s-%d@example.test", prefix, i)
+		email := emails[i]
+		t.Cleanup(func() { db.ExecContext(context.Background(), `DELETE FROM users WHERE email = $1`, email) })
+	}
+	type result struct {
+		email, id string
+		status    int
+	}
+	results := make(chan result, 56)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for _, email := range emails {
+		for range 8 {
+			wg.Go(func() {
+				<-start
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+				req.Header.Set("Remote-Email", email)
+				var id string
+				handler := pa.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					claims, _ := auth.FromContext(r.Context())
+					id = claims.UserID
+					w.WriteHeader(http.StatusOK)
+				}))
+				w := httptest.NewRecorder()
+				handler.ServeHTTP(w, req)
+				results <- result{email, id, w.Code}
+			})
+		}
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+	ids := make(map[string]string)
+	for got := range results {
+		if got.status != http.StatusOK || got.id == "" {
+			t.Errorf("login status=%d id=%q", got.status, got.id)
+			continue
+		}
+		if previous := ids[got.email]; previous != "" && previous != got.id {
+			t.Error("concurrent requests resolved different accounts")
+		}
+		ids[got.email] = got.id
+	}
+	if len(ids) != 7 {
+		t.Errorf("resolved %d accounts, want 7", len(ids))
+	}
 }
