@@ -177,7 +177,7 @@ export function ListDetailPage() {
   }
 
   return (
-    <main className="page-shell">
+    <main className="page-shell list-detail-page">
       <Link className="back-link" to="/listas">
         ← voltar às listas
       </Link>
