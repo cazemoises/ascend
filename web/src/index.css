@@ -2919,11 +2919,42 @@ pre {
    defaults everywhere else (challenges list, submission history,
    classboard). */
 .lists-page .hero {
-  margin-bottom: 44px;
+  margin-bottom: clamp(24px, 4vw, 40px);
 }
 
 .lists-page .challenge-feed {
   gap: 16px;
+}
+
+/* Let long list names wrap while keeping the desktop action readable. */
+.lists-page .challenge-row__body h2,
+.lists-page .challenge-row__meta,
+.list-detail-page h1,
+.list-detail-page .list-item__title {
+  overflow-wrap: anywhere;
+}
+
+.lists-page .challenge-row__body h2 .verdict {
+  display: inline-block;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.lists-page .challenge-row__meta {
+  gap: 8px 16px;
+  margin-top: 8px;
+}
+
+.lists-page .challenge-row__meta p {
+  margin: 0;
+}
+
+.lists-page .challenge-row > .challenge-submit {
+  flex-shrink: 0;
+}
+
+.lists-page .challenge-filters__search {
+  min-width: 0;
 }
 
 /* Demoted to a thin utility strip on this page — "Semana atual" below is
@@ -3526,6 +3557,104 @@ pre {
   .sample__io > div + div {
     border-left: none;
     border-top: 1px solid var(--border);
+  }
+}
+
+/* Keep list content and controls comfortable on narrow screens. */
+.list-detail-page .submission-panel__body,
+.list-detail-page .list-item__body {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.list-detail-page .list-detail__eyebrow-row {
+  flex-wrap: wrap;
+}
+
+.list-detail-page .list-item__head > .audit-toggle {
+  flex: 1 1 240px;
+  min-height: 44px;
+}
+
+.list-detail-page .list-item__head > .challenge-submit {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.list-detail-page .list-item__body {
+  padding-top: 16px;
+}
+
+@media (max-width: 640px) {
+  .lists-page .challenge-row {
+    padding: 16px;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .lists-page .challenge-row > .challenge-submit,
+  .lists-page .action-bar .challenge-submit {
+    min-height: 44px;
+  }
+
+  .lists-page .action-bar,
+  .lists-page .challenge-filters {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .lists-page .challenge-filters__search {
+    width: 100%;
+    flex-basis: 100%;
+  }
+
+  .lists-page .list-current,
+  .lists-page .list-upcoming,
+  .lists-page .list-month-group {
+    margin-bottom: 28px;
+  }
+
+  .lists-page .list-month-header {
+    margin-bottom: 16px;
+  }
+
+  .list-detail-page .submission-panel__body {
+    padding: 16px;
+  }
+
+  .list-detail-page .list-detail__actions {
+    margin-bottom: 0;
+  }
+
+  .list-detail-page .list-detail__actions > * {
+    flex: 1 1 180px;
+    min-height: 44px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .list-detail-page .list-item__head {
+    padding: 12px;
+    gap: 12px 8px;
+  }
+
+  .list-detail-page .list-item__head > .audit-toggle {
+    flex-basis: calc(100% - 44px);
+  }
+
+  .list-detail-page .list-item__head > .challenge-submit {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .list-detail-page .list-item__icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .list-detail-page .list-item__body {
+    padding: 16px 12px;
   }
 }
 
